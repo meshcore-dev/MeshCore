@@ -48,9 +48,7 @@ void MASensorManager::stop_gps() {
 }
 
 bool MASensorManager::begin() {
-  Serial1.setPins(PIN_GPS_RX, PIN_GPS_TX);
-  Serial1.begin(9600);
-  delay(500);
+  // the GPS UART (pins, baud rate) is now configured by gps_driver when the GPS is started
   return true;
 }
 

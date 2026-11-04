@@ -23,9 +23,14 @@ public:
     : NmeaGpsDriver(Serial1, PIN_GPS_TX, PIN_GPS_RX, GPS_RESET, GPS_EN,
                     &board.periph_power) {}
 
-  void begin() override {
-    NmeaGpsDriver::begin();
-    sendNmeaSentence("$CFGSYS,h35155*68");
+  void reset() override {
+    NmeaGpsDriver::reset();
+    // Send configuration after reset
+    if (isActive()) {
+      delay(250);
+      sendNmeaSentence("$CFGSYS,h35155*68");
+      // TODO: remove active wait (250ms is a lot) 
+    }
   }
 };
 
@@ -64,8 +69,7 @@ void HWTSensorManager::stop_gps() {
 }
 
 bool HWTSensorManager::begin() {
-  // init GPS port
-  Serial1.begin(115200, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
+  // the GPS UART (pins, baud rate) is now configured by gps_driver when the GPS is started
   return true;
 }
 

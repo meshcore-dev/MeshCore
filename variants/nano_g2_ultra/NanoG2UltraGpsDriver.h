@@ -4,7 +4,7 @@
 
 class NanoG2UltraGpsDriver : public NmeaGpsDriver {
 public:
-  NanoG2UltraGpsDriver(HardwareSerial& serial) : NmeaGpsDriver(serial) {
+  NanoG2UltraGpsDriver(UART_TYPE& serial) : NmeaGpsDriver(serial) {
     pinMode(PIN_GPS_STANDBY, OUTPUT);
     digitalWrite(PIN_GPS_STANDBY, LOW);
   }

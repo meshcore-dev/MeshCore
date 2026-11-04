@@ -119,15 +119,7 @@ public:
     // Temporary migration adapter for targets and downstream boards. New code
     // should inject a GpsDriver; this constructor will be removed once targets
     // have been migrated.
-    MicroNMEALocationProvider(HardwareSerial& serial, mesh::RTCClock* clock = nullptr,
-                              int pin_reset = GPS_RESET, int pin_en = GPS_EN,
-                              RefCountedDigitalPin* peripher_power = nullptr)
-        : nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock),
-          _driver(new NmeaGpsDriver(serial, PIN_GPS_TX, PIN_GPS_RX, pin_reset, pin_en,
-                                    peripher_power)),
-          _ownsDriver(true) {}
-
-    MicroNMEALocationProvider(Stream& serial, mesh::RTCClock* clock = nullptr,
+    MicroNMEALocationProvider(UART_TYPE& serial, mesh::RTCClock* clock = nullptr,
                               int pin_reset = GPS_RESET, int pin_en = GPS_EN,
                               RefCountedDigitalPin* peripher_power = nullptr)
         : nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock),
