@@ -42,6 +42,10 @@ extern AutoDiscoverRTCClock rtc_clock;
 class MuziBaseSensorManager : public EnvironmentSensorManager {
   unsigned long _pwr_last_click = 0;
   uint8_t _pwr_clicks = 0;
+#if ENV_INCLUDE_GPS
+  unsigned long _gps_cfg_at = 0;
+  bool _gps_was_active = false;
+#endif
 public:
 #if ENV_INCLUDE_GPS
   MuziBaseSensorManager(LocationProvider& location) : EnvironmentSensorManager(location) {}
