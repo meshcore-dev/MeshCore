@@ -94,7 +94,7 @@ For minor changes just submit your PR and we'll try to review it, but for anythi
 Here are some general principles you should try to adhere to:
 * Keep it simple. Please, don't think like a high-level lang programmer. Think embedded, and keep code concise, without any unnecessary layers.
 * No dynamic memory allocation, except during setup/begin functions.
-* Use the same brace and indenting style that's in the core source modules. (A .clang-format is probably going to be added soon, but please do NOT retroactively re-format existing code. This just creates unnecessary diffs that make finding problems harder)
+* Use the same brace and indenting style that's in the core source modules. (A .clang-format is available in this repository, but please do NOT retroactively re-format existing code. This just creates unnecessary diffs that make finding problems harder)
 
 Help us prioritize! Please react with thumbs-up to issues/PRs you care about most. We look at reaction counts when planning work.
 
