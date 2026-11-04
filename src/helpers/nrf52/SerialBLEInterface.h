@@ -2,13 +2,20 @@
 
 #include "../BaseSerialInterface.h"
 #include <bluefruit.h>
+#ifdef NRF54_PLATFORM
+  #include <helpers/nrf54/NRF54BLEDfu.h>
+#endif
 
 #ifndef BLE_TX_POWER
 #define BLE_TX_POWER 4
 #endif
 
 class SerialBLEInterface : public BaseSerialInterface {
+#ifdef NRF54_PLATFORM
+  NRF54BLEDfu bledfu;  // the nRF54 core's BLEDfu is a stub
+#else
   BLEDfu bledfu;
+#endif
   BLEUart bleuart;
   bool _isEnabled;
   bool _isDeviceConnected;
@@ -39,7 +46,9 @@ class SerialBLEInterface : public BaseSerialInterface {
   static void onSecured(uint16_t connection_handle);
   static bool onPairingPasskey(uint16_t connection_handle, uint8_t const passkey[6], bool match_request);
   static void onPairingComplete(uint16_t connection_handle, uint8_t auth_status);
+#ifndef NRF54_PLATFORM
   static void onBLEEvent(ble_evt_t* evt);
+#endif
   static void onBleUartRX(uint16_t conn_handle);
 
 public:

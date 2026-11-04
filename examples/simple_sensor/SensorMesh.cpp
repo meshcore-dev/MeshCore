@@ -70,7 +70,7 @@
 #define ALERT_ACK_EXPIRY_MILLIS         8000   // wait 8 secs for ACKs to alert messages
 
 static File openAppend(FILESYSTEM* _fs, const char* fname) {
-  #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(NRF54_PLATFORM)
     return _fs->open(fname, FILE_O_WRITE);
   #elif defined(RP2040_PLATFORM)
     return _fs->open(fname, "a");
@@ -871,7 +871,7 @@ void SensorMesh::begin(FILESYSTEM* fs) {
 }
 
 bool SensorMesh::formatFileSystem() {
-#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(NRF54_PLATFORM)
     return InternalFS.format();
 #elif defined(RP2040_PLATFORM)
     return LittleFS.format();
@@ -884,7 +884,7 @@ bool SensorMesh::formatFileSystem() {
 }
 
 void SensorMesh::saveIdentity(const mesh::LocalIdentity& new_id) {
-#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(NRF54_PLATFORM)
   IdentityStore store(*_fs, "");
 #elif defined(ESP32)
   IdentityStore store(*_fs, "/identity");

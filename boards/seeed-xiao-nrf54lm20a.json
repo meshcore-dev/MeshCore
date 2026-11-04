@@ -1,0 +1,33 @@
+{
+  "build": {
+    "arduino": {
+      "ldscript": "xiao_nrf54lm20a_bootloader.ld"
+    },
+    "board": "XIAO_NRF54LM20A_CLEAN",
+    "core": "nrf54lm20b",
+    "cpu": "cortex-m33",
+    "extra_flags": "-DARDUINO_NRF54LM20A -DNRF54LM20A_XXAA -DNRF54LM20_FAMILY -DARDUINO_NRF54_CPU_64M -DNRF54L15_CLEAN_POWER_LOW -DNRF_APPLICATION -DNRF54L15_CLEAN_BLE_ENABLED=1 -DNRF54L15_CLEAN_VPR_ENABLED=0 -DNRF54L15_CLEAN_ZIGBEE_ENABLED=0 -DNRF54L15_CLEAN_ZIGBEE_DISABLED -DNRF54L15_CLEAN_OPENTHREAD_CORE_ENABLE=0 -DOPENTHREAD_FTD=1 -DOPENTHREAD_MTD=0 -DOPENTHREAD_RADIO=0 -DNRF54L15_CLEAN_OPENTHREAD_CORE_CRYPTO_FALLBACK_ENABLE=0 -DNRF54L15_CLEAN_MATTER_CORE_ENABLE=0 -DNRF54L15_CLEAN_MATTER_TRANSPORT_THREAD=1 -DNRF54L15_CLEAN_MATTER_RENDEZVOUS_ON_NETWORK_ONLY=1 -DNRF54L15_CLEAN_MATTER_BLE_RENDEZVOUS=0 -DNRF54L15_CLEAN_MATTER_FIRST_DEVICE_ONOFF_LIGHT=1",
+    "f_cpu": "64000000L",
+    "hwids": [
+      [ "0x2886", "0x0068" ]
+    ],
+    "mcu": "nrf54lm20a",
+    "sdc_arch": "nrf54lm",
+    "variant": "xiao_nrf54lm20b"
+  },
+  "connectivity": [
+    "bluetooth"
+  ],
+  "frameworks": [
+    "arduino"
+  ],
+  "name": "Seeed Studio XIAO nRF54LM20A",
+  "upload": {
+    "maximum_ram_size": 261952,
+    "maximum_size": 1314816,
+    "protocol": "nrf_ocd",
+    "target": "nrf54lm20a"
+  },
+  "url": "https://wiki.seeedstudio.com/xiao_nrf54lm20a_getting_started/",
+  "vendor": "Seeed Studio"
+}

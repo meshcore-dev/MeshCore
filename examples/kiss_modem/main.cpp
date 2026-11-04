@@ -34,7 +34,7 @@ void halt() {
 }
 
 void loadOrCreateIdentity() {
-#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(NRF54_PLATFORM)
   InternalFS.begin();
   IdentityStore store(InternalFS, "");
 #elif defined(ESP32)
