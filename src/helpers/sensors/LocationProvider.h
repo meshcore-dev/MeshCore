@@ -61,6 +61,22 @@ public:
     virtual void drain() { }
     virtual bool detect(uint32_t timeout_ms) { return false; }
     virtual bool keepEnabledAfterDetection() const { return false; }
+    // Power on, detect, then leave the GPS on or off as the board wants.
+    // Returns true if a GPS is present.
+    virtual bool autoDetect() {
+        setGpsOn(true);
+    #ifdef ENV_SKIP_GPS_DETECT
+        bool found = true;
+    #else
+        bool found = detect(5000);
+    #endif
+    #ifdef PERSISTANT_GPS
+        if (found) return true;
+    #endif
+        if (found && keepEnabledAfterDetection()) return true;
+        setGpsOn(false);
+        return found;
+    }
     virtual void setGpsPeriod(uint32_t seconds) { }
     virtual uint32_t getGpsPeriod() const { return 0; }
     virtual uint32_t getLastFixAge() const { // in seconds, UINT32_MAX if never
