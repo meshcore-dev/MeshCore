@@ -25,6 +25,10 @@
 #define BATTERY_PIN          (17)
 #define ADC_RESOLUTION       12
 
+#define PWRMGT_VOLTAGE_BOOTLOCK    3300   // Won't boot below this voltage (mV)
+#define PWRMGT_LPCOMP_AIN          7      // AIN channel for voltage sensing
+#define PWRMGT_LPCOMP_REFSEL       4      // REFSEL 4/8 equal voltage divider resistances
+
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins
 
