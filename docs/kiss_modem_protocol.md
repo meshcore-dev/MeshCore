@@ -18,10 +18,10 @@ Standard KISS framing per the KA9Q/K3MC specification.
 | `0xDD` | TFESC | Escaped FESC (FESC + TFESC = 0xDB) |
 
 ```
-┌──────┬───────────┬──────────────┬──────┐
-│ FEND │ Type Byte │ Data (escaped)│ FEND │
-│ 0xC0 │  1 byte   │ 0-510 bytes  │ 0xC0 │
-└──────┴───────────┴──────────────┴──────┘
+┌──────┬───────────┬────────────────┬──────┐
+│ FEND │ Type Byte │ Data (escaped) │ FEND │
+│ 0xC0 │  1 byte   │ 0-510 bytes    │ 0xC0 │
+└──────┴───────────┴────────────────┴──────┘
 ```
 
 ### Type Byte
@@ -82,10 +82,10 @@ MeshCore-specific functionality uses the standard KISS SetHardware command. The 
 ### Frame Format
 
 ```
-┌──────┬──────┬─────────────┬──────────────┬──────┐
-│ FEND │ 0x06 │ Sub-command  │ Data (escaped)│ FEND │
-│ 0xC0 │      │   1 byte    │   variable   │ 0xC0 │
-└──────┴──────┴─────────────┴──────────────┴──────┘
+┌──────┬──────┬─────────────┬────────────────┬──────┐
+│ FEND │ 0x06 │ Sub-command │ Data (escaped) │ FEND │
+│ 0xC0 │      │   1 byte    │   variable     │ 0xC0 │
+└──────┴──────┴─────────────┴────────────────┴──────┘
 ```
 
 ### Request Sub-commands (Host to TNC)
