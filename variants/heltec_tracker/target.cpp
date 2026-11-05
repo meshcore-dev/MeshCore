@@ -23,9 +23,14 @@ public:
     : NmeaGpsDriver(Serial1, PIN_GPS_TX, PIN_GPS_RX, GPS_RESET, GPS_EN,
                     &board.periph_power) {}
 
-  void begin() override {
-    NmeaGpsDriver::begin();
-    sendNmeaSentence("$CFGSYS,h35155*68");
+  void reset() override {
+    NmeaGpsDriver::reset();
+    // Send configuration after reset
+    if (isActive()) {
+      delay(250);
+      sendNmeaSentence("$CFGSYS,h35155*68");
+      // TODO: remove active wait (250ms is a lot) 
+    }
   }
 };
 
