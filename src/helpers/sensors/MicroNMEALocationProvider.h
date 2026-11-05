@@ -24,7 +24,6 @@ class MicroNMEALocationProvider : public LocationProvider {
     MicroNMEA nmea;
     mesh::RTCClock* _clock;
     NmeaGpsDriver* _driver;
-    bool _ownsDriver = false;
     unsigned long next_check = 0;
     long time_valid = 0;
     unsigned long _last_time_sync = 0;
@@ -117,21 +116,6 @@ class MicroNMEALocationProvider : public LocationProvider {
 public:
     MicroNMEALocationProvider(NmeaGpsDriver& driver, mesh::RTCClock* clock = nullptr)
         : nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock), _driver(&driver) {}
-
-    // Temporary migration adapter for targets and downstream boards. New code
-    // should inject a GpsDriver; this constructor will be removed once targets
-    // have been migrated.
-    MicroNMEALocationProvider(UART_TYPE& serial, mesh::RTCClock* clock = nullptr,
-                              int pin_reset = GPS_RESET, int pin_en = GPS_EN,
-                              RefCountedDigitalPin* peripher_power = nullptr)
-        : nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock),
-          _driver(new NmeaGpsDriver(serial, PIN_GPS_TX, PIN_GPS_RX, pin_reset, pin_en,
-                                    peripher_power)),
-          _ownsDriver(true) {}
-
-    ~MicroNMEALocationProvider() override {
-        if (_ownsDriver) delete _driver;
-    }
 
     void begin() override {
         _begin_calls++;
