@@ -696,31 +696,12 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
 
 #if ENV_INCLUDE_GPS
 void EnvironmentSensorManager::initBasicGPS() {
-  start_gps();
-
   #ifndef PIN_GPS_EN
     MESH_DEBUG_PRINTLN("No GPS wake/reset pin found for this board. Continuing on...");
   #endif
 
-#ifdef ENV_SKIP_GPS_DETECT
-  gps_detected = true;
-#else
-  gps_detected = _location->detect(5000);
-#endif
-
-  if (gps_detected) {
-    MESH_DEBUG_PRINTLN("GPS detected");
-    #if defined(PERSISTANT_GPS)
-      return;
-    #else
-      if (_location->keepEnabledAfterDetection()) {
-        return;
-      }
-    #endif
-  } else {
-    MESH_DEBUG_PRINTLN("No GPS detected");
-  }
-  stop_gps();
+  gps_detected = _location->autoDetect();
+  MESH_DEBUG_PRINTLN("%s", gps_detected ? "GPS detected" : "No GPS detected");
 }
 
 void EnvironmentSensorManager::start_gps() {
