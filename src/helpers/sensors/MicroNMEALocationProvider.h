@@ -97,7 +97,7 @@ class MicroNMEALocationProvider : public LocationProvider {
     }
 
     void updateTime() {
-        if (!isValid()) time_valid = 0;
+        if (!isValid() || (millis() - _last_nmea_ms) > 2000) time_valid = 0;   // no stale time
 
         if ((long)(millis() - next_check) <= 0) return;
         next_check = millis() + 1000;
