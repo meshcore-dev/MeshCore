@@ -70,6 +70,8 @@ class MicroNMEALocationProvider : public LocationProvider {
     void finishPeriodicAcquisition() {
         if (_firstFixInWindow == 0) fixStatsMiss();
         _driver->stop();
+        nmea.clear();      // the parser keeps the last time as valid otherwise
+        time_valid = 0;
         _acquiringPeriodically = false;
         _nextAcquisition = millis() + _gpsPeriodSeconds * 1000UL;
     }
@@ -156,6 +158,8 @@ public:
         _stop_calls++;
         _acquiringPeriodically = false;
         _driver->stop();
+        nmea.clear();
+        time_valid = 0;
     }
 
     bool isActive() override {
@@ -274,7 +278,9 @@ public:
                             fixStatsFix((uint32_t)(_firstFixInWindow - _acquisitionStarted));
                         }
                         if (_acquiringPeriodically) {
-                            if (nmea.getNumSatellites() >= GPS_MIN_SATS_FOR_FIX ||
+                            // stay on until a pending time sync is done (or the settle time is over)
+                            const bool synced = _clock == nullptr || !_time_sync_needed;
+                            if ((nmea.getNumSatellites() >= GPS_MIN_SATS_FOR_FIX && synced) ||
                                 (uint32_t)(millis() - _firstFixInWindow) >= GPS_FIX_SETTLE_MS) {
                                 finishPeriodicAcquisition();
                             }
