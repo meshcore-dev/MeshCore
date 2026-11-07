@@ -142,6 +142,18 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Serial Only:** Yes
 
+**Note:** Output format: `{"battery_mv":<mV>,"uptime_secs":<secs>,"errors":<flags>,"queue_len":<count>}`
+
+**Note:** `errors` is a bitmask shown as "Debug flags" in the app's repeater status.
+
+| Value | Flag | Meaning |
+|-------|------|---------|
+| 1 | `ERR_EVENT_FULL` | A packet failed to send because the memory pool was full. |
+| 2 | `ERR_EVENT_CAD_TIMEOUT` | After waiting 4 seconds for a gap, a packet was transmitted into a busy network. |
+| 4 | `ERR_EVENT_STARTRX_TIMEOUT` | The radio was out of receive mode for more than 8 seconds. |
+
+Flags stay set until the node reboots or `clear stats` is run.
+
 ---
 
 ### Radio Stats - Noise floor, Last RSSI/SNR, Airtime, Receive errors
