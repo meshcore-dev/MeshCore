@@ -21,10 +21,10 @@ public:
 
   #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    digitalWrite(P_LORA_TX_LED, LED_STATE_ON);   // turn TX LED on
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    digitalWrite(P_LORA_TX_LED, !LED_STATE_ON);   // turn TX LED off
   }
   #endif
 
@@ -36,7 +36,7 @@ public:
 
     // turn off all leds, sd_power_system_off will not do this for us
     #ifdef P_LORA_TX_LED
-    digitalWrite(P_LORA_TX_LED, LOW);
+    digitalWrite(P_LORA_TX_LED, !LED_STATE_ON);
     #endif
 
     // power off board
