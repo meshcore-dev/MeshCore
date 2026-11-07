@@ -1,0 +1,63 @@
+name: Build Issue
+description: Report a compilation or build system problem.
+title: "[Build]: "
+labels: ["bug"]
+body:
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I have searched [existing issues](https://github.com/meshcore-dev/MeshCore/issues) for this build error.
+          required: true
+        - label: I am building from the latest `dev` branch.
+
+  - type: input
+    id: build-target
+    attributes:
+      label: Build Target
+      description: >-
+        PlatformIO environment name from platformio.ini
+        (e.g., "t1000e_companion_radio_ble").
+      placeholder: "e.g., t1000e_companion_radio_ble"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: host-os
+    attributes:
+      label: Host Operating System
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Devcontainer / Docker
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: pio-version
+    attributes:
+      label: PlatformIO Version
+      description: "Run `pio --version` to find this."
+      placeholder: "e.g., 6.1.16"
+    validations:
+      required: true
+
+  - type: textarea
+    id: error-output
+    attributes:
+      label: Error Output
+      description: Paste the build error output.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: >-
+        Any modifications to platformio.ini, custom board definitions, toolchain
+        version overrides, or other relevant details.
