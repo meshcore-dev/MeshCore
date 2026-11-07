@@ -46,6 +46,8 @@ jobs:
           - wio_wm1110_repeater
           # SX1276 (ESP32)
           - Tbeam_SX1276_repeater
+          # ASR650x (CubeCell, 128 KB flash: catches size regressions)
+          - Heltec_CubeCell_AB02S_companion_radio_usb
 
     steps:
       - name: Clone Repo

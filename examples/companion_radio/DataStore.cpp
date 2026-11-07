@@ -1,6 +1,10 @@
 #include <Arduino.h>
 #include "DataStore.h"
 
+#if CONTACT_OUT_PATH_SIZE < MAX_PATH_SIZE
+  #error "this file-based contact store writes 64-byte routes: build it with the default CONTACT_OUT_PATH_SIZE"
+#endif
+
 #if defined(EXTRAFS) || defined(QSPIFLASH)
   #define MAX_BLOBRECS 100
 #else
