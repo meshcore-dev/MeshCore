@@ -343,6 +343,8 @@ static void query_lps22hb(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 #endif
 
 #if ENV_INCLUDE_INA3221
+static bool ina3221_ready = false;   // set once init_ina3221() succeeded
+
 static uint8_t init_ina3221(TwoWire* wire, uint8_t addr) {
   if (!INA3221.begin(addr, wire)) return 0;
   for (int i = 0; i < TELEM_INA3221_NUM_CHANNELS; i++) {
@@ -353,6 +355,7 @@ static uint8_t init_ina3221(TwoWire* wire, uint8_t addr) {
   for (int i = 0; i < TELEM_INA3221_NUM_CHANNELS; i++) {
     if (INA3221.isChannelEnabled(i)) enabled++;
   }
+  ina3221_ready = true;
   return enabled > 0 ? enabled : 1;
 }
 static void query_ina3221(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
@@ -372,6 +375,16 @@ static void query_ina3221(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
     }
   }
 }
+
+#ifdef TELEM_INA3221_BAT_CH
+bool ina3221ReadBattery(uint16_t* millivolts, float* amps) {
+  if (!ina3221_ready) return false;
+  const int i = TELEM_INA3221_BAT_CH - 1;
+  if (millivolts) *millivolts = (uint16_t)(INA3221.getBusVoltage(i) * 1000.0f);
+  if (amps) *amps = INA3221.getCurrentAmps(i);
+  return true;
+}
+#endif
 #endif
 
 #if ENV_INCLUDE_INA219
