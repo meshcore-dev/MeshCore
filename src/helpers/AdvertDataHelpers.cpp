@@ -45,13 +45,16 @@ bool AdvertDataParser::isValidName(const char *n) {
   
     int i = 1;
     if (_flags & ADV_LATLON_MASK) {
+      if (i + 8 > app_data_len) return;  // Need 8 bytes for lat and lon
       memcpy(&_lat, &app_data[i], 4); i += 4;
       memcpy(&_lon, &app_data[i], 4); i += 4;
     }
     if (_flags & ADV_FEAT1_MASK) {
+      if (i + 2 > app_data_len) return;  // Need 2 bytes for _extra1
       memcpy(&_extra1, &app_data[i], 2); i += 2;
     }
     if (_flags & ADV_FEAT2_MASK) {
+      if (i + 2 > app_data_len) return;  // Need 2 bytes for _extra2
       memcpy(&_extra2, &app_data[i], 2); i += 2;
     }
 
@@ -61,6 +64,7 @@ bool AdvertDataParser::isValidName(const char *n) {
         nlen = app_data_len - i;  // remainder of app_data
       }
       if (nlen > 0) {
+        if (nlen > MAX_ADVERT_DATA_SIZE - 1) nlen = MAX_ADVERT_DATA_SIZE - 1;  // Prevent buffer overflow
         memcpy(_name, &app_data[i], nlen);
         _name[nlen] = 0;  // set null terminator
       }
