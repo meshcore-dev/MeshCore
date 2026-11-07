@@ -1,4 +1,5 @@
 #include "MyMesh.h"
+#include <algorithm>
 
 #define REPLY_DELAY_MILLIS          1500
 #define PUSH_NOTIFY_DELAY_MILLIS    2000
@@ -170,8 +171,8 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
     stats.n_recv_direct = getNumRecvDirect();
     stats.err_events = _err_flags;
     stats.last_snr = (int16_t)(radio_driver.getLastSNR() * 4);
-    stats.n_direct_dups = ((SimpleMeshTables *)getTables())->getNumDirectDups();
-    stats.n_flood_dups = ((SimpleMeshTables *)getTables())->getNumFloodDups();
+    stats.n_direct_dups = std::min<uint32_t>(((SimpleMeshTables *)getTables())->getNumDirectDups(), 0xFFFF);
+    stats.n_flood_dups = std::min<uint32_t>(((SimpleMeshTables *)getTables())->getNumFloodDups(), 0xFFFF);
     stats.n_posted = _num_posted;
     stats.n_post_push = _num_post_pushes;
 
@@ -983,6 +984,8 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       addSystemPost(msg);
       snprintf(reply, MAX_POST_TEXT_LEN, "OK");
     }
+  } else if (memcmp(command, "set repeat on", 13) == 0) {
+    strcpy(reply, "ERR - repeat now deprecated");
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }

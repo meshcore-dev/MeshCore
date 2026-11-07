@@ -5,7 +5,6 @@
 
 void PromicroBoard::begin() {    
     NRF52Board::begin();
-    btn_prev_state = HIGH;
   
     pinMode(PIN_VBAT_READ, INPUT);
 

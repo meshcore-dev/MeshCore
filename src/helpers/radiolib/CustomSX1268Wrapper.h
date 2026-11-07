@@ -23,6 +23,11 @@ public:
     ((CustomSX1268 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
   }
 
+  bool lastRxHadCRC() override {
+    bool crc = true;
+    ((CustomSX1268 *)_radio)->getLoRaRxHeaderInfo(NULL, &crc);
+    return crc;
+  }
   bool isReceivingPacket() override { 
     return ((CustomSX1268 *)_radio)->isReceiving();
   }

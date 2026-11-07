@@ -5,7 +5,6 @@
 
 void MeshTrackerX1Board::begin() {
   NRF52BoardDCDC::begin();
-  btn_prev_state = LOW;   // button is active HIGH
 
 #ifdef BUTTON_PIN
   pinMode(BATTERY_PIN, INPUT);

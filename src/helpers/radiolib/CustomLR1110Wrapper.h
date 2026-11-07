@@ -19,6 +19,11 @@ public:
     ((CustomLR1110 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
   }
 
+  bool lastRxHadCRC() override {
+    bool crc = true;
+    ((CustomLR1110 *)_radio)->getLoRaRxHeaderInfo(NULL, &crc);
+    return crc;
+  }
   bool isReceivingPacket() override {
     return ((CustomLR1110 *)_radio)->isReceiving();
   }

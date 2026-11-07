@@ -20,6 +20,11 @@ public:
 
   }
 
+  bool lastRxHadCRC() override {
+    bool crc = true;
+    ((CustomLLCC68 *)_radio)->getLoRaRxHeaderInfo(NULL, &crc);
+    return crc;
+  }
   bool isReceivingPacket() override { 
     return ((CustomLLCC68 *)_radio)->isReceiving();
   }

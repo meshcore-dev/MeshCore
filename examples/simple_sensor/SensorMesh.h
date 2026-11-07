@@ -34,16 +34,16 @@
 #define PERM_RECV_ALERTS_HI    (1 << 7)   // high priority alerts
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "14 Aug 2026"
+  #define FIRMWARE_BUILD_DATE   "15 Oct 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.17.1"
+  #define FIRMWARE_VERSION   "v1.18.0"
 #endif
 
 #define FIRMWARE_ROLE "sensor"
 
-#define MAX_SEARCH_RESULTS      8
+#define MAX_SEARCH_RESULTS     24
 #define MAX_CONCURRENT_ALERTS   4
 
 class SensorMesh : public mesh::Mesh, public CommonCLICallbacks {

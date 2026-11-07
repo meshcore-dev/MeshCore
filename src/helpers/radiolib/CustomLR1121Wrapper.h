@@ -20,6 +20,11 @@ public:
   }
 
   void doResetAGC() override { lr11x0ResetAGC((LR11x0 *)_radio, ((CustomLR1121 *)_radio)->getFreqMHz(), getRxBoostedGainMode()); }
+  bool lastRxHadCRC() override {
+    bool crc = true;
+    ((CustomLR1121 *)_radio)->getLoRaRxHeaderInfo(NULL, &crc);
+    return crc;
+  }
   bool isReceivingPacket() override {
     return ((CustomLR1121 *)_radio)->isReceiving();
   }
