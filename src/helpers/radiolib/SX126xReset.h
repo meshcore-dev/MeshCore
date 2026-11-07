@@ -17,10 +17,15 @@ inline void sx126xResetAGC(SX126x* radio, bool rx_boost_gain) {
     if (millis() - start > 50) break;
     radio->mod->hal->yield();
   }
+  // calibration not finished: skip the register writes below, the next reset retries
+  if (radio->mod->hal->digitalRead(radio->mod->getGpio())) return;
 
   // Calibrate(0x7F) defaults image calibration to 902-928MHz band.
   // Re-calibrate for the actual operating frequency.
   radio->calibrateImage(radio->freqMHz);
+  // image calibration keeps running after BUSY drops; a register write in that
+  // window can fail and stall the chip (same 50 ms wait as in Meshtastic)
+  radio->mod->hal->delay(50);
 
 #ifdef SX126X_DIO2_AS_RF_SWITCH
   radio->setDio2AsRfSwitch(SX126X_DIO2_AS_RF_SWITCH);
