@@ -1,6 +1,7 @@
 #include "Utils.h"
 #include <AES.h>
 #include <SHA256.h>
+#include <HKDF.h>
 
 #ifdef USE_CC310_HW_CRYPTO
 #include <Adafruit_nRFCrypto.h>
@@ -174,11 +175,12 @@ int Utils::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uin
   return 0; // invalid HMAC
 }
 
-static void derive_key(uint8_t* derived_key, const uint8_t* key, int key_len, const uint8_t* iv, int iv_len) {
-  // TODO: look into HKDF
-  for (int i = 0; i < 32; i++) {
-    derived_key[i] = key[i % key_len] ^ iv[i % iv_len];
-  }
+// Derive a key with HKDF-SHA256
+static void derive_key(uint8_t* out, const uint8_t* key, size_t key_len, const uint8_t* iv, size_t iv_len) {
+  hkdf<SHA256>(out, key_len,
+               key, key_len,        // IKM
+               nullptr, 0,          // salt
+               iv, iv_len);         // info
 }
 
 int Utils::encryptThenMAC(const uint8_t* shared_secret, const uint8_t* iv, int iv_len, uint8_t* dest, const uint8_t* src, int src_len) {
