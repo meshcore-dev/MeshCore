@@ -7,6 +7,7 @@
 #include <helpers/RegionMap.h>
 #include <helpers/ConfigSerializer.h>
 #include <helpers/CommonRadioPrefs.h>
+#include <helpers/CommonGpsPrefs.h>
 #include <helpers/DynamicConfigSerializer.h>
 
 #if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
@@ -61,6 +62,7 @@ public:
   // Gps settings
   uint8_t gps_enabled = 0;
   uint32_t gps_interval = 0; // in seconds
+  uint32_t gps_period = 0; // periodic acquisition interval in seconds
   uint8_t advert_loc_policy = 0;
   uint32_t discovery_mod_timestamp = 0;
   float adc_multiplier = 0;
@@ -152,16 +154,21 @@ private:
   };
   BridgePrefs bridge;
 
-  class GPSPrefs : public ConfigSerializer {
+  class GPSPrefs : public CommonGpsPrefs {
     NodePrefs* _parent;
   protected:
     void structure() override {
       def("en", _parent->gps_enabled); // boolean
       def("int", _parent->gps_interval);   // interval in seconds
+      def("period", _parent->gps_period);  // periodic acquisition interval in seconds
       def("adv_loc", _parent->advert_loc_policy);
     }
   public:
     GPSPrefs(NodePrefs* parent) : _parent(parent) { }
+    bool isGpsEnabled() const override { return _parent->gps_enabled; }
+    void setGpsEnabled(bool enabled) override { _parent->gps_enabled = enabled; markDirty(); }
+    uint32_t getGpsPeriod() const override { return _parent->gps_period; }
+    void setGpsPeriod(uint32_t seconds) override { _parent->gps_period = seconds; markDirty(); }
   };
   GPSPrefs gps;
 
@@ -234,10 +241,11 @@ public:
   }
 
   CommonRadioPrefs* getRadioPrefs() { return &radio; }
+  CommonGpsPrefs* getGpsPrefs() { return &gps; }
   KeyValueStore* getCustom() { return &custom; }
 
-  bool isDirty() const override { return ConfigSerializer::isDirty() || radio.isDirty() || custom.isDirty(); }
-  void clearDirty() override { ConfigSerializer::clearDirty(); radio.clearDirty(); custom.clearDirty(); }
+  bool isDirty() const override { return ConfigSerializer::isDirty() || radio.isDirty() || gps.isDirty() || custom.isDirty(); }
+  void clearDirty() override { ConfigSerializer::clearDirty(); radio.clearDirty(); gps.clearDirty(); custom.clearDirty(); }
 };
 
 class CommonCLICallbacks {

@@ -8,7 +8,8 @@ ESPNOWRadio radio_driver;
 
 ESP32RTCClock rtc_clock;
 #if defined(ENV_INCLUDE_GPS)
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, (mesh::RTCClock*)&rtc_clock);
+NmeaGpsDriver gps_driver(Serial1);
+MicroNMEALocationProvider nmea(gps_driver, (mesh::RTCClock*)&rtc_clock);
 EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
 #else
 EnvironmentSensorManager sensors = EnvironmentSensorManager();

@@ -609,14 +609,15 @@ void UITask::handleButtonQuadruplePress() {
     for (int i = 0; i < num; i++) {
       if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
         if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
-          _sensors->setSettingValue("gps", "0");
+          _node_prefs->getGpsPrefs()->setGpsEnabled(*_sensors, false);
           notify(UIEventType::ack);
           sprintf(_alert, "GPS: Disabled");
         } else {
-          _sensors->setSettingValue("gps", "1");
+          _node_prefs->getGpsPrefs()->setGpsEnabled(*_sensors, true);
           notify(UIEventType::ack);
           sprintf(_alert, "GPS: Enabled");
         }
+        the_mesh.savePrefs();
         break;
       }
     }

@@ -999,9 +999,16 @@ region save
 ---
 ### GPS (When GPS support is compiled in)
 
-#### View or change GPS state
+#### View GPS state
 **Usage:**
 - `gps`
+
+**Note:** Reports the requested state, receiver activity, last-fix status (last fix gives number of sats and how long ago was the fix), and mode. In periodic mode, `waiting` means the receiver is off between acquisitions; the last fix remains available. `off(hw)` means a hardware GPS switch is off.
+
+---
+
+#### Change GPS state
+**Usage:**
 - `gps <state>`
 
 **Parameters:**
@@ -1009,15 +1016,45 @@ region save
 
 **Default:** `off`
 
-**Note:** Output format:
-- `off` when the GPS hardware is disabled
-- `on, {active|deactivated}, {fix|no fix}, {sat count} sats` when the GPS hardware is enabled
+---
+
+#### View or change the GPS acquisition period
+**Usage:**
+- `gps period`
+- `gps period <seconds>`
+
+**Parameters:**
+- `seconds`: `0` for continuous tracking, or `1`-`86400` for periodic acquisition
+
+**Note:** A periodic acquisition stops after receiving a valid fix, then resumes after the configured period.
+
+---
+
+#### View the last GPS fix
+**Usage:**
+- `gps fix`
+
+**Note:** Returns the last valid latitude, longitude, altitude, and elapsed time since the fix. Returns `no fix` until a valid fix is received.
 
 ---
 
 #### Sync this node's clock with GPS time
 **Usage:** 
 - `gps sync`
+
+---
+
+#### View GPS time to first fix statistics
+**Usage:**
+- `gps fix_stats`
+
+**Output:** `ttf:<last>/<max> ok:<n> miss:<n>`: last and maximum time between a start of the GPS and its first valid fix, then the last count of consecutive starts with a fix (`ok`) or without one (`miss`).
+
+---
+
+#### View GPS diagnostics
+**Usage:**
+- `gps diag`
 
 ---
 

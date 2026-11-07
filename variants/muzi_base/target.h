@@ -38,13 +38,13 @@ extern AutoDiscoverRTCClock rtc_clock;
 
 // muzi sensor manager, polled from main loop via sensors.loop():
 //  - user button: USER_BTN_POWER_OFF_CLICKS quick presses -> power off (all builds)
-//  - gps mode switch on/off (superIO only, see thinknode_m1)
+// gps mode is now handled by GpsDriver on superIO
 class MuziBaseSensorManager : public EnvironmentSensorManager {
   unsigned long _pwr_last_click = 0;
   uint8_t _pwr_clicks = 0;
 #if ENV_INCLUDE_GPS
-  int _last_gps_sw = -1;
-  unsigned long _next_sw_check = 0;
+  unsigned long _gps_cfg_at = 0;
+  bool _gps_was_active = false;
 #endif
 public:
 #if ENV_INCLUDE_GPS
