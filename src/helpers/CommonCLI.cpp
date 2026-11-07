@@ -358,7 +358,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       _prefs->node_lat = _sensors->node_lat;
       _prefs->node_lon = _sensors->node_lon;
       savePrefs();
-      strcpy(reply, "ok");
+      strcpy(reply, "OK");
     } else if (memcmp(command, "gps advert", 10) == 0) {
       if (strlen(command) == 10) {
         switch (_prefs->advert_loc_policy) {
@@ -372,22 +372,22 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
             strcpy(reply, "> share");
             break;
           default:
-            strcpy(reply, "error");
+            strcpy(reply, "Error, invalid policy");
         }
       } else if (memcmp(command+11, "none", 4) == 0) {
         _prefs->advert_loc_policy = ADVERT_LOC_NONE;
         savePrefs();
-        strcpy(reply, "ok");
+        strcpy(reply, "OK");
       } else if (memcmp(command+11, "share", 5) == 0) {
         _prefs->advert_loc_policy = ADVERT_LOC_SHARE;
         savePrefs();
-        strcpy(reply, "ok");
+        strcpy(reply, "OK");
       } else if (memcmp(command+11, "prefs", 5) == 0) {
         _prefs->advert_loc_policy = ADVERT_LOC_PREFS;
         savePrefs();
-        strcpy(reply, "ok");
+        strcpy(reply, "OK");
       } else {
-        strcpy(reply, "error");
+        strcpy(reply, "Error, invalid policy");
       }
 #endif
     } else if (memcmp(command, "powersaving on", 14) == 0) {

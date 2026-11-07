@@ -1021,10 +1021,10 @@ region save
 #### View or change the GPS acquisition period
 **Usage:**
 - `gps period`
-- `gps period <seconds>`
+- `gps period <value>`
 
 **Parameters:**
-- `seconds`: `0` for continuous tracking, or `1`-`86400` for periodic acquisition
+- `value`: `0` for continuous tracking, or a period. The value can be postfixed with `s`, `m`, `h` or `d` to specify the unit (seconds by default).
 
 **Note:** A periodic acquisition stops after receiving a valid fix, then resumes after the configured period.
 
@@ -1034,7 +1034,12 @@ region save
 **Usage:**
 - `gps fix`
 
-**Note:** Returns the last valid latitude, longitude, altitude, and elapsed time since the fix. Returns `no fix` until a valid fix is received.
+**Output:**
+- `> Fix (n sat): <lat>, <lon>`: the GPS currently has a fix.
+- `> Last fix <age> ago (n sat)[, acq <time>]: <lat>, <lon>`: position of the last valid fix; `acq` is shown only while the receiver is running and shows how for how long the gps has been trying to get a fix.
+- `> No fix[, acq <time>]`: no valid fix since the node started.
+
+**Note:** Ages and durations are given in `s`, `m` or `h`.
 
 ---
 
@@ -1044,11 +1049,25 @@ region save
 
 ---
 
+#### On demand GPS fix
+**Usage:**
+- `gps once`
+- `gps once -s`
+
+**Parameters:**
+- `-s`: also sync this node's clock with GPS time (as `gps sync`)
+
+**Note:** Starts an acquisition now. If the GPS is off, it is switched and kept on until a valid fix and then turned off.
+
+**Reply:** `OK - turning on and acquiring` (GPS was off), `OK - waking gps` (periodic mode, receiver off between acquisitions) or `OK - gps already on`. `Error, gps hw switch off` if a hardware GPS switch is off, `Error, gps once not supported`.
+
+---
+
 #### View GPS time to first fix statistics
 **Usage:**
 - `gps fix_stats`
 
-**Output:** `ttf:<last>/<max> ok:<n> miss:<n>`: last and maximum time between a start of the GPS and its first valid fix, then the last count of consecutive starts with a fix (`ok`) or without one (`miss`).
+**Output:** `> ttf:<last>/<max> ok:<n> miss:<n>`: last and maximum time between a start of the GPS and its first valid fix, then the last count of consecutive starts with a fix (`ok`) or without one (`miss`).
 
 ---
 

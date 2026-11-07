@@ -41,13 +41,13 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     LocationProvider* location = sensors.getLocationProvider();
     char mode[32];
     if (getGpsPeriod() == 0) {
-      strcpy(mode, "tracking");
+      strcpy(mode, "continuous");
     } else {
       snprintf(mode, sizeof(mode), "periodic (%lus)",
                (unsigned long)getGpsPeriod());
     }
     if (location == nullptr) {
-      strcpy(reply, "gps provider not found");
+      strcpy(reply, "Error, gps provider not found");
     } else if (location->isGpsOn()) {
       const char* activity = "active";
       if (!location->isActive()) {
@@ -67,33 +67,38 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
       } else {
         strcpy(fix, "no fix");
       }
-      snprintf(reply, 160, "on, %s, %s, mode: %s", activity, fix, mode);
+      snprintf(reply, 160, "> on, %s, %s, %s", activity, fix, mode);
     } else {
-      snprintf(reply, 160, "off, mode: %s", mode);
+      snprintf(reply, 160, "> off, %s", mode);
     }
     return true;
   }
   if (strcmp(command, "gps fix") == 0) {
     LocationProvider* location = sensors.getLocationProvider();
+    char acq[16] = "";
     if (location == nullptr) {
-      strcpy(reply, "gps provider not found");
-    } else if (!location->hasValidFix()) {
-      strcpy(reply, "no fix");
+      strcpy(reply, "Error, gps provider not found");
+      return true;
+    }
+    if (location->isActive()) {
+      char t[12];
+      formatDuration(t, sizeof(t), location->getAcquisitionAge());
+      snprintf(acq, sizeof(acq), "acq %s", t);
+    }
+    if (!location->hasValidFix()) {
+      snprintf(reply, 160, "> No fix%s%s", acq[0] ? ", " : "", acq);
     } else {
       const long latitude = location->getLatitude();
       const long longitude = location->getLongitude();
-      const uint32_t fixAge = location->getLastFixAge();
-      char age[24];
-      if (fixAge == UINT32_MAX) {
-        strcpy(age, "age unavailable");
+      char pos[40];
+      snprintf(pos, sizeof(pos), "%.6f, %.6f", latitude / 1e6, longitude / 1e6);
+      if (location->isValid()) {
+        snprintf(reply, 160, "> Fix (%d sat): %s", location->satellitesCount(), pos);
       } else {
-        snprintf(age, sizeof(age), "%lus ago", (unsigned long)fixAge);
+        char age[12];
+        formatDuration(age, sizeof(age), location->getLastFixAge());
+        snprintf(reply, 160, "> Fix %s ago (%d sat)%s%s: %s", age, location->satellitesCount(),acq[0] ? ", " : "", acq, pos);
       }
-      snprintf(reply, 160, "%s%ld.%06ld, %s%ld.%06ld, %ldm, %s",
-               latitude < 0 ? "-" : "", labs(latitude) / 1000000L,
-               labs(latitude) % 1000000L,
-               longitude < 0 ? "-" : "", labs(longitude) / 1000000L,
-               labs(longitude) % 1000000L, location->getAltitude() / 1000L, age);
     }
     return true;
   }
@@ -101,12 +106,12 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     LocationProvider* location = sensors.getLocationProvider();
 
     if (location == nullptr) {
-      strcpy(reply, "gps provider not found");
+      strcpy(reply, "Error, gps provider not found");
       return true;
     } 
 
     if (location->hasHardwareEnableState() && !location->isHardwareEnabled()) {
-      strcpy(reply, "gps hw switch off");
+      strcpy(reply, "Error, gps hw switch off");
       return true;
     }
 
@@ -117,26 +122,26 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
         : "gps already on";
 
     if (location->startOnce()) {
-      snprintf(reply, 160, "ok (%s)", state);
+      snprintf(reply, 160, "OK - %s", state);
     } else { 
-      strcpy(reply, "gps once not supported");
+      strcpy(reply, "Error, gps once not supported");
     }
 
     return true;
   }
   if (memcmp(command, "gps on", 6) == 0) {
     if (!setGpsEnabled(sensors, true)) {
-      strcpy(reply, "gps toggle not found");
+      strcpy(reply, "Error, gps toggle not found");
     } else {
-      strcpy(reply, "ok");
+      strcpy(reply, "OK");
     }
     return true;
   }
   if (memcmp(command, "gps off", 7) == 0) {
     if (!setGpsEnabled(sensors, false)) {
-      strcpy(reply, "gps toggle not found");
+      strcpy(reply, "Error, gps toggle not found");
     } else {
-      strcpy(reply, "ok");
+      strcpy(reply, "OK");
     }
     return true;
   }
@@ -149,34 +154,38 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     return true;
   }
   if (memcmp(command, "gps period ", 11) == 0) {
-    char* end = nullptr;
+    char* end;
     unsigned long period = strtoul(command + 11, &end, 10);
-    if (command[11] == '\0' || *end != '\0' || period > 86400) {
-      strcpy(reply, "gps period must be 0-86400 seconds");
+    unsigned long mult = 1;
+    if (*end == 'm') mult = 60;
+    else if (*end == 'h') mult = 3600;
+    else if (*end == 'd') mult = 86400;
+    if (mult > 1 || *end == 's') end++;   // skip the suffix char
+
+    if (command[11] == '\0' || *end != '\0') {
+      strcpy(reply, "Error, invalid gps period");
+    } else if (!setGpsPeriod(sensors, (uint32_t)(period * mult)) ||
+               !setGpsEnabled(sensors, true)) {
+      strcpy(reply, "Error, gps provider not found");
     } else {
-      if (!setGpsPeriod(sensors, (uint32_t)period) ||
-          !setGpsEnabled(sensors, true)) {
-        strcpy(reply, "gps provider not found");
-      } else {
-        strcpy(reply, "ok");
-      }
+      strcpy(reply, "OK");
     }
     return true;
   }
   if (memcmp(command, "gps sync", 8) == 0) {
     LocationProvider* location = sensors.getLocationProvider();
     if (location == nullptr) {
-      strcpy(reply, "gps provider not found");
+      strcpy(reply, "Error, gps provider not found");
     } else {
       location->syncTime();
-      strcpy(reply, "ok");
+      strcpy(reply, "OK");
     }
     return true;
   }
   if (strcmp(command, "gps fix_stats") == 0) {
     LocationProvider* location = sensors.getLocationProvider();
     if (location == nullptr) {
-      strcpy(reply, "gps provider not found");
+      strcpy(reply, "Error, gps provider not found");
     } else {
       const LocationProvider::FixStats s = location->getFixStats();
       char last[12] = "-", max[12] = "-";
@@ -184,7 +193,7 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
         formatDuration(last, sizeof(last), (s.lastTtffMs + 500) / 1000);
         formatDuration(max, sizeof(max), (s.maxTtffMs + 500) / 1000);
       }
-      snprintf(reply, 160, "ttf:%s/%s ok:%lu miss:%lu", last, max,
+      snprintf(reply, 160, "> ttf:%s/%s ok:%lu miss:%lu", last, max,
                (unsigned long)s.consecutiveFixes, (unsigned long)s.consecutiveMisses);
     }
     return true;
@@ -192,9 +201,9 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
   if (strcmp(command, "gps diag") == 0) {
     LocationProvider* location = sensors.getLocationProvider();
     if (location == nullptr) {
-      strcpy(reply, "gps provider not found");
+      strcpy(reply, "Error, gps provider not found");
     } else {
-      int prefix = snprintf(reply, 160, "req:%u ", isGpsEnabled() ? 1U : 0U);
+      int prefix = snprintf(reply, 160, "> req:%u ", isGpsEnabled() ? 1U : 0U);
       if (prefix >= 0 && prefix < 160) location->formatDiagnostics(reply + prefix, 160 - prefix);
     }
     return true;

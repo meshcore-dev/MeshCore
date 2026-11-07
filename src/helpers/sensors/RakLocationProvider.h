@@ -194,6 +194,10 @@ public:
         return _useI2c ? _gpsOn : _nmea.isGpsOn();
     }
 
+    uint32_t getAcquisitionAge() const override {
+        return _useI2c ? (uint32_t)(millis() - _acquisitionStarted) / 1000UL : _nmea.getAcquisitionAge();
+    }
+
     bool startOnce() override {
         return _useI2c ? false : _nmea.startOnce();   // not supported on the RAK12500
     }

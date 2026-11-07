@@ -86,6 +86,7 @@ public:
     virtual bool hasHardwareEnableState() const { return false; }
     virtual bool isHardwareEnabled() const { return true; }
     virtual bool isGpsOn() const { return _gpsOn; }
+    virtual uint32_t getAcquisitionAge() const { return 0; }
     virtual bool startOnce() { return false; }
     virtual void setGpsOn(bool on) {
         _gpsOn = on;

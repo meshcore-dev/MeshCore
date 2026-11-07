@@ -175,6 +175,10 @@ public:
         return _gpsPeriodSeconds;
     }
 
+    uint32_t getAcquisitionAge() const override {
+        return (uint32_t)(millis() - _acquisitionStarted) / 1000UL;
+    }
+
     bool startOnce() override {
         if (_gpsOn) { // already on, acquire now
             _nextAcquisition = millis();
