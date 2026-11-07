@@ -87,6 +87,11 @@ public:
   uint8_t ui_auto_off_keep_msgs = 1;
   uint8_t ui_max_partial = EINK_MAX_PARTIAL_REFRESH;
   uint8_t ui_nd_name = 1;
+#ifdef PIN_GPS_SWITCH
+  uint8_t ui_gps_action = 1;
+#else
+  uint8_t ui_gps_action = 0;
+#endif
 #endif
 
 private:
@@ -238,6 +243,7 @@ private:
   	def("off_blank", _parent->ui_auto_off_blank);
   	def("off_keep_msgs", _parent->ui_auto_off_keep_msgs);
     def("nd_name", _parent->ui_nd_name);
+    def("gps_act", _parent->ui_gps_action);
     }
   public:
     UI_Prefs(NodePrefs* parent) : _parent(parent) {}

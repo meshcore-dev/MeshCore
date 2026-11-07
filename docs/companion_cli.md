@@ -452,6 +452,20 @@ Radio parameters are common to all roles and handled by `CommonRadioPrefs`.
 
 ---
 
+#### GPS key action
+**Usage:**
+- `set ui.gps_action <action>`
+- `get ui.gps_action`
+
+**Parameters:**
+- `action`: `toggle` (or `0`) to switch the GPS on and off, `once` (or `trigger`, `1`) to acquire a fix on demand, as `gps once`
+
+**Default:** `toggle`, or `once` on boards with a GPS switch
+
+**Note:** Only used by the `ui-new` screens for now.
+
+---
+
 #### Node discovery screen shows nodes names
 **Usage:**
 - `set ui.nd_name <state>`

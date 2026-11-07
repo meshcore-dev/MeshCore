@@ -632,7 +632,7 @@ public:
     }
 #if ENV_INCLUDE_GPS == 1
     if (c == KEY_ENTER && _page == HomePage::GPS) {
-      _task->toggleGPS();
+      if (_node_prefs->ui_gps_action == 1) _task->triggerGPS(); else _task->toggleGPS();
       return true;
     }
 #endif
@@ -1230,6 +1230,15 @@ void UITask::toggleGPS() {
       }
     }
   }
+}
+
+void UITask::triggerGPS() {
+  LocationProvider* location = _sensors != NULL ? _sensors->getLocationProvider() : NULL;
+  if (location != NULL && !(location->hasHardwareEnableState() && !location->isHardwareEnabled())
+      && location->startOnce()) {
+    notify(UIEventType::ack);
+  }
+  _next_refresh = 0;
 }
 
 void UITask::toggleBuzzer() {

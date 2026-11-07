@@ -114,6 +114,7 @@ public:
   void toggleBuzzer();
   bool getGPSState();
   void toggleGPS();
+  void triggerGPS();
 
   // MyMesh::Listener
   void onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, const char* text) override;
