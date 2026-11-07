@@ -83,6 +83,14 @@ static Adafruit_BMP280 BMP280(TELEM_WIRE);
 static Adafruit_SHTC3 SHTC3;
 #endif
 
+#if ENV_INCLUDE_SHT3X
+#ifndef TELEM_SHT3X_ADDRESS
+#define TELEM_SHT3X_ADDRESS 0x44  //Addresses with 0x44 (default) and 0x45 are possible
+#endif
+#include <SensirionI2cSht3x.h>
+static SensirionI2cSht3x SHT3X;
+#endif
+
 #if ENV_INCLUDE_SHT4X
 #ifndef TELEM_SHT4X_ADDRESS
 #define TELEM_SHT4X_ADDRESS 0x44
@@ -311,6 +319,24 @@ static void query_shtc3(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   SHTC3.getEvent(&humidity, &temp);
   lpp.addTemperature(ch, temp.temperature);
   lpp.addRelativeHumidity(ch, humidity.relative_humidity);
+}
+#endif
+
+#if ENV_INCLUDE_SHT3X
+static uint8_t init_sht3x(TwoWire* wire, uint8_t addr) {
+  SHT3X.begin(*wire, addr);
+  uint16_t SHT3XStatusRegister = 0u;
+  int16_t sht3x_error;
+  sht3x_error = SHT3X.readStatusRegister(SHT3XStatusRegister);
+  return (sht3x_error == 0) ? 1 : 0;
+}
+
+static void query_sht3x(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  float sht3x_humidity, sht3x_temperature;
+  if (SHT3X.measureSingleShot(REPEATABILITY_MEDIUM, false, sht3x_temperature, sht3x_humidity) == 0) {
+    lpp.addTemperature(ch, sht3x_temperature);
+    lpp.addRelativeHumidity(ch, sht3x_humidity);
+  }
 }
 #endif
 
@@ -577,6 +603,9 @@ static const SensorDef SENSOR_TABLE[] = {
 #endif
 #if ENV_INCLUDE_SHTC3
   { 0x70,                  "SHTC3",        init_shtc3,    query_shtc3    },
+#endif
+#if ENV_INCLUDE_SHT3X
+  { TELEM_SHT3X_ADDRESS,   "SHT3X",        init_sht3x,    query_sht3x    },
 #endif
 #if ENV_INCLUDE_SHT4X
   { TELEM_SHT4X_ADDRESS,   "SHT4X",        init_sht4x,    query_sht4x    },
