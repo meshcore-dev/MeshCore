@@ -72,6 +72,7 @@ public:
   uint8_t loop_detect = 0;
   uint8_t cad_enabled = 0;      // hardware Channel Activity Detection before TX (boolean)
   uint8_t extra_sf[4];
+  float wide_snr_threshold;  // DM_MODE_SEQ_WIDE SNR threshold
 
 private:
   class RadioPrefs : public CommonRadioPrefs {
@@ -186,6 +187,7 @@ private:
       def("f_max_uns", _parent->flood_max_unscoped);
       def("f_max_adv", _parent->flood_max_advert);
       def("loop", _parent->loop_detect);
+      def("wide_snr", _parent->wide_snr_threshold);
     }
   public:
     RepeatPrefs(NodePrefs* parent) : _parent(parent) { }

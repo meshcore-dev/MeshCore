@@ -1,6 +1,7 @@
 #include "Utils.h"
 #include <AES.h>
 #include <SHA256.h>
+#include <HKDF.h>
 
 #ifdef USE_CC310_HW_CRYPTO
 #include <Adafruit_nRFCrypto.h>
@@ -172,6 +173,28 @@ int Utils::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uin
     return decrypt(shared_secret, dest, src + CIPHER_MAC_SIZE, enc_len);
   }
   return 0; // invalid HMAC
+}
+
+// Derive a key with HKDF-SHA256
+static void derive_key(uint8_t* out, const uint8_t* key, size_t key_len, const uint8_t* iv, size_t iv_len) {
+  hkdf<SHA256>(out, key_len,
+               key, key_len,        // IKM
+               nullptr, 0,          // salt
+               iv, iv_len);         // info
+}
+
+int Utils::encryptThenMAC(const uint8_t* shared_secret, const uint8_t* iv, int iv_len, uint8_t* dest, const uint8_t* src, int src_len) {
+  uint8_t derived[PUB_KEY_SIZE];
+  derive_key(derived, shared_secret, PUB_KEY_SIZE, iv, iv_len);
+
+  return Utils::encryptThenMAC(derived, dest, src, src_len);
+}
+
+int Utils::MACThenDecrypt(const uint8_t* shared_secret, const uint8_t* iv, int iv_len, uint8_t* dest, const uint8_t* src, int src_len) {
+  uint8_t derived[PUB_KEY_SIZE];
+  derive_key(derived, shared_secret, PUB_KEY_SIZE, iv, iv_len);
+
+  return Utils::MACThenDecrypt(derived, dest, src, src_len);
 }
 
 static const char hex_chars[] = "0123456789ABCDEF";
