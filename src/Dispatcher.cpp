@@ -5,6 +5,7 @@
 #endif
 
 #include <math.h>
+#include <algorithm>
 
 namespace mesh {
 
@@ -79,8 +80,13 @@ void Dispatcher::loop() {
       radio_nonrx_start = _ms->getMillis();
     }
   }
-  if (!is_recv && _ms->getMillis() - radio_nonrx_start > 8000) {   // radio has not been in Rx mode for 8 seconds!
-    _err_flags |= ERR_EVENT_STARTRX_TIMEOUT;
+  if (!is_recv) {
+    unsigned long nonrx_ms = _ms->getMillis() - radio_nonrx_start;
+    // 8s minimum to avoid behavior change for fast radios.
+    unsigned long timeout_duration_ms = std::max<unsigned long>(8000UL,_radio->getEstAirtimeFor(MAX_TRANS_UNIT) * 2);
+    if (nonrx_ms > timeout_duration_ms) {
+      _err_flags |= ERR_EVENT_STARTRX_TIMEOUT;
+    }
   }
 
   if (outbound) {  // waiting for outbound send to be completed
