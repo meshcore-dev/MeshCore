@@ -32,6 +32,7 @@ class MicroNMEALocationProvider : public LocationProvider {
     unsigned long _acquisitionStarted = 0;
     unsigned long _firstFixInWindow = 0;
     bool _acquiringPeriodically = false;
+    unsigned long _onceDeadline = 0;
     static const unsigned long TIME_SYNC_INTERVAL = 1800000;
 
     uint32_t _uart_bytes = 0;
@@ -119,6 +120,7 @@ public:
 
     void begin() override {
         _begin_calls++;
+        _onceDeadline = 0;
         const bool wasActive = _driver->isActive();
         _driver->begin();
         if (!wasActive) {
@@ -140,6 +142,7 @@ public:
 
     void stop() override {
         _stop_calls++;
+        _onceDeadline = 0;
         _acquiringPeriodically = false;
         _driver->stop();
         nmea.clear();
@@ -170,6 +173,16 @@ public:
 
     uint32_t getGpsPeriod() const override {
         return _gpsPeriodSeconds;
+    }
+
+    bool startOnce() override {
+        if (_gpsOn) { // already on, acquire now
+            _nextAcquisition = millis();
+            return true;
+        }
+        setGpsOn(true);
+        _onceDeadline = millis() + GPS_PERIODIC_ACQUISITION_TIMEOUT_MS;
+        return true;
     }
 
     void syncTime() override {
@@ -231,6 +244,21 @@ public:
 
     void loop() override {
         if (_driver->pollGpsSwitch()) _gpsOn = true;
+
+        if (_onceDeadline != 0) {
+            if (_firstFixInWindow != 0 && (long)(_onceDeadline - (millis() + GPS_FIX_SETTLE_MS)) > 0) {
+                _onceDeadline = millis() + GPS_FIX_SETTLE_MS;
+            }
+            if ((long)(millis() - _onceDeadline) >= 0) {
+                if (_driver->isActive()) {
+                    setGpsOn(false);
+                } else { // do not stop twice
+                    _gpsOn = false;
+                    _onceDeadline = 0;
+                    _acquiringPeriodically = false;
+                }
+            }
+        }
 
         if (_gpsOn && _gpsPeriodSeconds > 0 && !_acquiringPeriodically &&
             (long)(millis() - _nextAcquisition) >= 0) {

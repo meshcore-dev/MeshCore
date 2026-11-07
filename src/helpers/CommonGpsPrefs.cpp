@@ -97,6 +97,33 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     }
     return true;
   }
+  if (memcmp(command, "gps once", 8) == 0) {    // before "gps on"
+    LocationProvider* location = sensors.getLocationProvider();
+
+    if (location == nullptr) {
+      strcpy(reply, "gps provider not found");
+      return true;
+    } 
+
+    if (location->hasHardwareEnableState() && !location->isHardwareEnabled()) {
+      strcpy(reply, "gps hw switch off");
+      return true;
+    }
+
+    if (strstr(command, " -s") != nullptr) location->syncTime();
+
+    const char* state = !location->isGpsOn() ? "turning on and acquiring"
+        : (location->getGpsPeriod() > 0 && !location->isActive()) ? "waking gps"
+        : "gps already on";
+
+    if (location->startOnce()) {
+      snprintf(reply, 160, "ok (%s)", state);
+    } else { 
+      strcpy(reply, "gps once not supported");
+    }
+
+    return true;
+  }
   if (memcmp(command, "gps on", 6) == 0) {
     if (!setGpsEnabled(sensors, true)) {
       strcpy(reply, "gps toggle not found");

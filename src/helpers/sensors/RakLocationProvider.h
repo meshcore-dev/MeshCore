@@ -190,6 +190,14 @@ public:
         return _gpsPeriodSeconds;
     }
 
+    bool isGpsOn() const override {
+        return _useI2c ? _gpsOn : _nmea.isGpsOn();
+    }
+
+    bool startOnce() override {
+        return _useI2c ? false : _nmea.startOnce();   // not supported on the RAK12500
+    }
+
     void setGpsOn(bool on) override {
         if (_useI2c) LocationProvider::setGpsOn(on);
         else { _gpsOn = on; _nmea.setGpsOn(on); }
