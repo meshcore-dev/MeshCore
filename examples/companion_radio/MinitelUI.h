@@ -20,6 +20,9 @@
   #define MINITEL_HISTORY  40        // messages kept in RAM, all conversations together
 #endif
 
+// This project's own version (MinitelMesh), distinct from MeshCore's FIRMWARE_VERSION
+#define MINITEL_VERSION  "v1.4"
+
 #define MINITEL_MSG_SLOT    200      // bytes per stored message (sanitized "name: text")
 #define MINITEL_INPUT_SIZE  200
 
@@ -56,7 +59,7 @@ public:
 
 private:
   enum State { PROBE_WAIT, PROBE_QUERY, PROBE_SWITCH, ONLINE };
-  enum Mode { MODE_SPLASH, MODE_CHAT, MODE_MENU, MODE_PAIRING, MODE_TOOLS };
+  enum Mode { MODE_SPLASH, MODE_CHAT, MODE_MENU, MODE_PAIRING, MODE_TOOLS, MODE_CREDITS };
   enum RxState { RX_IDLE, RX_SEP, RX_SS2, RX_SS2_ACCENT, RX_ESC, RX_PRO2, RX_SKIP };
 
   enum ConvType : uint8_t { CONV_CHANNEL = 0, CONV_CONTACT = 1 };
@@ -90,6 +93,10 @@ private:
   Minitel* _mt = NULL;
   DisplayDriver* _display = NULL;
   bool _oled_always_on = false;   // not persisted: resets to normal (auto-off) behaviour on reboot
+  int _cols = 40;                 // current Minitel mode: 40 (Vidéotex) or 80 (Mixte)
+  bool _wide = false;             // user's choice of 80 columns, persisted in NVS
+  unsigned long _switch_settle = 0;   // after a 40/80 switch: hold off drawing until then
+  unsigned long _keys_ignored_until = 0;   // replies to our commands may arrive garbled as "keys"
 
   State _state = PROBE_WAIT;
   Mode _mode = MODE_SPLASH;
@@ -164,11 +171,12 @@ private:
   void clearInput();
   void sendInput();
   int inputMaxBytes();
+  int inputMaxChars() const;
 
   int composeMsg(const Msg& m, char* dest, int dest_size);
   int countMsgLines();
   void renderAll();
-  void renderSplash();
+  void renderSplash(bool credits = false);
   void renderPairing();
   void renderHeader();
   void renderMessages();
@@ -179,6 +187,15 @@ private:
   int buildMenu(Conv* dest, int max_entries, int skip);
   void renderMenu();
   void renderTools();
+  // Vidéotex (40 cols) and Mixte (80 cols) differ in how text, inverse video and
+  // screen clearing are encoded: always go through these rather than _mt directly.
+  void setCols(int cols);
+  void renderTitle(int col40, int row, const char* title, const char* const* art);
+  void printKeys(int row, const char* markup);
+  void sgr(const char* params);
+  void text(const char* utf8);
+  void inverse(bool on);
+  void clearScreen();
   void printAt(int col, int row, const char* text, bool inverse = false);
   void printCentered(int row, const char* text, bool inverse = false);
 };

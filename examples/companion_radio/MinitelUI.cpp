@@ -3,10 +3,11 @@
 #include "MinitelUI.h"
 #include "MyMesh.h"
 #include <time.h>
+#include <Preferences.h>
 #include <Minitel1B_Hard.h>   // keep last: defines many short macros (ESC, CR, SEP, ...)
 
-// Screen layout (rows 1..24, 40 columns)
-#define COLS           40
+// Screen layout (rows 1..24, 40 or 80 columns -- see _cols)
+#define MAX_COLS       80   // widest supported mode (Mixte); buffers are sized for this
 #define ROW_HEADER     1
 #define ROW_MSG_FIRST  2
 #define MSG_ROWS       19
@@ -14,8 +15,7 @@
 #define ROW_INPUT      22
 #define INPUT_ROWS     3
 #define PROMPT_COLS    2
-#define INPUT_MAX_CHARS  (INPUT_ROWS*COLS - PROMPT_COLS - 1)   // never write the very last cell
-#define HINT_COLS      30   // hint text, then the byte counter
+#define COUNTER_COLS   10   // width of the "Reste NNN " counter at the end of the hint bar
 #define MENU_ROW_FIRST   3
 #define MENU_ROWS        17
 #define MENU_ROW_TOOLS   20   // just below the conversation list: entry point to "Autres fonctions"
@@ -39,6 +39,7 @@
 #define TOOLS_ROW_ZEROHOP  16
 #define TOOLS_ROW_FLOOD    17
 #define TOOLS_ROW_OLED     18
+#define TOOLS_ROW_WIDTH    19
 #define TOOLS_ROW_STATUS   20
 
 #define MAX_WRAP_LINES 10
@@ -96,6 +97,24 @@ static const uint8_t CMD_LOWERCASE[]   = { MT_ESC, MT_PRO2, 0x69, 0x45 };
 // a Minitel that's not listening wouldn't answer anyway, and this is harmless if already set.
 static const uint8_t CMD_ROUTE_SOCKET_TO_SCREEN[]   = { MT_ESC, MT_PRO3, 0x61, 0x58, 0x53 };
 static const uint8_t CMD_ROUTE_KEYBOARD_TO_SOCKET[] = { MT_ESC, MT_PRO3, 0x61, 0x5B, 0x51 };
+// Switch between Vidéotex (40 columns) and Mixte (80 columns, no semi-graphics) standards.
+// Sent raw, no wait for the acknowledgement: the library's own modeMixte()/modeVideotex()
+// block indefinitely for a reply, same issue as the other PRO commands above.
+static const uint8_t CMD_MODE_MIXTE[]    = { MT_ESC, MT_PRO2, 0x32, 0x7D };  // 40 -> 80 cols
+static const uint8_t CMD_MODE_VIDEOTEX[] = { MT_ESC, MT_PRO2, 0x32, 0x7E };  // 80 -> 40 cols
+// Mixte comes up in scrolling ("rouleau") mode: any line overflow scrolls the whole
+// screen. Switch to page mode so absolute positioning stays put.
+static const uint8_t CMD_STOP_ROULEAU[]  = { MT_ESC, MT_PRO2, 0x6A, 0x43 };
+// Mixte rows 01-24 follow ISO 6429: SGR for inverse video, ED + CUP to clear.
+static const uint8_t CSI_INVERSE_ON[]    = { MT_ESC, MT_CSI, '7', 'm' };
+static const uint8_t CSI_INVERSE_OFF[]   = { MT_ESC, MT_CSI, '2', '7', 'm' };
+static const uint8_t CSI_CLEAR_HOME[]    = { MT_ESC, MT_CSI, '2', 'J', MT_ESC, MT_CSI, '1', ';', '1', 'H' };
+#define MT_SO  0x0E   // Mixte: switch to the French character set
+#define MT_SI  0x0F   // Mixte: back to the American set
+#define SWITCH_SETTLE_MILLIS  600   // let the Minitel finish a 40/80 switch before drawing
+// Replies to our commands (sent when going online or switching 40/80) can arrive garbled,
+// and a reply byte that lost its ESC looks like a typed letter: ignore keys meanwhile.
+#define KEY_GRACE_MILLIS      1500
 
 static bool reached(unsigned long t) { return (long)(millis() - t) >= 0; }
 
@@ -203,13 +222,13 @@ static int padCols(char* s, int len, int cols, int size) {
   return len;
 }
 
-// Word-wraps sanitized text into lines of at most COLS columns
-static int wrapLines(const char* s, int len, int* offs, int* lens, int max_lines) {
+// Word-wraps sanitized text into lines of at most 'width' columns
+static int wrapLines(const char* s, int len, int* offs, int* lens, int max_lines, int width) {
   int n = 0;
   int start = 0;
   do {
     int i = start, cols = 0, last_space = -1;
-    while (i < len && cols < COLS) {
+    while (i < len && cols < width) {
       if (s[i] == ' ') last_space = i;
       i += utf8Len(s[i]);
       cols++;
@@ -327,6 +346,12 @@ void MinitelUI::begin() {
   _conv.id[0] = MINITEL_CHANNEL_IDX;
   _input[0] = _input_saved[0] = 0;
 
+  Preferences nvs;
+  if (nvs.begin("minitel", true)) {
+    _wide = nvs.getBool("wide", false);
+    nvs.end();
+  }
+
 #ifdef MSG_LED_PIN
   pinMode(MSG_LED_PIN, OUTPUT);
   digitalWrite(MSG_LED_PIN, LOW);
@@ -372,8 +397,21 @@ void MinitelUI::goOnline() {
   _next_ping = millis() + PING_INTERVAL_MILLIS;
   writeRaw(CMD_ECHO_OFF, sizeof(CMD_ECHO_OFF));
   writeRaw(CMD_LOWERCASE, sizeof(CMD_LOWERCASE));
+  // Always re-send the mode, even if we think it's already set: the Minitel keeps its
+  // mode when only the board restarts, so its actual state is unknown here.
+  setCols(_wide ? 80 : 40);
   _mode = MODE_SPLASH;
   _splash_until = millis() + SPLASH_MILLIS;
+  _full_dirty = true;
+}
+
+// Sent raw, no wait for the acknowledgement; drawing resumes after SWITCH_SETTLE_MILLIS
+void MinitelUI::setCols(int cols) {
+  _cols = cols;
+  if (cols == 80) writeRaw(CMD_MODE_MIXTE, sizeof(CMD_MODE_MIXTE));
+  else writeRaw(CMD_MODE_VIDEOTEX, sizeof(CMD_MODE_VIDEOTEX));
+  _switch_settle = millis() + SWITCH_SETTLE_MILLIS;
+  _keys_ignored_until = millis() + KEY_GRACE_MILLIS;
   _full_dirty = true;
 }
 
@@ -464,6 +502,19 @@ void MinitelUI::loop() {
     _next_tools_refresh = millis() + TOOLS_REFRESH_MILLIS;
   }
 
+  // apply a new 40/80 choice made in "Autres fonctions"
+  if (!_switch_settle && (_cols == 80) != _wide) {
+    setCols(_wide ? 80 : 40);
+  }
+
+  // a 40/80 switch was just sent: let the Minitel finish it before drawing anything
+  if (_switch_settle) {
+    if (!reached(_switch_settle)) return;
+    _switch_settle = 0;
+    if (_cols == 80) writeRaw(CMD_STOP_ROULEAU, sizeof(CMD_STOP_ROULEAU));
+    _full_dirty = true;
+  }
+
   // only draw when the TX queue has room for a whole update
   int free_tx = mt_serial.queueFree();
   if (_full_dirty) {
@@ -514,6 +565,10 @@ void MinitelUI::readInput() {
     if (!_ping_pending) _next_ping = millis();
     return;
   }
+  if (_num_events > 0 && !reached(_keys_ignored_until)) {
+    MT_DEBUG("[MT] ignored %d key(s) during grace period\n", _num_events);
+    return;
+  }
   for (int i = 0; i < _num_events; i++) onKey(_events[i]);
 }
 
@@ -540,7 +595,9 @@ void MinitelUI::handleByte(uint8_t b) {
       break;
     case RX_SEP:
       _rx = RX_IDLE;
-      addEvent(b, NULL);
+      // only function keys (ENVOI..CONNEXION/FIN); the Minitel also sends SEP-prefixed
+      // acknowledgements (e.g. SEP 0x70/0x71 after a 40/80 switch) that must not act as keys
+      if (b >= 0x41 && b <= 0x49) addEvent(b, NULL);
       break;
     case RX_SS2:
       if (b == 0x41 || b == 0x42 || b == 0x43 || b == 0x48 || b == 0x4B) {
@@ -589,6 +646,7 @@ void MinitelUI::handleByte(uint8_t b) {
 }
 
 void MinitelUI::onKey(const KeyEvent& ev) {
+  MT_DEBUG("[MT] key 0x%02X '%s'\n", ev.key, ev.text);
   if (ev.key == KEY_REPETITION) {
     _full_dirty = true;
     return;
@@ -610,6 +668,11 @@ void MinitelUI::onKey(const KeyEvent& ev) {
       break;
     case MODE_TOOLS:
       onToolsKey(ev);
+      break;
+    case MODE_CREDITS:   // any key goes back to "Autres fonctions"
+      _mode = MODE_TOOLS;
+      _next_tools_refresh = millis() + TOOLS_REFRESH_MILLIS;
+      _full_dirty = true;
       break;
   }
 }
@@ -672,7 +735,7 @@ void MinitelUI::onMenuKey(const KeyEvent& ev) {
       if (ev.text[0] >= '0' && ev.text[0] <= '9' && _menu_num_len < 3) {
         _menu_num[_menu_num_len++] = ev.text[0];
         _menu_num[_menu_num_len] = 0;
-        _mt->print(String(ev.text));
+        text(ev.text);
       } else {
         _mt->bip();
       }
@@ -739,7 +802,7 @@ void MinitelUI::onToolsKey(const KeyEvent& ev) {
       if (ev.text[0] >= '0' && ev.text[0] <= '9' && _menu_num_len < 3) {
         _menu_num[_menu_num_len++] = ev.text[0];
         _menu_num[_menu_num_len] = 0;
-        _mt->print(String(ev.text));
+        text(ev.text);
       } else {
         _mt->bip();
       }
@@ -773,6 +836,19 @@ void MinitelUI::onToolsKey(const KeyEvent& ev) {
         strcpy(_menu_status, _oled_always_on
           ? "Écran OLED : toujours allumé (faible)."
           : "Écran OLED : normal.");
+      } else if (num == 4) {
+        _wide = !_wide;   // applied by loop(); remembered across reboots
+        Preferences nvs;
+        if (nvs.begin("minitel", false)) {
+          nvs.putBool("wide", _wide);
+          nvs.end();
+        }
+        strcpy(_menu_status, _wide
+          ? "Affichage : 80 colonnes."
+          : "Affichage : 40 colonnes.");
+      } else if (num == 5) {
+        _mode = MODE_CREDITS;
+        _menu_status[0] = 0;
       } else {
         _mt->bip();
       }
@@ -977,9 +1053,14 @@ int MinitelUI::inputMaxBytes() {
   return max_bytes;
 }
 
+// screen-space limit on the 3-row input area: never write the very last cell
+int MinitelUI::inputMaxChars() const {
+  return INPUT_ROWS * _cols - PROMPT_COLS - 1;
+}
+
 void MinitelUI::typeText(const char* utf8) {
   int len = strlen(utf8);
-  if (_input_chars >= INPUT_MAX_CHARS || _input_len + len > inputMaxBytes()) {
+  if (_input_chars >= inputMaxChars() || _input_len + len > inputMaxBytes()) {
     _mt->bip();
     return;
   }
@@ -989,8 +1070,8 @@ void MinitelUI::typeText(const char* utf8) {
   _input[_input_len] = 0;
   _input_chars++;
 
-  _mt->moveCursorXY(1 + pos % COLS, ROW_INPUT + pos / COLS);
-  _mt->print(String(utf8));
+  _mt->moveCursorXY(1 + pos % _cols, ROW_INPUT + pos / _cols);
+  text(utf8);
   renderCounter();
   placeCursor();
 }
@@ -1007,7 +1088,7 @@ void MinitelUI::backspace() {
   _input_chars--;
 
   int pos = PROMPT_COLS + _input_chars;
-  _mt->moveCursorXY(1 + pos % COLS, ROW_INPUT + pos / COLS);
+  _mt->moveCursorXY(1 + pos % _cols, ROW_INPUT + pos / _cols);
   _mt->printChar(' ');
   renderCounter();
   placeCursor();
@@ -1102,24 +1183,100 @@ int MinitelUI::countMsgLines() {
     Msg& m = MSG_AT(n);
     if (!sameConv(m.conv, _conv)) continue;
     int len = composeMsg(m, buf, sizeof(buf));
-    total += wrapLines(buf, len, offs, lens, MAX_WRAP_LINES);
+    total += wrapLines(buf, len, offs, lens, MAX_WRAP_LINES, _cols);
   }
   return total;
 }
 
+// Base letter for a Latin-1 accented character (second byte of a 0xC3 UTF-8 pair), or 0
+static char accentBase(uint8_t b) {
+  if (b >= 0x80 && b <= 0x86) return 'A';
+  if (b == 0x87) return 'C';
+  if (b >= 0x88 && b <= 0x8B) return 'E';
+  if (b >= 0x8C && b <= 0x8F) return 'I';
+  if (b == 0x91) return 'N';
+  if (b >= 0x92 && b <= 0x96) return 'O';
+  if (b >= 0x99 && b <= 0x9C) return 'U';
+  if (b >= 0xA0 && b <= 0xA6) return 'a';
+  if (b == 0xA7) return 'c';
+  if (b >= 0xA8 && b <= 0xAB) return 'e';
+  if (b >= 0xAC && b <= 0xAF) return 'i';
+  if (b == 0xB1) return 'n';
+  if (b >= 0xB2 && b <= 0xB6) return 'o';
+  if (b >= 0xB9 && b <= 0xBC) return 'u';
+  if (b == 0xBD || b == 0xBF) return 'y';
+  return 0;
+}
+
+// Mixte's French set (reached with SO) only has these five accented letters;
+// every other accent is shown as its base letter.
+static uint8_t mixteFrench(uint8_t b) {
+  switch (b) {
+    case 0xA0: return 0x40;   // à
+    case 0xA7: return 0x5C;   // ç
+    case 0xA9: return 0x7B;   // é
+    case 0xB9: return 0x7C;   // ù
+    case 0xA8: return 0x7D;   // è
+  }
+  return 0;
+}
+
+void MinitelUI::text(const char* utf8) {
+  if (_cols != 80) {
+    _mt->print(String(utf8));
+    return;
+  }
+  for (const uint8_t* p = (const uint8_t*)utf8; *p; ) {
+    if (*p < 0x80) {
+      _mt->writeByte(*p++);
+    } else if (*p == 0xC3 && p[1]) {
+      uint8_t fr = mixteFrench(p[1]);
+      if (fr) {
+        _mt->writeByte(MT_SO);
+        _mt->writeByte(fr);
+        _mt->writeByte(MT_SI);
+      } else {
+        char base = accentBase(p[1]);
+        _mt->writeByte(base ? base : '?');
+      }
+      p += 2;
+    } else {
+      // any other multi-byte character: skip its continuation bytes one at a time, so a
+      // truncated or malformed sequence can never step over the terminating NUL
+      _mt->writeByte('?');
+      p++;
+      while ((*p & 0xC0) == 0x80) p++;
+    }
+  }
+}
+
+void MinitelUI::inverse(bool on) {
+  if (_cols == 80) {
+    if (on) writeRaw(CSI_INVERSE_ON, sizeof(CSI_INVERSE_ON));
+    else writeRaw(CSI_INVERSE_OFF, sizeof(CSI_INVERSE_OFF));
+  } else {
+    _mt->attributs(on ? INVERSION_FOND : FOND_NORMAL);
+  }
+}
+
+void MinitelUI::clearScreen() {
+  if (_cols == 80) writeRaw(CSI_CLEAR_HOME, sizeof(CSI_CLEAR_HOME));
+  else _mt->newScreen();
+}
+
 // attributes are set after positioning the cursor
-void MinitelUI::printAt(int col, int row, const char* text, bool inverse) {
+void MinitelUI::printAt(int col, int row, const char* str, bool inv) {
   _mt->moveCursorXY(col, row);
-  if (inverse) _mt->attributs(INVERSION_FOND);
-  _mt->print(String(text));
-  if (inverse) _mt->attributs(FOND_NORMAL);
+  if (inv) inverse(true);
+  text(str);
+  if (inv) inverse(false);
 }
 
 void MinitelUI::printCentered(int row, const char* text, bool inverse) {
-  char line[COLS * 3];
+  char line[MAX_COLS * 3];
   sanitize(line, sizeof(line), text, strlen(text));
-  int len = truncateCols(line, COLS);
-  int col = 1 + (COLS - countChars(line, len)) / 2;
+  int len = truncateCols(line, _cols);
+  int col = 1 + (_cols - countChars(line, len)) / 2;
   printAt(col, row, line, inverse);
 }
 
@@ -1132,7 +1289,7 @@ void MinitelUI::renderAll() {
       renderPairing();
       break;
     case MODE_CHAT:
-      _mt->newScreen();
+      clearScreen();
       _mt->cursor();
       renderHeader();
       renderMessages();
@@ -1146,21 +1303,69 @@ void MinitelUI::renderAll() {
     case MODE_TOOLS:
       renderTools();
       break;
+    case MODE_CREDITS:
+      renderSplash(true);
+      break;
   }
   _full_dirty = _msgs_dirty = _header_dirty = false;
 }
 
-void MinitelUI::renderSplash() {
-  _mt->newScreen();
-  _mt->noCursor();
-  _mt->moveCursorXY(13, 3);
-  _mt->attributs(DOUBLE_GRANDEUR);   // 8 letters, double width: 16 columns
-  _mt->print("MeshCore");
+// 4-line ASCII-art banners (figlet "small" style) for Mixte, which has no double size.
+// One string per letter on each line, so the columns line up in the source.
+static const char* const ART_MESHCORE[] = {
+  " __  __ "  "     " "    " " _    " "  ___ " "     " "     " "     ",
+  "|  \\/  |" " ___ " " ___" "| |_  " " / __|" " ___ " " _ _ " " ___ ",
+  "| |\\/| |" "/ -_)" "(_-<" "| ' \\ " "| (__ " "/ _ \\" "| '_|" "/ -_)",
+  "|_|  |_|" "\\___|" "/__/" "|_||_|" " \\___|" "\\___/" "|_|  " "\\___|",
+};
+// The pairing screen's banner starts with the Bluetooth rune, so it's not mistaken for the splash
+static const char* const ART_BLUETOOTH[] = {
+  "  |\\    "
+  " ___ " " _ " "      " "     " " _   " "     " "     " " _   " " _    ",
+  "\\ | )   "
+  "| _ )" "| |" " _  _ " " ___ " "| |_ " " ___ " " ___ " "| |_ " "| |_  ",
+  "/ | )   "
+  "| _ \\" "| |" "| || |" "/ -_)" "|  _|" "/ _ \\" "/ _ \\" "|  _|" "| ' \\ ",
+  "  |/    "
+  "|___/" "|_|" " \\_,_|" "\\___|" " \\__|" "\\___/" "\\___/" " \\__|" "|_||_|",
+};
+
+// Mixte only: ISO 6429 attribute (SGR), e.g. "1" bold, "4" underline, "5" blink, "22"/"24"/"25" off
+void MinitelUI::sgr(const char* params) {
+  if (_cols != 80) return;
+  _mt->writeByte(MT_ESC);
+  _mt->writeByte(MT_CSI);
+  for (const char* p = params; *p; p++) _mt->writeByte(*p);
+  _mt->writeByte('m');
+}
+
+// Screen title: double size in Vidéotex; a bold ASCII-art banner (rows row-1 .. row+2) in Mixte
+void MinitelUI::renderTitle(int col40, int row, const char* title, const char* const* art) {
+  if (_cols == 80) {
+    int col = 1 + (_cols - (int)strlen(art[0])) / 2;
+    sgr("1");
+    for (int i = 0; i < 4; i++) printAt(col, row - 1 + i, art[i]);
+    sgr("22");
+    return;
+  }
+  _mt->moveCursorXY(col40, row);
+  _mt->attributs(DOUBLE_GRANDEUR);
+  _mt->print(title);
   _mt->attributs(GRANDEUR_NORMALE);
+}
+
+// Splash screen at start-up; also the "Crédits" page of "Autres fonctions" (different footer)
+void MinitelUI::renderSplash(bool credits) {
+  clearScreen();
+  if (_cols == 40) _mt->noCursor();   // the cursor can't be turned off in Mixte
+  renderTitle(13, 3, "MeshCore", ART_MESHCORE);   // 8 letters, double width: 16 columns
+  sgr("4");
   printCentered(6, "Messagerie LoRa sur Minitel");
+  sgr("24");
 
   printCentered(9, "Une réalisation de");
   printCentered(10, " Capt_Pierrot & Jonathan ", true);
+  printCentered(11, "github.com/Jonathan2050/minitelmesh");
 
   printCentered(13, "Basé sur :");
   printCentered(14, "MeshCore - github.com/meshcore-dev");
@@ -1168,20 +1373,28 @@ void MinitelUI::renderSplash() {
   printCentered(17, "github.com/eserandour/Minitel1B_Hard");
 
   char line[80];
-  snprintf(line, sizeof(line), "Firmware %s - %s", FIRMWARE_VERSION, _mesh.getNodeName());
+  snprintf(line, sizeof(line), "MinitelMesh %s - MeshCore %s", MINITEL_VERSION, FIRMWARE_VERSION);
   printCentered(20, line);
+  printCentered(21, _mesh.getNodeName());
+  if (credits) {
+    const int footer_cols = (_cols == 80) ? 17 : 15;   // "SOMMAIRE" button (+ margins in 80) + " retour"
+    snprintf(line, sizeof(line), "%*s[SOMMAIRE] retour", (_cols - footer_cols) / 2, "");
+    printKeys(23, line);
+    return;
+  }
+  sgr("5");
   printCentered(23, "Appuyez sur une touche");
+  sgr("25");
 }
 
 // Shown after the splash screen while no phone has connected over Bluetooth yet
 void MinitelUI::renderPairing() {
-  _mt->newScreen();
-  _mt->noCursor();
-  _mt->moveCursorXY(10, 3);
-  _mt->attributs(DOUBLE_GRANDEUR);
-  _mt->print("Bluetooth");
-  _mt->attributs(GRANDEUR_NORMALE);
+  clearScreen();
+  if (_cols == 40) _mt->noCursor();
+  renderTitle(10, 3, "Bluetooth", ART_BLUETOOTH);
+  sgr("4");
   printCentered(6, "En attente de l'application MeshCore");
+  sgr("24");
 
   char line[40];
   printCentered(9, "Nom de l'appareil :");
@@ -1196,13 +1409,15 @@ void MinitelUI::renderPairing() {
   printCentered(18, "appareil puis entrez ce code.");
   printCentered(21, "L'écran passe à la conversation");
   printCentered(22, "dès la connexion.");
+  sgr("5");
   printCentered(23, "Appuyez sur une touche pour l'ignorer");
+  sgr("25");
 }
 
 void MinitelUI::renderHeader() {
   char raw[64];
   convName(_conv, raw, sizeof(raw));
-  char name[COLS * 3];
+  char name[MAX_COLS * 3];
   sanitize(name, sizeof(name), raw, strlen(raw));
 
   char right[32];
@@ -1210,17 +1425,17 @@ void MinitelUI::renderHeader() {
   right[0] = 0;
   if (unread > 0) snprintf(right, sizeof(right), "%d non lu%s ", unread, unread > 1 ? "s" : "");
 
-  char line[COLS * 3 + 4];
+  char line[MAX_COLS * 3 + 4];
   line[0] = ' ';
   strcpy(&line[1], name);
-  int len = truncateCols(line, COLS - strlen(right) - 1);
-  len = padCols(line, len, COLS - strlen(right), sizeof(line));
+  int len = truncateCols(line, _cols - strlen(right) - 1);
+  len = padCols(line, len, _cols - strlen(right), sizeof(line));
   strcpy(&line[len], right);
 
   _mt->moveCursorXY(1, ROW_HEADER);
-  _mt->attributs(INVERSION_FOND);
-  _mt->print(String(line));
-  _mt->attributs(FOND_NORMAL);
+  inverse(true);
+  text(line);
+  inverse(false);
   _header_dirty = false;
 }
 
@@ -1237,7 +1452,7 @@ void MinitelUI::renderMessages() {
     Msg& m = MSG_AT(n);
     if (!sameConv(m.conv, _conv)) continue;
     int len = composeMsg(m, buf, sizeof(buf));
-    int nl = wrapLines(buf, len, offs, lens, MAX_WRAP_LINES);
+    int nl = wrapLines(buf, len, offs, lens, MAX_WRAP_LINES, _cols);
     for (int li = nl - 1; li >= 0 && row >= ROW_MSG_FIRST; li--) {
       if (skip > 0) {
         skip--;
@@ -1248,7 +1463,7 @@ void MinitelUI::renderMessages() {
       seg[lens[li]] = 0;
       _mt->moveCursorXY(1, row);
       _mt->clearLine();
-      _mt->print(String(seg));
+      text(seg);
       seg[lens[li]] = saved;
       row--;
     }
@@ -1261,38 +1476,49 @@ void MinitelUI::renderMessages() {
   if (total == 0) printCentered(ROW_MSG_FIRST + MSG_ROWS / 2, "Aucun message pour l'instant");
 }
 
+// A help line where "[KEY]" marks a function key, drawn as an inverse-video "button"
+// (like the services of the time), the explanation around it in normal video.
+void MinitelUI::printKeys(int row, const char* markup) {
+  _mt->moveCursorXY(1, row);
+  _mt->clearLine();
+  char seg[MAX_COLS * 3];   // markup is a single screen line: always fits
+  bool pad = (_cols == 80);   // in 40 columns the help lines have no room for button margins
+  int n = 0;
+  for (const char* p = markup; ; p++) {
+    if (*p == '[' || *p == ']' || *p == 0) {
+      if (*p == ']' && pad) seg[n++] = ' ';   // button margin on the right
+      seg[n] = 0;
+      text(seg);
+      n = 0;
+      if (*p == 0) break;
+      if (*p == '[') { inverse(true); if (pad) seg[n++] = ' '; }   // ...and on the left
+      if (*p == ']') inverse(false);
+      continue;
+    }
+    seg[n++] = *p;
+  }
+}
+
 void MinitelUI::renderHint() {
-  const char* hint;
-  if (_scroll > 0) hint = " Historique - SUITE:récents";
-  else if (_details) hint = " SOMMAIRE:menu GUIDE:masquer";
-  else hint = " SOMMAIRE:menu GUIDE:détails";
-
-  char line[HINT_COLS * 3];
-  StrHelper::strncpy(line, hint, sizeof(line));
-  padCols(line, strlen(line), HINT_COLS, sizeof(line));
-
-  _mt->moveCursorXY(1, ROW_HINT);
-  _mt->attributs(INVERSION_FOND);
-  _mt->print(String(line));
-  _mt->attributs(FOND_NORMAL);
+  if (_scroll > 0) printKeys(ROW_HINT, " Historique  [SUITE] récents");
+  else if (_details) printKeys(ROW_HINT, " [SOMMAIRE] menu  [GUIDE] masquer");
+  else printKeys(ROW_HINT, " [SOMMAIRE] menu  [GUIDE] détails");
   renderCounter();
 }
 
 // how many more characters can still be typed: the stricter of the screen-space
-// limit (INPUT_MAX_CHARS) and the on-air size limit (inputMaxBytes, where an
+// limit (inputMaxChars) and the on-air size limit (inputMaxBytes, where an
 // accent costs 2 bytes but only 1 character)
 void MinitelUI::renderCounter() {
-  int remaining = INPUT_MAX_CHARS - _input_chars;
+  int remaining = inputMaxChars() - _input_chars;
   int remaining_bytes = inputMaxBytes() - _input_len;
   if (remaining_bytes < remaining) remaining = remaining_bytes;
   if (remaining < 0) remaining = 0;
 
   char counter[16];
   snprintf(counter, sizeof(counter), "Reste %3d ", remaining);
-  _mt->moveCursorXY(HINT_COLS + 1, ROW_HINT);
-  _mt->attributs(INVERSION_FOND);
-  _mt->print(String(counter));
-  _mt->attributs(FOND_NORMAL);
+  _mt->moveCursorXY(_cols - COUNTER_COLS + 1, ROW_HINT);
+  text(counter);
 }
 
 void MinitelUI::renderInput() {
@@ -1301,13 +1527,13 @@ void MinitelUI::renderInput() {
     _mt->clearLine();
   }
   _mt->moveCursorXY(1, ROW_INPUT);
-  _mt->print("> ");
-  _mt->print(String(_input));
+  text("> ");
+  text(_input);
 }
 
 void MinitelUI::placeCursor() {
   int pos = PROMPT_COLS + _input_chars;
-  _mt->moveCursorXY(1 + pos % COLS, ROW_INPUT + pos / COLS);
+  _mt->moveCursorXY(1 + pos % _cols, ROW_INPUT + pos / _cols);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1357,18 +1583,18 @@ void MinitelUI::renderMenu() {
     buildMenu(entries, MENU_ROWS, _menu_page * MENU_ROWS);
   }
 
-  _mt->newScreen();
+  clearScreen();
   _mt->cursor();
 
-  char line[COLS * 3 + 4];
+  char line[MAX_COLS * 3 + 4];
   line[0] = ' ';
   strcpy(&line[1], "SOMMAIRE - Conversations");
-  int len = truncateCols(line, COLS);
-  len = padCols(line, len, COLS, sizeof(line));
+  int len = truncateCols(line, _cols);
+  len = padCols(line, len, _cols, sizeof(line));
   _mt->moveCursorXY(1, ROW_HEADER);
-  _mt->attributs(INVERSION_FOND);
-  _mt->print(String(line));
-  _mt->attributs(FOND_NORMAL);
+  inverse(true);
+  text(line);
+  inverse(false);
 
   printAt(1, MENU_ROW_TOOLS, " 900 Autres fonctions");
 
@@ -1377,46 +1603,43 @@ void MinitelUI::renderMenu() {
   for (int r = 0; r < shown; r++) {
     char raw[64];
     convName(entries[r], raw, sizeof(raw));
-    char name[COLS * 3];
+    char name[MAX_COLS * 3];
     sanitize(name, sizeof(name), raw, strlen(raw));
-    truncateCols(name, 28);
+    truncateCols(name, _cols - 12);
 
     int unread = countUnread(&entries[r]);
     char count[12] = "";
     if (unread > 0) snprintf(count, sizeof(count), "(%d)", unread);
 
     snprintf(line, sizeof(line), "%3d %s", first + r + 1, name);
-    len = padCols(line, strlen(line), COLS - 1 - strlen(count), sizeof(line));
+    len = padCols(line, strlen(line), _cols - 1 - strlen(count), sizeof(line));
     strcpy(&line[len], count);
     printAt(1, MENU_ROW_FIRST + r, line, sameConv(entries[r], _conv));   // current one highlighted
   }
 
+  printKeys(21, " Numéro puis [ENVOI] ouvrir");
   char pageinfo[16];
   snprintf(pageinfo, sizeof(pageinfo), "page %d/%d ", _menu_page + 1, _menu_pages);
-  char hint[COLS * 3 + 4];
-  hint[0] = ' ';
-  strcpy(&hint[1], "Numéro puis ENVOI : ouvrir");
-  len = truncateCols(hint, COLS - strlen(pageinfo));
-  len = padCols(hint, len, COLS - strlen(pageinfo), sizeof(hint));
-  strcpy(&hint[len], pageinfo);
-  printAt(1, 21, hint, true);
-  printAt(1, 22, " SUITE/RETOUR:pages  SOMMAIRE:sortir");
+  printAt(_cols - strlen(pageinfo) + 1, 21, pageinfo);
+  printKeys(22, " [SUITE] [RETOUR] pages  [SOMMAIRE] sortir");
   printAt(1, 24, "Numéro : ");
-  _mt->print(String(_menu_num_len > 0 ? _menu_num : ""));
+  text(_menu_num_len > 0 ? _menu_num : "");
 }
 
 // "Autres fonctions" : tableau de bord (batterie, radio, Bluetooth) en haut,
 // annonces réseau + bascule OLED en bas, hors de la liste des conversations.
 void MinitelUI::renderTools() {
-  _mt->newScreen();
+  clearScreen();
   _mt->cursor();
 
-  printAt(1, ROW_HEADER, " SOMMAIRE - Autres fonctions            ", true);
+  char line[MAX_COLS * 3 + 4];
 
-  char line[COLS * 3 + 4];
+  strcpy(line, " SOMMAIRE - Autres fonctions");
+  padCols(line, strlen(line), _cols, sizeof(line));
+  printAt(1, ROW_HEADER, line, true);
 
   strcpy(line, " Informations");
-  padCols(line, strlen(line), COLS, sizeof(line));
+  padCols(line, strlen(line), _cols, sizeof(line));
   printAt(1, TOOLS_ROW_INFO_TITLE, line, true);
 
   NodePrefs* prefs = _mesh.getNodePrefs();
@@ -1447,10 +1670,10 @@ void MinitelUI::renderTools() {
     printAt(1, TOOLS_ROW_BLE_PIN, line);
   }
 
-  _mt->hLine(1, TOOLS_ROW_SEPARATOR, COLS, CENTER);
+  _mt->hLine(1, TOOLS_ROW_SEPARATOR, _cols, CENTER);
 
   strcpy(line, " Réglages");
-  padCols(line, strlen(line), COLS, sizeof(line));
+  padCols(line, strlen(line), _cols, sizeof(line));
   printAt(1, TOOLS_ROW_SETTINGS_TITLE, line, true);
 
   printAt(1, TOOLS_ROW_ZEROHOP, "  1 Annonce : voisins (sans relais)");
@@ -1460,12 +1683,18 @@ void MinitelUI::renderTools() {
       ? "  3 Écran OLED : toujours allumé"
       : "  3 Écran OLED : normal (économie)");
   }
+  printAt(1, TOOLS_ROW_WIDTH, _wide
+    ? "  4 Affichage : 80 colonnes"
+    : "  4 Affichage : 40 colonnes");
+  // second column in 80; in 40 it just fits to the right of option 4
+  if (_cols == 80) printAt(45, TOOLS_ROW_ZEROHOP, "5 Crédits");
+  else printAt(31, TOOLS_ROW_WIDTH, "5 Crédits");
   if (_menu_status[0]) printAt(1, TOOLS_ROW_STATUS, _menu_status);
 
-  printAt(1, 21, " Numéro puis ENVOI : choisir            ", true);
-  printAt(1, 22, " SOMMAIRE/ANNULATION : retour");
+  printKeys(21, " Numéro puis [ENVOI] choisir");
+  printKeys(22, " [SOMMAIRE] ou [ANNULATION] retour");
   printAt(1, 24, "Numéro : ");
-  _mt->print(String(_menu_num_len > 0 ? _menu_num : ""));
+  text(_menu_num_len > 0 ? _menu_num : "");
 }
 
 #endif
