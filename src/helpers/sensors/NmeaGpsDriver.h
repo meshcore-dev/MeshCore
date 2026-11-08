@@ -4,6 +4,9 @@
 
 #include <Arduino.h>
 #include <helpers/RefCountedDigitalPin.h>
+#include <MeshCore.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifndef UART_TYPE
 #ifdef NRF52_PLATFORM
@@ -115,6 +118,68 @@ class NmeaGpsDriver : public GpsDriver {
         _started = true;
     }
 
+#ifdef GPS_BAUD_AUTODETECT
+    void reopenSerial(uint32_t baud) {
+        _hardwareSerial->end();
+        if (_txPin != -1 && _rxPin != -1) {
+            _hardwareSerial->setPins(_txPin, _rxPin);
+        }
+        _hardwareSerial->begin(baud);
+        drain();
+    }
+
+    // True if a complete NMEA sentence with a valid checksum arrives within timeout_ms.
+    bool seesValidNmea(uint32_t timeout_ms) {
+        char line[100];
+        int len = -1;  // -1 = waiting for '$'
+        const uint32_t start = millis();
+        while ((uint32_t)(millis() - start) < timeout_ms) {
+            if (available() <= 0) { delay(2); continue; }
+            const char c = (char)read();
+            if (c == '$') { len = 0; continue; }
+            if (len < 0) continue;
+            if (c == '\r' || c == '\n') {
+                line[len] = '\0';
+                const char* star = strchr(line, '*');
+                if (star != nullptr && strlen(star) >= 3) {
+                    uint8_t sum = 0;
+                    for (const char* p = line; p < star; p++) sum ^= (uint8_t)*p;
+                    if (sum == (uint8_t)strtoul(star + 1, nullptr, 16)) return true;
+                }
+                len = -1;
+            } else if (len < (int)sizeof(line) - 1) {
+                line[len++] = c;
+            } else {
+                len = -1;  // longer than any NMEA sentence: wrong baud rate
+            }
+        }
+        return false;
+    }
+
+    // Bytes arriving does not mean the baud rate is right: at the wrong rate the
+    // parser only sees garbage and never gets a fix. Probe common GNSS rates,
+    // starting with the configured one, and keep the first that yields valid NMEA.
+    // The rate is kept in _baudRate, so later power cycles reopen the UART with it.
+    void detectBaudRate() {
+        static const uint32_t bauds[] = { GPS_BAUD_RATE, 9600, 115200, 38400, 57600, 19200, 4800 };
+        const uint32_t configured = _baudRate;
+        for (size_t i = 0; i < sizeof(bauds) / sizeof(bauds[0]); i++) {
+            bool tried = false;
+            for (size_t j = 0; j < i; j++) tried |= (bauds[j] == bauds[i]);
+            if (tried) continue;
+            reopenSerial(bauds[i]);
+            if (seesValidNmea(2000)) {
+                _baudRate = bauds[i];
+                MESH_DEBUG_PRINTLN("GPS baud rate: %lu", (unsigned long)_baudRate);
+                return;
+            }
+        }
+        _baudRate = configured;
+        reopenSerial(_baudRate);
+        MESH_DEBUG_PRINTLN("GPS baud rate not detected, using %lu", (unsigned long)_baudRate);
+    }
+#endif
+
     void stopHardware() {
         if (!_started) return;
 
@@ -220,14 +285,18 @@ public:
     }
 
     bool detect(uint32_t timeout_ms) override {
-        if (available() > 0) return true;
+        bool found = available() > 0;
 
         const uint32_t deadline = millis() + timeout_ms;
-        while ((int32_t)(millis() - deadline) < 0) {
-            if (available() > 0) return true;
-            delay(10);
+        while (!found && (int32_t)(millis() - deadline) < 0) {
+            found = available() > 0;
+            if (!found) delay(10);
         }
-        return false;
+#ifdef GPS_BAUD_AUTODETECT
+        // only on a real detection (timeout > 0), not on the quick "still active?" polls
+        if (found && timeout_ms > 0 && _started && _hardwareSerial != nullptr) detectBaudRate();
+#endif
+        return found;
     }
 
     int available() {
