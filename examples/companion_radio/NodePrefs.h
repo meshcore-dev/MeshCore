@@ -48,6 +48,7 @@ public:
   char default_scope_name[31];
   uint8_t default_scope_key[16];
   float tz_offset = 0;
+  float adc_multiplier = 0;   // battery ADC multiplier, 0 = board default
 #ifdef ENABLE_WIFI_INTERFACE
   #ifndef WIFI_SSID
     #define WIFI_SSID ""
@@ -194,6 +195,7 @@ private:
       def("tel_loc", _parent->telemetry_mode_loc);
       def("tel_env", _parent->telemetry_mode_env);
       def("tz_offset", _parent->tz_offset);
+      def("adc_mult", _parent->adc_multiplier);
     }
   public:
     CompanionPrefs(NodePrefs* parent) : _parent(parent) { }

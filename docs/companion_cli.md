@@ -65,6 +65,20 @@ Since version 1.18 meshcore companion radio firmware has a CLI interface, which 
 
 ---
 
+#### Fine-tune the battery reading
+**Usage:**
+- `get adc.multiplier`
+- `set adc.multiplier <value>`
+
+**Parameters:**
+- `value`: ADC multiplier (0.0-10.0)
+
+**Default:** `0.0` (value defined by board)
+
+**Note:** Returns "Error: unsupported" if the board doesn't support it. Same command as on repeaters, for boards whose battery divider resistors vary (e.g. DIY ProMicro / Faketec).
+
+---
+
 ### Radio
 
 Radio parameters are common to all roles and handled by `CommonRadioPrefs`.
