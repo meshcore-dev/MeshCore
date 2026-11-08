@@ -30,6 +30,12 @@ bool GxEPDDisplay::begin() {
   SPI1.begin(PIN_DISPLAY_SCLK, PIN_DISPLAY_MISO, PIN_DISPLAY_MOSI, PIN_DISPLAY_CS);
 #else
   SPI1.begin();
+#ifdef THINKNODE_M1
+  // This write-only panel has no MISO. The variant assigns SPI1 MISO to
+  // P1.06, which actually drives the battery warning LED through Q4.
+  // nrfx_spim_init() made it an input; return ownership to the LED driver.
+  pinMode(LED_RED, OUTPUT);
+#endif
 #endif
   display.init(115200, true, 2, false);
   display.setRotation(DISPLAY_ROTATION);
@@ -60,9 +66,13 @@ bool GxEPDDisplay::begin() {
 
 void GxEPDDisplay::turnOn() {
   if (!_init) begin();
-  if (!_isOn) {
-    _isOn = true;
-  }
+  if (!_isOn) requestFastRefresh();
+#if defined(DISP_BACKLIGHT) && !defined(BACKLIGHT_BTN)
+  digitalWrite(DISP_BACKLIGHT, HIGH);
+#elif defined(EXP_PIN_BACKLIGHT) && !defined(BACKLIGHT_BTN)
+  expander.digitalWrite(EXP_PIN_BACKLIGHT, HIGH);
+#endif
+  _isOn = true;
 }
 
 void GxEPDDisplay::turnOn(int max_partial) {
@@ -96,6 +106,11 @@ void GxEPDDisplay::turnOff(bool blank) {
     blankScreen();
   } else {
     drawSleepIcon();
+    /* Put the panel controller into deep sleep while KEEPING the image on screen:
+       a driven e-paper controller keeps drawing ~1.7 mA even when the frame is static
+       (measured on ThinkNode-M1), while deep sleep is in the µA range and the panel is
+       bistable, so the sleep page stays visible. */
+    display.hibernate();
   }
   _isOn = false;
   last_display_crc_value=0;
@@ -135,6 +150,7 @@ void GxEPDDisplay::startFrame(ColorVal bkg) {
   } else {
     display.setPartialWindow(0, 0, display.width(), display.height());
   }
+  display_crc.update<ColorVal>(bkg);
 }
 
 void GxEPDDisplay::setTextSize(int sz) {

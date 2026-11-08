@@ -76,6 +76,32 @@ public:
     display.setTextSize(1);
     display.drawTextCentered(display.width()/2, 48, FIRMWARE_BUILD_DATE);
 
+    // Diagnostic wake/reset information is hidden in normal firmware.
+#if defined(M1_GPS_DEBUG_UI)
+    {
+      char w[40];
+#if defined(THINKNODE_M1)
+      snprintf(w, sizeof(w), "W:%s S:%02X T:%u K:%u%u",
+               board.wokeFromHibernate() ? "SLP" : "---",
+               (unsigned) board.prev_sleep, (unsigned) board.prev_trace,
+               (unsigned)((board.keyLevels() >> 0) & 1), (unsigned)((board.keyLevels() >> 1) & 1));
+#else
+      snprintf(w, sizeof(w), "wake:-");
+#endif
+      display.drawTextCentered(display.width()/2, 60, w);
+    }
+
+#ifdef M1_REVIEW_R1
+    // 标注本次按 2026-08-21 评审结论改造的版本
+    {
+      char v[32];
+      snprintf(v, sizeof(v), "R:%08lX %s", (unsigned long) board.reset_reas, M1_FW_TAG);
+      display.drawTextCentered(display.width()/2, 70, v);
+    }
+#endif
+
+#endif // M1_GPS_DEBUG_UI
+
     return 1000;
   }
 
@@ -204,6 +230,8 @@ class HomeScreen : public UIScreen {
   }
 
 public:
+  bool isHibernatePage() const { return _page == HomePage::SHUTDOWN; }
+
   HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
      : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0),
        _shutdown_init(false), sensors_lpp(200) {  }
@@ -243,7 +271,9 @@ public:
 #endif
 
   void poll() override {
-    if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
+    // 必须等**所有**按键松开：原来只等翻页键，若按着功能键就会带着"唤醒脚为低"
+    // 进 SYSTEMOFF，进去后被同一个按键立刻唤醒（现场表现为"没松手就重启"）
+    if (_shutdown_init && !_task->isAnyButtonPressed()) {
       _task->shutdown();
     }
   }
@@ -327,6 +357,32 @@ public:
           display.drawTextCentered(display.width() / 2, 43, tmp);
         }
       }
+#if defined(THINKNODE_M1)
+      // Keep battery voltage visible; hide test diagnostics on the home page.
+      {
+        uint16_t mv = _task->getBattMilliVolts();
+#ifdef M1_GPS_DEBUG_UI
+        const char* mark = board.wokeFromHibernate() ? " H"
+                         : (board.prev_sleep == 0x5A) ? " O" : "";
+        snprintf(tmp, sizeof(tmp), "%u.%02uV%s T:%u G:%c", mv / 1000, (mv % 1000) / 10, mark,
+                 (unsigned) board.prev_trace,
+                 board.gpsSchemeCode() == 2 ? 'N' : (board.gpsSchemeCode() == 1 ? 'O' : '?'));
+#else
+        snprintf(tmp, sizeof(tmp), "%u.%02uV", mv / 1000, (mv % 1000) / 10);
+#endif
+        display.setColor(UIColor::secondary_txt);
+        display.setTextSize(1);
+        display.drawTextCentered(display.width() / 2, 60, tmp);
+#ifdef M1_GPS_DEBUG_UI
+        // 现场诊断：R=复位原因（00010000=休眠唤醒, 00000004=HardFault）, S=进度标记,
+        // K=两个按键电平（1=高=未按；bit0=翻页键 K4，bit1=功能键 K3）
+        snprintf(tmp, sizeof(tmp), "R:%08lX S:%02X K:%u%u",
+                 (unsigned long) board.reset_reas, (unsigned) board.prev_sleep,
+                 (unsigned)(board.keyLevels() & 1), (unsigned)((board.keyLevels() >> 1) & 1));
+        display.drawTextCentered(display.width() / 2, 72, tmp);
+#endif
+      }
+#endif
     } else if (_page == HomePage::RECENT) {
       the_mesh.getRecentlyHeard(recent, UI_RECENT_LIST_SIZE);
       display.setColor(UIColor::primary_txt);
@@ -392,7 +448,27 @@ public:
       char buf[50];
       int y = 18;
       bool gps_state = _task->getGPSState();
-#ifdef PIN_GPS_SWITCH
+#if defined(THINKNODE_M1) && defined(M1_GPS_DEBUG_UI)
+      // 现场诊断（默认关闭）。排查 GPS 时在 platformio.ini 里加 -D M1_GPS_DEBUG_UI=1
+      // 逻辑坐标 128x128、offset_y=10、scale=1.5625：y 超过约 116 会被物理底边裁掉
+      {
+        char dbg[48];
+        display.setColor(UIColor::secondary_txt);
+        m1_gps_dbg_line(dbg, sizeof(dbg));
+        display.setTextSize(2);
+        display.drawTextLeftAlign(0, 84, dbg);
+        m1_gps_dbg_line2(dbg, sizeof(dbg));
+        display.drawTextLeftAlign(0, 102, dbg);
+        m1_gps_dbg_line3(dbg, sizeof(dbg));
+        display.setTextSize(1);
+        display.drawTextLeftAlign(0, 116, dbg);
+      }
+#endif
+#if defined(THINKNODE_M1)
+      // 新旧 GPS 硬件的开关引脚/极性不同，统一由 m1_gps 判断
+      bool hw_gps_state = m1_gps_switch_on();
+      strcpy(buf, (gps_state && hw_gps_state) ? "GPS ON" : "GPS OFF");
+#elif defined(PIN_GPS_SWITCH)
       bool hw_gps_state = digitalRead(PIN_GPS_SWITCH);
       if (gps_state != hw_gps_state) {
         strcpy(buf, gps_state ? "gps off(hw)" : "gps off(sw)");
@@ -622,7 +698,11 @@ public:
 #endif
 #ifndef UI_NO_HIBERNATE
     if (c == KEY_ENTER && _page == HomePage::SHUTDOWN) {
+#ifdef THINKNODE_M1
+      _task->hibernate("Hibernating...");
+#else
       _shutdown_init = true;  // need to wait for button to be released
+#endif
       return true;
     }
 #endif
@@ -724,9 +804,22 @@ public:
 void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs) {
   _display = display;
   _sensors = sensors;
+  _auto_off = millis() + AUTO_OFF_MILLIS;
+  _last_user_activity = millis();
+  _low_battery_monitor.reset(_last_user_activity);
+  _critical_battery_monitor.reset(_last_user_activity);
+  next_batt_chck = _last_user_activity;
+#ifdef THINKNODE_M1
+  _usb_was_present = board.isExternalPowered();
+#endif
 
 #if defined(PIN_USER_BTN)
   user_btn.begin();
+#endif
+#if defined(PIN_FUNC_BTN)
+  // 必须显式初始化：nRF52 复位后 GPIO 默认为 INPUT=Disconnect，
+  // 未初始化就读会恒返回 0（被误判成"一直按住"→ 开机 3 秒后直接休眠）
+  func_btn.begin();
 #endif
 #if defined(PIN_USER_BTN_ANA)
   analog_btn.begin();
@@ -763,6 +856,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 }
 
 void UITask::showAlert(const char* text, int duration_millis) {
+  if (_display != NULL) _display->requestFastRefresh();
   strcpy(_alert, text);
   _alert_expiry = millis() + duration_millis;
 }
@@ -825,14 +919,20 @@ void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t t
 void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) {
   uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
   ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, channel_details.name, text);
+  if (_hibernate_pending) return; // Queue the message without replacing the sleep frame.
   setCurrScreen(msg_preview);
 
   if (_display != NULL) {
+#ifndef THINKNODE_M1
     if (!_display->isOn() && !hasConnection()) {
       _display->turnOn(_node_prefs->ui_max_partial);
     }
     if (_display->isOn()) {
     _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;  // extend the auto-off timer
+#else
+    // Incoming traffic is not user activity and must not postpone idle sleep.
+    if (_display->isOn()) {
+#endif
     _next_refresh = 100;  // trigger refresh
     }
   }
@@ -885,6 +985,8 @@ void UITask::userLedHandler() {
 }
 
 void UITask::setCurrScreen(UIScreen* c) {
+  if (_hibernate_pending) return;
+  if (_display != NULL && c != curr) _display->requestFastRefresh();
   curr = c;
   _next_refresh = 100;
 }
@@ -918,6 +1020,104 @@ void UITask::shutdown(bool restart){
   }
 }
 
+/* 2026-08-21 评审 序号10：翻页键长按 3s 进入休眠
+   这里只做两件事：画提示、置挂起标志；真正进入休眠要等按键释放，
+   否则按键还按着就进 SYSTEMOFF，唤醒检测会被立即触发。 */
+void UITask::hibernate(const char* msg) {
+#ifdef THINKNODE_M1
+  if (board.isExternalPowered()) return;
+#endif
+  if (_hibernate_pending) return;
+  _hibernate_pending = true; // Lock normal rendering before drawing the final frame.
+  _hib_release_at = 0;
+  if (_display != NULL) {
+    if (!_display->isOn()) _display->turnOn();   // 背光关闭时也要把休眠提示画出来
+    _display->requestFullRefresh();
+    _display->startFrame();
+    _display->setTextSize(2);
+    _display->setColor(UIColor::warning_txt);
+    _display->drawTextCentered(_display->width() / 2, 24, msg);
+    _display->setTextSize(1);
+    _display->setColor(UIColor::secondary_txt);
+    _display->drawTextCentered(_display->width() / 2, 44, "release key to sleep");
+    _display->drawTextCentered(_display->width() / 2, 56, "wake: either key");
+#if defined(THINKNODE_M1)
+    // 版本标识：现场看一眼休眠页就知道刷进去的是哪一版固件
+    _display->setColor(UIColor::secondary_txt);
+    _display->drawTextCentered(_display->width() / 2, 70, M1_FW_TAG);
+#endif
+    _display->endFrame();
+  }
+}
+
+/* 真正进入休眠：
+   M1 用 board.hibernate()（SYSTEMOFF + 按键 GPIO 唤醒，按一下即重启并正常工作）；
+   其它板卡沿用原关机流程。 */
+void UITask::enterHibernate() {
+#if defined(THINKNODE_M1)
+  /* 进 SYSTEMOFF 前先把 BLE 广播停掉并给它足够时间停稳（否则 sd_power_system_off()
+     可能暂时未进入低功耗）。外设关闭后持续重试 SYSTEMOFF，不以重启兜底。 */
+  const bool bluetooth_was_enabled = isBluetoothEnabled();
+  if (bluetooth_was_enabled) {
+    disableBluetooth();
+    delay(200);
+  }
+  delay(400);
+  if (!board.hibernate()) {          // 按键没松开 / 唤醒脚仍为低 / SYSTEMOFF 未生效
+    if (bluetooth_was_enabled) enableBluetooth();
+    if (isAnyButtonPressed()) {
+      // A new press during BLE shutdown is not a cancelled sleep request.
+      _hib_release_at = 0;
+      return;
+    }
+    _hibernate_pending = false;
+    _last_user_activity = millis();  // avoid retrying continuously after an aborted sleep
+    showAlert("Sleep aborted", 1200);
+    _next_refresh = 0;
+  }
+#else
+  shutdown();
+  _hibernate_pending = false;
+#endif
+}
+
+void UITask::pollHibernate() {
+#ifdef THINKNODE_M1
+  // Continue critical-voltage checks while a held key delays ordinary sleep.
+  pollBattery();
+  if (pollCriticalPowerOff()) return;
+  if (_critical_battery_monitor.count() != 0) return;
+#endif
+#ifdef THINKNODE_M1
+  if (board.isExternalPowered()) {
+    _hibernate_pending = false;
+    _hib_release_at = 0;
+    _last_user_activity = millis();
+    _low_battery_monitor.reset(_last_user_activity);
+    _critical_battery_monitor.reset(_last_user_activity);
+    checkDisplayOn(0);
+    gotoHomeScreen();
+    return;
+  }
+#endif
+  // Do not dispatch button gestures, page polling or incoming-message renders
+  // while waiting for both wake keys to be released.
+#ifdef THINKNODE_M1
+  m1_leds_loop();
+#endif
+#ifdef PIN_BUZZER
+  if (buzzer.isPlaying()) buzzer.loop();
+#endif
+  if (isAnyButtonPressed()) {
+    _hib_release_at = 0;
+  } else if (_hib_release_at == 0) {
+    _hib_release_at = millis();
+  } else if (millis() - _hib_release_at >= 300) {
+    _hib_release_at = 0;
+    enterHibernate();
+  }
+}
+
 bool UITask::isButtonPressed() const {
 #ifdef PIN_USER_BTN
   return user_btn.isPressed();
@@ -926,8 +1126,78 @@ bool UITask::isButtonPressed() const {
 #endif
 }
 
+/* 任意按键是否按住：翻页键 或 功能键。
+   进 SYSTEMOFF 前必须两个键都松开，否则 SENSE_LOW 唤醒脚仍为低电平，
+   芯片会在进入休眠的同一瞬间被唤醒（现场"没松手就重启"）。 */
+bool UITask::isAnyButtonPressed() const {
+#ifdef PIN_FUNC_BTN
+  if (func_btn.isPressed()) return true;
+#endif
+#ifdef PIN_USER_BTN
+  if (user_btn.isPressed()) return true;
+#endif
+  return false;
+}
+
+bool UITask::pollCriticalPowerOff() {
+#ifdef THINKNODE_M1
+  if (!_critical_poweroff_pending) return false;
+  if (board.isExternalPowered()) {
+    _critical_poweroff_pending = false;
+    _hibernate_pending = false;
+    _critical_battery_monitor.reset(millis());
+    _low_battery_monitor.reset(millis());
+    _last_user_activity = millis();
+    checkDisplayOn(0);
+    gotoHomeScreen();
+    return false;
+  }
+  // powerOff can refuse before peripheral shutdown if flash is busy.
+  // Keep the request pending and do not resume radio/UI rendering on return.
+  if (int32_t(millis() - _poweroff_retry_at) >= 0) {
+    _poweroff_retry_at = millis() + 1000;
+    // Avoid a buzzer burst on an already critically discharged battery.
+    _board->powerOff();
+  }
+  return true;
+#else
+  return false;
+#endif
+}
+
 void UITask::loop() {
+  if (pollCriticalPowerOff()) return;
+  if (_hibernate_pending) {
+    pollHibernate();
+    return;
+  }
   char c = 0;
+#ifdef THINKNODE_M1
+  const bool usb_present = board.isExternalPowered();
+  if (usb_present != _usb_was_present) {
+    _usb_was_present = usb_present;
+    _last_user_activity = millis();
+    _low_battery_monitor.reset(_last_user_activity);
+    _critical_battery_monitor.reset(_last_user_activity);
+    if (usb_present) checkDisplayOn(0);
+  }
+  if (usb_present) {
+    _low_battery_monitor.reset(millis());
+    _critical_battery_monitor.reset(millis());
+  }
+#endif
+  pollBattery();
+  if (pollCriticalPowerOff()) return;
+  if (_hibernate_pending) {
+    pollHibernate();
+    return;
+  }
+#ifdef THINKNODE_M1
+  if (isAnyButtonPressed()) {
+    _last_user_activity = millis();
+    _auto_off = _last_user_activity + AUTO_OFF_MILLIS;
+  }
+#endif
 #if UI_HAS_JOYSTICK
   int ev = user_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
@@ -952,6 +1222,11 @@ void UITask::loop() {
     c = handleTripleClick(KEY_SELECT);
   }
 #elif defined(PIN_USER_BTN)
+#ifdef THINKNODE_M1
+  const bool on_hibernate_page = curr == home && static_cast<HomeScreen*>(home)->isHibernatePage();
+  // Preserve r49 action timing elsewhere; only sleep requires three seconds.
+  user_btn.setLongPressMillis(on_hibernate_page ? 3000 : 1000);
+#endif
   int ev = user_btn.check();
   #ifdef UI_HAS_NAV_INPUT
   if (ev == BUTTON_EVENT_CLICK) {
@@ -967,7 +1242,12 @@ void UITask::loop() {
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_NEXT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    // Dispatch the action to its page, preserving r49 behavior elsewhere.
+#ifdef THINKNODE_M1
+    c = on_hibernate_page ? KEY_ENTER : handleLongPress(KEY_ENTER);
+#else
     c = handleLongPress(KEY_ENTER);
+#endif
   } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
     c = handleDoubleClick(KEY_PREV);
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
@@ -975,6 +1255,27 @@ void UITask::loop() {
   }
   #endif  
 #endif
+#if defined(PIN_FUNC_BTN)
+  // The function key only wakes the display; M1 sleep is on the page key.
+  if (millis() - ui_started_at >= 5000) {
+    int fev = func_btn.check();
+    if (fev == BUTTON_EVENT_CLICK) {
+      checkDisplayOn(0);        // 仅唤醒背光/屏幕，不切换页面
+      _next_refresh = 0;
+    }
+  }
+#endif
+#if defined(THINKNODE_M1) && defined(M1_AUTO_HIBERNATE_MILLIS)
+  if (!_hibernate_pending && !board.isExternalPowered() &&
+      millis() - _last_user_activity >= M1_AUTO_HIBERNATE_MILLIS) {
+    hibernate("Hibernating...");
+  }
+#endif
+  // Both keys become wake sources, so both must be released for 300ms.
+  if (_hibernate_pending) {
+    pollHibernate();
+    return;
+  }
 #if defined(UI_HAS_ROTARY_INPUT)
   RotaryInputEvent rotaryEv = rotary_input.poll();
   if (c == 0 && _display != NULL) {
@@ -1044,12 +1345,25 @@ void UITask::loop() {
 #endif
 
   if (c != 0 && curr) {
-    curr->handleInput(c);
+    _last_user_activity = millis();
+    const bool handled = curr->handleInput(c);
+    // The last page can draw the sleep frame inside handleInput(). Stop this
+    // iteration before scheduling or rendering the old page over that frame.
+    if (_hibernate_pending) {
+      pollHibernate();
+      return;
+    }
+    if (handled && _display != NULL) _display->requestFastRefresh();
     _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;   // extend auto-off timer
     _next_refresh = 100;  // trigger refresh
   }
 
-  userLedHandler();
+#ifndef THINKNODE_M1
+  userLedHandler();   // M1 的指示灯由 variants/thinknode_m1/m1_leds.cpp 统一管理
+#endif
+#ifdef THINKNODE_M1
+  m1_leds_loop();
+#endif
 
 #ifdef PIN_BUZZER
   if (buzzer.isQuiet() != (bool)_node_prefs->buzzer_quiet) buzzer.quiet(_node_prefs->buzzer_quiet);
@@ -1057,6 +1371,10 @@ void UITask::loop() {
 #endif
 
   if (curr) curr->poll();
+  if (_hibernate_pending) {
+    pollHibernate();
+    return;
+  }
 
   if (_display != NULL && _display->isOn()) {
     if (millis() >= _next_refresh && curr) {
@@ -1076,6 +1394,7 @@ void UITask::loop() {
         _next_refresh = millis() + delay_millis;
       }
       _display->endFrame();
+      if (_display->hasPendingRefresh()) _next_refresh = millis() + 100;
     }
     if (_node_prefs->ui_auto_off_delay > 0) {
 #ifdef KEEP_DISPLAY_ON_USB
@@ -1104,10 +1423,50 @@ void UITask::loop() {
   vibration.loop();
 #endif
 
+
+}
+
+void UITask::pollBattery() {
 #ifdef AUTO_SHUTDOWN_MILLIVOLTS
-  if (millis() > next_batt_chck) {
+  if (int32_t(millis() - next_batt_chck) >= 0) {
     uint16_t milliVolts = getBattMilliVolts();
-    if (milliVolts > 0 && milliVolts < AUTO_SHUTDOWN_MILLIVOLTS) {
+#ifdef THINKNODE_M1
+    // Below 3.5V: red LED 500ms on / 500ms off, independent of BLE indication.
+    m1_leds_low_battery(milliVolts > 0 && milliVolts < M1_LOW_BATT_MILLIVOLTS);
+    const uint32_t now = millis();
+    const bool usb = board.isExternalPowered();
+    const uint8_t previous_count = _low_battery_monitor.count();
+    const bool critical_shutdown_due = _critical_battery_monitor.update(now, milliVolts, usb);
+    if (critical_shutdown_due) {
+      _critical_poweroff_pending = true;
+      _poweroff_retry_at = millis();
+      Serial.printf("M1 critical battery: %u mV, two readings below 3280 mV -> power off\n",
+                    (unsigned)milliVolts);
+      if (_display != NULL) {
+        if (!_display->isOn()) _display->turnOn();
+        _display->requestFastRefresh();
+        _display->startFrame();
+        _display->setTextSize(2);
+        _display->setColor(UIColor::warning_txt);
+        _display->drawTextCentered(_display->width() / 2, 24, "Battery Critical");
+        _display->setTextSize(1);
+        _display->drawTextCentered(_display->width() / 2, 48, "Knob OFF then ON");
+        _display->endFrame();
+      }
+      return;
+    }
+    const bool sleep_due = _low_battery_monitor.update(now, milliVolts, usb);
+    static uint32_t next_log = 0;
+    if (int32_t(now - next_log) >= 0 || previous_count != _low_battery_monitor.count()) {
+      Serial.printf("M1 battery: t=%lu mv=%u usb=%u low=%u/10 sleep=%u\n",
+                    (unsigned long)now, (unsigned)milliVolts, (unsigned)usb,
+                    (unsigned)_low_battery_monitor.count(), (unsigned)sleep_due);
+      next_log = now + 30000;
+    }
+    if (sleep_due && !_hibernate_pending) hibernate("Low Battery");
+#else
+    bool batt_plausible = (milliVolts >= 2500);
+    if (batt_plausible && milliVolts < AUTO_SHUTDOWN_MILLIVOLTS) {
       if(!board.isExternalPowered()) {
         if (_display != NULL) {
           _display->startFrame();
@@ -1121,13 +1480,22 @@ void UITask::loop() {
         shutdown();
       }
     }
+#endif
+#ifdef THINKNODE_M1
+    // The 1s voltage poll shares the monitor's time origin. Avoid drifting
+    // past the 5-minute idle deadline when the tenth sample becomes due.
+    next_batt_chck += ((uint32_t(millis() - next_batt_chck) / 1000) + 1) * 1000;
+#else
     next_batt_chck = millis() + 8000;
+#endif
   }
 #endif
 }
 
 char UITask::checkDisplayOn(char c) {
+  _last_user_activity = millis();
   if (_display != NULL) {
+    _display->requestFastRefresh();
     if (!_display->isOn()) {
       _display->turnOn(_node_prefs->ui_max_partial);   // turn display on and consume event
       c = 0;
