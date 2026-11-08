@@ -275,6 +275,9 @@ void setup() {
 #endif
 
   the_mesh.startInterface(interface_manager);
+#if ENV_GPS_PIN_CONFIG
+  the_mesh.applyGpsPinPrefs();
+#endif
   sensors.begin();
 
 #if ENV_INCLUDE_GPS == 1

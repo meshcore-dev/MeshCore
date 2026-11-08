@@ -1885,6 +1885,14 @@ void MyMesh::handleCmdFrame(size_t len) {
           savePrefs();
         }
         #endif
+        #if ENV_GPS_PIN_CONFIG
+        // pin/baud overrides (validated and normalised by the sensor manager); applied on next boot
+        if (strcmp(sp, "gps_rx") == 0 || strcmp(sp, "gps_tx") == 0 ||
+            strcmp(sp, "gps_en") == 0 || strcmp(sp, "gps_baud") == 0) {
+          sensors.getGPSOverrides(_prefs.gps_pin_rx, _prefs.gps_pin_tx, _prefs.gps_pin_en, _prefs.gps_baud);
+          savePrefs();
+        }
+        #endif
         writeOKFrame();
       } else {
         writeErrFrame(ERR_CODE_ILLEGAL_ARG);

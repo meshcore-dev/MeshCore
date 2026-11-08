@@ -26,6 +26,8 @@ public:
     virtual void stop() = 0;
     virtual void loop() = 0;
     virtual bool isEnabled() = 0;
+    // Override the power/enable pin chosen at construction (-1 = none). Call before begin().
+    virtual void setEnablePin(int pin) { }
 
     // Format compact diagnostics in the caller-provided buffer. Providers that
     // have more information (for example UART counters) can override this.
