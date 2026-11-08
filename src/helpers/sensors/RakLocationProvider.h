@@ -28,9 +28,11 @@ class RakLocationProvider : public LocationProvider {
     }
 
 public:
+    // serialPower, if given, switches the serial module's supply (WB_IO2 on WisBlock bases).
     RakLocationProvider(RakI2cGpsDriver& driver, mesh::RTCClock* clock = nullptr,
-                        UART_TYPE& serial = Serial1)
-        : _driver(driver), _nmeaDriver(serial), _nmea(_nmeaDriver, clock) {}
+                        UART_TYPE& serial = Serial1, RefCountedDigitalPin* serialPower = nullptr)
+        : _driver(driver), _nmeaDriver(serial, PIN_GPS_TX, PIN_GPS_RX, GPS_RESET, GPS_EN, serialPower),
+          _nmea(_nmeaDriver, clock) {}
 
     void syncTime() override {
         LocationProvider::syncTime();
@@ -112,6 +114,8 @@ public:
         // the serial module is started first, then the I2C module is probed
         _nmeaDriver.begin();
         if (_driver.detect(timeout_ms)) {
+            // The serial driver keeps its claim on serialPower, so the rail stays as it is without one.
+            // The RAK12500 driver switches its own power pin, and serialPower is only used on the serial path.
             _useI2c = true;
         } else if (!_nmeaDriver.detect(0)) {
             _nmeaDriver.stop();
