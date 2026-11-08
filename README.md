@@ -26,11 +26,15 @@ Nous ne sommes probablement pas les premiers à avoir eu cette idée : d'autres 
 - **Écriture et envoi** de messages depuis le clavier du Minitel.
 - Détection automatique du Minitel (vitesse, allumage/extinction), sans jamais bloquer la radio.
 - Détails à la demande : nombre de sauts, qualité du signal, heure des messages.
-- Sous-menu **« Autres fonctions »** (numéro 900) : tableau de bord (batterie, réglages radio, qualité du dernier signal reçu, état Bluetooth), annonces réseau, bascule de l'écran OLED de la carte.
+- Sous-menu **« Autres fonctions »** (numéro 900) : tableau de bord (batterie, réglages radio, qualité du dernier signal reçu, état Bluetooth), annonces réseau, bascule de l'écran OLED de la carte, page de crédits.
+- **Affichage en 40 ou 80 colonnes** (mode « Mixte » du Minitel), au choix dans le menu 900 ; le réglage est mémorisé par la carte.
+- Touches de fonction présentées comme des **boutons** (en vidéo inverse) dans les lignes d'aide, comme sur les services Minitel d'époque.
 - LED optionnelle à la réception d'un message (voir plus bas).
 - L'application mobile MeshCore continue de fonctionner normalement en parallèle.
 
 ## Aperçu des écrans
+
+Affichage en 40 colonnes. Les noms de touches dans les lignes d'aide (`SOMMAIRE`, `GUIDE`, `ENVOI`...) s'affichent en vidéo inverse, comme des boutons.
 
 **Écran de conversation**
 ```
@@ -41,7 +45,7 @@ Nous ne sommes probablement pas les premiers à avoir eu cette idée : d'autres 
 │MonNoeud: Je teste mon Minitel sur le   │
 │réseau MeshCore                         │
 │...                                     │
-│ SOMMAIRE:menu GUIDE:détails  Reste 116 │
+│ SOMMAIRE menu  GUIDE détails Reste 116 │
 │> Ceci est mon message en cours de fra_ │
 │                                        │
 │                                        │
@@ -59,8 +63,8 @@ Nous ne sommes probablement pas les premiers à avoir eu cette idée : d'autres 
 │  5 @Relais-Salon                       │
 │ ...                                    │
 │ 900 Autres fonctions                   │
-│ Numéro puis ENVOI : ouvrir  page 1/3   │
-│ SUITE/RETOUR:pages  SOMMAIRE:sortir    │
+│ Numéro puis ENVOI ouvrir      page 1/3 │
+│ SUITE RETOUR pages  SOMMAIRE sortir    │
 │                                        │
 │Numéro : 3_                             │
 └────────────────────────────────────────┘
@@ -83,9 +87,10 @@ Nous ne sommes probablement pas les premiers à avoir eu cette idée : d'autres 
 │  1 Annonce : voisins (sans relais)     │
 │  2 Annonce : tout le réseau (relayée)  │
 │  3 Écran OLED : normal (économie)      │
+│  4 Affichage : 40 colonnes   5 Crédits │
 │                                        │
-│ Numéro puis ENVOI : choisir            │
-│ SOMMAIRE/ANNULATION : retour           │
+│ Numéro puis ENVOI choisir              │
+│ SOMMAIRE ou ANNULATION retour          │
 │                                        │
 │Numéro : 1_                             │
 └────────────────────────────────────────┘
@@ -142,6 +147,7 @@ Nécessite [PlatformIO](https://docs.platformio.org), par exemple via l'extensio
 
 - **Des caractères aléatoires apparaissent dans la zone de saisie** : presque toujours le signe d'une alimentation insuffisante. Évitez un régulateur classique (type 7805) : préférez un **LDO**, avec un ou deux condensateurs de découplage en plus. Ça résout le problème dans l'immense majorité des cas.
 - **L'écran du Minitel reste bloqué sur son propre sommaire interne** (celui de sa mémoire, pas celui de MeshCore) : éteignez puis rallumez le Minitel. La carte redétecte automatiquement sa présence et reconfigure son routage vers la prise péri-informatique à chaque tentative.
+- **En 80 colonnes, certains accents disparaissent** (É, ê, ô...) : c'est une limite du Minitel, dont le mode 80 colonnes ne connaît que é, è, à, ç et ù. Les autres lettres accentuées s'affichent sans accent.
 
 ## Licences
 
