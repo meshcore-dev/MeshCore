@@ -1175,6 +1175,13 @@ region save
 
 ---
 
+### Repeater health history
+
+History is queried over the mesh using the sensor-compatible `0x04` min/max/average
+request; there is no history CLI command. Retention and recording interval are controlled
+by `REPEATER_HISTORY_SLOTS` and `REPEATER_HISTORY_INTERVAL_SECS` at build time.
+See [Repeater health history](repeater_history.md) for the channel mapping and flags.
+
 ### Ethernet (when Ethernet support is compiled in)
 
 Ethernet support is available on RAK4631 boards with a RAK13800 (W5100S) Ethernet module. Use the `_ethernet` firmware variants (e.g. `RAK_4631_repeater_ethernet`) to enable this feature.
