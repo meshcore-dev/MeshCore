@@ -11,7 +11,7 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 SensorManager sensors = SensorManager();
 
-VolatileRTCClock fallback_clock;
+NRF52RTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #ifdef DISPLAY_CLASS
