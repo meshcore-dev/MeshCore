@@ -1,5 +1,8 @@
 #include "CommonGpsPrefs.h"
 #include <helpers/sensors/LocationProvider.h>
+#ifdef GPS_GUARD
+#include <helpers/sensors/GpsGuard.h>
+#endif
 
 bool CommonGpsPrefs::setGpsEnabled(SensorManager& sensors, bool enabled) {
   LocationProvider* location = sensors.getLocationProvider();
@@ -17,9 +20,28 @@ bool CommonGpsPrefs::setGpsPeriod(SensorManager& sensors, uint32_t seconds) {
   return true;
 }
 
+void CommonGpsPrefs::applyGuardReference(SensorManager& sensors) const {
+#ifdef GPS_GUARD
+  LocationProvider* location = sensors.getLocationProvider();
+  GpsGuard* guard = location != nullptr ? location->getGuard() : nullptr;
+  double lat, lon;
+  if (guard != nullptr && getGuardReference(lat, lon)) guard->setReference(lat, lon);
+#endif
+}
+
+// The clock was set by hand: the guard drops its GPS time anchor and any alert.
+void CommonGpsPrefs::onClockSetManually(SensorManager& sensors) {
+#ifdef GPS_GUARD
+  LocationProvider* location = sensors.getLocationProvider();
+  GpsGuard* guard = location != nullptr ? location->getGuard() : nullptr;
+  if (guard != nullptr) guard->clockSetManually();
+#endif
+}
+
 bool CommonGpsPrefs::apply(SensorManager& sensors) const {
   LocationProvider* location = sensors.getLocationProvider();
   if (location == nullptr) return false;
+  applyGuardReference(sensors);
   location->setGpsPeriod(getGpsPeriod());
   location->setGpsOn(isGpsEnabled());
   return true;
@@ -198,6 +220,47 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     }
     return true;
   }
+#ifdef GPS_GUARD
+  if (memcmp(command, "gps guard", 9) == 0 || memcmp(command, "gps fence", 9) == 0 ||
+      strcmp(command, "gps ref") == 0) {
+    LocationProvider* location = sensors.getLocationProvider();
+    GpsGuard* guard = location != nullptr ? location->getGuard() : nullptr;
+    if (guard == nullptr) {
+      strcpy(reply, "Error, gps guard not supported");
+    } else if (strcmp(command, "gps guard") == 0) {
+      reply[0] = '>'; reply[1] = ' ';
+      guard->formatStatus(reply + 2, 158);
+    } else if (strcmp(command, "gps guard accept") == 0) {
+      // operator confirms that the alerted GPS time is right: apply it to the clock
+      long offset;
+      if (!guard->isTimeAlert()) {
+        strcpy(reply, "Error, no time alert");
+      } else if (!location->getClockOffset(offset) ||
+                 !guard->acceptAlertedTime(offset, (uint32_t)location->getTimestamp()) ||
+                 !location->applyTimeNow()) {
+        strcpy(reply, "Error, no current trusted fix with the alerted time");
+      } else {
+        strcpy(reply, "OK - clock set from GPS");
+      }
+    } else if (strcmp(command, "gps fence") == 0) {
+      sprintf(reply, "> %lu", (unsigned long)guard->getFence());
+    } else if (memcmp(command, "gps fence ", 10) == 0) {
+      char* end;
+      unsigned long metres = strtoul(command + 10, &end, 10);
+      if (command[10] == ' ' || *end != ' ') {
+        strcpy(reply, "Error, invalid fence");
+      } else {
+        guard->setFence((uint32_t)metres);
+        strcpy(reply, "OK");
+      }
+    } else if (strcmp(command, "gps ref") == 0) {
+      snprintf(reply, 160, "> %.6f, %.6f", guard->getRefLat(), guard->getRefLon());
+    } else {
+      return false;
+    }
+    return true;
+  }
+#endif
   if (strcmp(command, "gps diag") == 0) {
     LocationProvider* location = sensors.getLocationProvider();
     if (location == nullptr) {

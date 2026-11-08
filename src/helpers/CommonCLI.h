@@ -169,6 +169,11 @@ private:
     void setGpsEnabled(bool enabled) override { _parent->gps_enabled = enabled; markDirty(); }
     uint32_t getGpsPeriod() const override { return _parent->gps_period; }
     void setGpsPeriod(uint32_t seconds) override { _parent->gps_period = seconds; markDirty(); }
+    bool getGuardReference(double& lat, double& lon) const override {
+      lat = _parent->node_lat;
+      lon = _parent->node_lon;
+      return true;
+    }
   };
   GPSPrefs gps;
 

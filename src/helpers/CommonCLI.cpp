@@ -211,6 +211,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       uint32_t curr = getRTCClock()->getCurrentTime();
       if (sender_timestamp > curr) {
         getRTCClock()->setCurrentTime(sender_timestamp + 1);
+        CommonGpsPrefs::onClockSetManually(*_sensors);
         uint32_t now = getRTCClock()->getCurrentTime();
         DateTime dt = DateTime(now);
         sprintf(reply, "OK - clock set: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
@@ -225,11 +226,22 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       uint32_t now = getRTCClock()->getCurrentTime();
       DateTime dt = DateTime(now);
       sprintf(reply, "%02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
+    } else if (memcmp(command, "time force ", 11) == 0) {  // set time, allowing it to go backwards
+      uint32_t secs = _atoi(&command[11]);
+      if (secs > 1700000000UL) {
+        getRTCClock()->setCurrentTime(secs);
+        CommonGpsPrefs::onClockSetManually(*_sensors);
+        DateTime dt = DateTime(getRTCClock()->getCurrentTime());
+        sprintf(reply, "OK - clock forced: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
+      } else {
+        strcpy(reply, "ERR: invalid epoch");
+      }
     } else if (memcmp(command, "time ", 5) == 0) {  // set time (to epoch seconds)
       uint32_t secs = _atoi(&command[5]);
       uint32_t curr = getRTCClock()->getCurrentTime();
       if (secs > curr) {
         getRTCClock()->setCurrentTime(secs);
+        CommonGpsPrefs::onClockSetManually(*_sensors);
         uint32_t now = getRTCClock()->getCurrentTime();
         DateTime dt = DateTime(now);
         sprintf(reply, "OK - clock set: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
@@ -357,6 +369,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "gps setloc", 10) == 0) {
       _prefs->node_lat = _sensors->node_lat;
       _prefs->node_lon = _sensors->node_lon;
+      _prefs->getGpsPrefs()->applyGuardReference(*_sensors);
       savePrefs();
       strcpy(reply, "OK");
     } else if (memcmp(command, "gps advert", 10) == 0) {
@@ -495,10 +508,12 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
   } else if (memcmp(config, "lat ", 4) == 0) {
     _prefs->node_lat = atof(&config[4]);
+    _prefs->getGpsPrefs()->applyGuardReference(*_sensors);
     savePrefs();
     strcpy(reply, "OK");
   } else if (memcmp(config, "lon ", 4) == 0) {
     _prefs->node_lon = atof(&config[4]);
+    _prefs->getGpsPrefs()->applyGuardReference(*_sensors);
     savePrefs();
     strcpy(reply, "OK");
   } else if (memcmp(config, "flood.max.unscoped ", 19) == 0) {

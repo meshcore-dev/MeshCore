@@ -5,6 +5,8 @@
 #include <stdio.h>
 
 
+class GpsGuard;
+
 class LocationProvider {
 public:
     // Last valid fix, always filled in one go so readers get a consistent snapshot.
@@ -105,6 +107,11 @@ public:
 
     // Format compact diagnostics in the caller-provided buffer. Providers that
     // have more information (for example UART counters) can override this.
+    // Anti-spoofing guard (GPS_GUARD), nullptr if this provider has none
+    virtual GpsGuard* getGuard() { return nullptr; }
+    virtual bool getClockOffset(long& offset) { return false; }  // GPS time minus clock time
+    virtual bool applyTimeNow() { return false; }                // write GPS time to the clock now
+
     virtual void formatDiagnostics(char* out, size_t out_size) {
         if (out_size == 0) return;
         snprintf(out, out_size, "en:%u sat:%ld fix:%u",
