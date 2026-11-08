@@ -370,6 +370,21 @@ void UITask::userLedHandler() {
     next_change = cur_time;
   }
 
+  if (_gps_led_until) {   // GPS toggle confirmation: solid green = on, solid red = off
+    if ((long)(cur_time - _gps_led_until) < 0) {
+      if (_gps_led_on) {
+        statusLedWrite(0, 255, 0);
+      } else {
+        statusLedWrite(255, 0, 0);
+      }
+      return;
+    }
+    _gps_led_until = 0;
+    statusLedWrite(0, 0, 0);
+    state = 0;
+    next_change = cur_time;
+  }
+
   if (cur_time > next_batt_check) {   // battery reads are not free, keep them rare
     low_batt = _board->getBattMilliVolts() < LOW_BATT_MILLIVOLTS;
     next_batt_check = cur_time + 60000;
@@ -601,6 +616,17 @@ void UITask::handleButtonTriplePress() {
 #endif
 }
 
+// confirm a GPS toggle without needing a screen: rising chirp / green LED = on, falling chirp / red LED = off
+void UITask::gpsToggleFeedback(bool gps_on) {
+#ifdef PIN_BUZZER
+  buzzer.play(gps_on ? "GpsOn:d=16,o=7,b=140:c,g" : "GpsOff:d=16,o=7,b=140:g,c");   // silent if the buzzer is muted
+#endif
+#ifdef STATUS_LED_RGB
+  _gps_led_on = gps_on;
+  _gps_led_until = millis() + 700;
+#endif
+}
+
 void UITask::handleButtonQuadruplePress() {
   MESH_DEBUG_PRINTLN("UITask: quad press triggered");
   if (_sensors != NULL) {
@@ -610,11 +636,11 @@ void UITask::handleButtonQuadruplePress() {
       if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
         if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
           _sensors->setSettingValue("gps", "0");
-          notify(UIEventType::ack);
+          gpsToggleFeedback(false);
           sprintf(_alert, "GPS: Disabled");
         } else {
           _sensors->setSettingValue("gps", "1");
-          notify(UIEventType::ack);
+          gpsToggleFeedback(true);
           sprintf(_alert, "GPS: Enabled");
         }
         break;
