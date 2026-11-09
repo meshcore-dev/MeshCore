@@ -69,8 +69,6 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `epoch_seconds`: Unix epoch time
 
-**Note:** The clock only moves forward. To set it back (e.g. after the clock was pushed into the future by a wrong GPS time) use `time force <epoch_seconds>`.
-
 ---
 
 ### Send a flood advert
@@ -1082,7 +1080,7 @@ region save
 #### GPS anti-spoofing guard (When built with `GPS_GUARD`)
 With `GPS_GUARD`, a fix becomes the node's last fix (position, telemetry, adverts) only after it passes plausibility checks: at least `GPS_GUARD_MIN_SATS` satellites, HDOP ≤ `GPS_GUARD_MAX_HDOP10`/10, inside the optional build-time region (`GPS_GUARD_LAT_MIN/MAX`, `GPS_GUARD_LON_MIN/MAX`), within the fence around the node's configured `lat`/`lon` (if set), no jump faster than `GPS_GUARD_MAX_SPEED_KMH`, and `GPS_GUARD_STABLE_FIXES` consistent fixes in a row. An unverified position is never reported.
 
-GPS time is written to the clock only while such a fix is current, never earlier than the firmware build date, and, once the clock is valid, only within `GPS_GUARD_TIME_MAX_STEP` seconds for the first sync and within clock drift (`GPS_GUARD_TIME_DRIFT_BASE` s + `GPS_GUARD_TIME_DRIFT_PPM`) afterwards. Setting the clock manually (`time`, `time force`, `clock sync`) resets that anchor.
+GPS time is written to the clock only while such a fix is current, never earlier than the firmware build date, and, once the clock is valid, only within `GPS_GUARD_TIME_MAX_STEP` seconds for the first sync and within clock drift (`GPS_GUARD_TIME_DRIFT_BASE` s + `GPS_GUARD_TIME_DRIFT_PPM`) afterwards. Setting the clock manually (`time`, `clock sync`) resets that anchor.
 
 Covers serial NMEA receivers (`MicroNMEALocationProvider`).
 

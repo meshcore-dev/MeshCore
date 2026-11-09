@@ -226,16 +226,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       uint32_t now = getRTCClock()->getCurrentTime();
       DateTime dt = DateTime(now);
       sprintf(reply, "%02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
-    } else if (memcmp(command, "time force ", 11) == 0) {  // set time, allowing it to go backwards
-      uint32_t secs = _atoi(&command[11]);
-      if (secs > 1700000000UL) {
-        getRTCClock()->setCurrentTime(secs);
-        CommonGpsPrefs::onClockSetManually(*_sensors);
-        DateTime dt = DateTime(getRTCClock()->getCurrentTime());
-        sprintf(reply, "OK - clock forced: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
-      } else {
-        strcpy(reply, "ERR: invalid epoch");
-      }
     } else if (memcmp(command, "time ", 5) == 0) {  // set time (to epoch seconds)
       uint32_t secs = _atoi(&command[5]);
       uint32_t curr = getRTCClock()->getCurrentTime();
