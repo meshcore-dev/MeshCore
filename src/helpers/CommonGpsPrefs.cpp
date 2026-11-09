@@ -26,6 +26,8 @@ void CommonGpsPrefs::applyGuardReference(SensorManager& sensors) const {
   GpsGuard* guard = location != nullptr ? location->getGuard() : nullptr;
   double lat, lon;
   if (guard != nullptr && getGuardReference(lat, lon)) guard->setReference(lat, lon);
+  uint32_t fence;
+  if (guard != nullptr && getGuardFence(fence)) guard->setFence(fence);
 #endif
 }
 
@@ -247,10 +249,11 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     } else if (memcmp(command, "gps fence ", 10) == 0) {
       char* end;
       unsigned long metres = strtoul(command + 10, &end, 10);
-      if (command[10] == ' ' || *end != ' ') {
+      if (command[10] == '\0' || *end != '\0' || metres > 20000000UL) {  // at most half the Earth
         strcpy(reply, "Error, invalid fence");
       } else {
         guard->setFence((uint32_t)metres);
+        setGuardFence((uint32_t)metres);  // saved by the caller (isDirty)
         strcpy(reply, "OK");
       }
     } else if (strcmp(command, "gps ref") == 0) {

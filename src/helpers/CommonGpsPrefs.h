@@ -21,6 +21,9 @@ public:
 
   // Reference position for the anti-spoofing guard (GPS_GUARD), e.g. the configured node position.
   virtual bool getGuardReference(double& lat, double& lon) const { return false; }
+  // Saved fence radius for the guard; false = not set, use the build default.
+  virtual bool getGuardFence(uint32_t& metres) const { return false; }
+  virtual void setGuardFence(uint32_t metres) { }
 
   bool setGpsEnabled(SensorManager& sensors, bool enabled);
   void applyGuardReference(SensorManager& sensors) const;
