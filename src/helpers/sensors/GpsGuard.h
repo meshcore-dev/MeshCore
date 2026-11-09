@@ -57,6 +57,7 @@
 #endif
 
 class GpsGuard {
+  bool     _enabled = true;               // off: every fix and GPS time passes, as without GPS_GUARD
   double   _ref_lat = 0, _ref_lon = 0;    // 0,0 = no reference position
   uint32_t _fence_m = GPS_GUARD_FENCE_M;
 
@@ -118,6 +119,19 @@ public:
   void setFence(uint32_t metres) { _fence_m = metres; }
   uint32_t getFence() const { return _fence_m; }
   bool hasTrustedFix() const { return _have_trusted; }
+  bool isEnabled() const { return _enabled; }
+  void setEnabled(bool enabled) {
+    if (enabled == _enabled) return;
+    _enabled = enabled;
+    // start over: a re-enabled guard needs fresh stable fixes, and no alert survives
+    _have_trusted = false;
+    _stable_count = 0;
+    _time_accepted = false;
+    _time_disagree = false;
+    _time_alert = false;
+    strcpy(_fix_status, "no fix");
+    strcpy(_time_status, "-");
+  }
   bool isTimeAlert() const { return _time_alert; }
   long getAlertOffset() const { return _time_disagree_offset; }
 
@@ -127,6 +141,7 @@ public:
     const double lat = lat_e6 / 1000000.0;
     const double lon = lon_e6 / 1000000.0;
     const unsigned long now = millis();
+    if (!_enabled) return true;
 
     const char* why = NULL;
     double dist = 0;
@@ -202,6 +217,7 @@ public:
   // GPS time is only written to the clock while a trusted fix is current, it is not
   // older than this firmware, and (once the clock is plausible) it only nudges the clock.
   bool acceptTime(uint32_t gps_time, uint32_t clock_time) {
+    if (!_enabled) return true;
     const char* why = NULL;
     long step = 0;
     if (!trustedFixIsCurrent()) {
@@ -267,6 +283,10 @@ public:
   // e.g. "ok 7sat time ok +1s", "rej region time rej nofix",
   // "ok 9sat time rej step 3600s ALERT gps-clk +3600s 75m"
   void formatStatus(char* out, size_t out_size) const {
+    if (!_enabled) {
+      snprintf(out, out_size, "off");
+      return;
+    }
     // The time status is only refreshed when a sync is due: without a current trusted fix,
     // do not keep showing an old "ok" as if GPS time were usable now.
     const char* time_status = (_time_status[0] == 'o' && !trustedFixIsCurrent()) ? "rej nofix" : _time_status;

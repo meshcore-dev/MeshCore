@@ -38,6 +38,7 @@ public:
   uint32_t gps_interval = 0;     // GPS read interval in seconds
   uint32_t gps_period = 0;       // periodic acquisition interval in seconds
   int32_t gps_fence = -1;        // GPS_GUARD fence in metres, 0 = off, -1 = build default
+  uint8_t gps_guard = 1;         // GPS_GUARD on/off
   uint8_t autoadd_config = 0;    // bitmask for auto-add contacts config
   uint8_t rx_boosted_gain = 0; // SX126x RX boosted gain mode (0=power saving, 1=boosted)
   uint8_t radio_fem_rxgain = 0; // external LoRa FEM RX gain (LNA)
@@ -169,6 +170,7 @@ private:
       def("adv_loc", _parent->advert_loc_policy);
 #ifdef GPS_GUARD
       def("fence", _parent->gps_fence);
+      def("guard", _parent->gps_guard);
 #endif
     }
   public:
@@ -183,6 +185,11 @@ private:
       return true;
     }
     void setGuardFence(uint32_t metres) override { _parent->gps_fence = (int32_t)metres; markDirty(); }
+    bool getGuardEnabled(bool& enabled) const override {
+      enabled = _parent->gps_guard != 0;
+      return true;
+    }
+    void setGuardEnabled(bool enabled) override { _parent->gps_guard = enabled ? 1 : 0; markDirty(); }
   };
   GPSPrefs gps;
 

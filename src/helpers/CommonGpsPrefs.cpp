@@ -28,6 +28,8 @@ void CommonGpsPrefs::applyGuardReference(SensorManager& sensors) const {
   if (guard != nullptr && getGuardReference(lat, lon)) guard->setReference(lat, lon);
   uint32_t fence;
   if (guard != nullptr && getGuardFence(fence)) guard->setFence(fence);
+  bool enabled;
+  if (guard != nullptr && getGuardEnabled(enabled)) guard->setEnabled(enabled);
 #endif
 }
 
@@ -232,6 +234,11 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     } else if (strcmp(command, "gps guard") == 0) {
       reply[0] = '>'; reply[1] = ' ';
       guard->formatStatus(reply + 2, 158);
+    } else if (strcmp(command, "gps guard on") == 0 || strcmp(command, "gps guard off") == 0) {
+      const bool enabled = command[11] == 'n';
+      guard->setEnabled(enabled);
+      setGuardEnabled(enabled);  // saved by the caller (isDirty)
+      strcpy(reply, "OK");
     } else if (strcmp(command, "gps guard accept") == 0) {
       // operator confirms that the alerted GPS time is right: apply it to the clock
       long offset;

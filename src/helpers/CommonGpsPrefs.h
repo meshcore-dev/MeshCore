@@ -24,6 +24,9 @@ public:
   // Saved fence radius for the guard; false = not set, use the build default.
   virtual bool getGuardFence(uint32_t& metres) const { return false; }
   virtual void setGuardFence(uint32_t metres) { }
+  // Saved on/off state of the guard; false = not set, guard on.
+  virtual bool getGuardEnabled(bool& enabled) const { return false; }
+  virtual void setGuardEnabled(bool enabled) { }
 
   bool setGpsEnabled(SensorManager& sensors, bool enabled);
   void applyGuardReference(SensorManager& sensors) const;
