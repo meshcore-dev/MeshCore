@@ -4,7 +4,13 @@
 #include "MeshCore.h"
 
 class CustomLR2021 : public LR2021 {
-  bool _rx_boosted = false;
+  uint32_t _preambleMillis = 66;
+  uint32_t _maxPayloadMillis = 3934;
+  uint32_t _activityAt = 0;
+  bool _headerSeen = false;
+  // last applied gain level per RX path, mirroring RadioLib's gainModeLf/gainModeHf defaults
+  uint8_t _rx_gain_lf = RADIOLIB_LR2021_RX_BOOST_LF;
+  uint8_t _rx_gain_hf = RADIOLIB_LR2021_RX_BOOST_HF;
 
   public:
     CustomLR2021(Module *mod) : LR2021(mod) { irqDioNum = LR2021_IRQ_DIO; }
@@ -64,13 +70,78 @@ class CustomLR2021 : public LR2021 {
     
     float getFreqMHz() const { return freqMHz; }
 
-    bool getRxBoostedGainMode() const { return _rx_boosted; }
+    bool isHighFreqPath() const { return freqMHz > RADIOLIB_LR2021_LF_CUTOFF_FREQ; }
+
+    int16_t setRxBoostedGainMode(uint8_t level) {
+      uint8_t& applied = isHighFreqPath() ? _rx_gain_hf : _rx_gain_lf;
+      int16_t status = LR2021::setRxBoostedGainMode(level);
+      if (status == RADIOLIB_ERR_NONE) {
+        applied = level;
+      } else {
+        // RadioLib caches the level before sending it; restore it so the next startReceive keeps the old gain
+        LR2021::setRxBoostedGainMode(applied);
+      }
+      return status;
+    }
+
+    bool getRxBoostedGainMode() const { return (isHighFreqPath() ? _rx_gain_hf : _rx_gain_lf) != 0; }
+
+    int16_t startReceive() override {
+      // include the PREAMBLE_DETECTED irq bit in reported flags
+      return LR2021::startReceive(RADIOLIB_LR2021_RX_TIMEOUT_INF, RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1UL << RADIOLIB_IRQ_PREAMBLE_DETECTED), RADIOLIB_IRQ_RX_DEFAULT_MASK, 0);
+    }
 
     bool isReceiving() {
       uint32_t irq = getIrqStatus();
-      bool detected = ((irq & RADIOLIB_LR2021_IRQ_SYNCWORD_VALID) || (irq & RADIOLIB_LR2021_IRQ_PREAMBLE_DETECTED));
-      return detected;
+      bool preamble = irq & RADIOLIB_LR2021_IRQ_PREAMBLE_DETECTED;  // bit 5
+      bool header   = irq & RADIOLIB_LR2021_IRQ_LORA_HEADER_VALID;  // bit 6
+      bool hdrErr   = irq & RADIOLIB_LR2021_IRQ_LORA_HDR_CRC_ERROR; // bit 9
+      uint32_t now  = millis();
+      if (hdrErr) {
+        clearIrqFlags(RADIOLIB_LR2021_IRQ_PREAMBLE_DETECTED | RADIOLIB_LR2021_IRQ_LORA_HEADER_VALID | RADIOLIB_LR2021_IRQ_LORA_HDR_CRC_ERROR);
+        _activityAt = 0;
+        _headerSeen = false;
+        return false;
+      }
+      if (!header && _headerSeen) {
+        // something cleared the header flag, reset our state.
+        _activityAt = 0; _headerSeen = false;
+        return false;
+      }
+
+      if (header) {
+        if (!_headerSeen) { _headerSeen = true; _activityAt = now; };
+        if (now - _activityAt > _maxPayloadMillis) {
+          MESH_DEBUG_PRINTLN("Clearing header IRQ after %ums", _maxPayloadMillis);
+          clearIrqFlags(RADIOLIB_LR2021_IRQ_PREAMBLE_DETECTED | RADIOLIB_LR2021_IRQ_LORA_HEADER_VALID | RADIOLIB_LR2021_IRQ_LORA_HDR_CRC_ERROR);
+          _activityAt = 0; _headerSeen = false;
+          return false;
+        }
+        return true;
+      }
+      if (preamble) {
+        if (_activityAt == 0) _activityAt = now;
+        if (now - _activityAt > _preambleMillis) {
+          clearIrqFlags(RADIOLIB_LR2021_IRQ_PREAMBLE_DETECTED);
+          _activityAt = 0;
+          MESH_DEBUG_PRINTLN("Clearing preamble IRQ after %ums", _preambleMillis);
+          return false;
+        }
+        return true;
+      }
+      _activityAt = 0; _headerSeen = false;
+      return false;
     }
+    
+    void setPreambleMillis(uint32_t preambleMillis) {
+      _preambleMillis = preambleMillis;
+      MESH_DEBUG_PRINTLN("Set _preambleMillis=%u", _preambleMillis);
+    }
+    void setMaxPayloadMillis(uint32_t payloadMillis) {
+      _maxPayloadMillis = payloadMillis;
+      MESH_DEBUG_PRINTLN("Set _maxPayloadMillis=%u", _maxPayloadMillis);
+    }
+
 
     uint8_t getSpreadingFactor() const { return spreadingFactor; }
 };

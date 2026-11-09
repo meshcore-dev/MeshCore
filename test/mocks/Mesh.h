@@ -13,6 +13,7 @@ public:
   virtual bool isSendComplete() { return true; }
   virtual void onSendFinished() {}
   virtual int16_t getNoiseFloor() { return -120; }
+  virtual void resetAGC() {}
 };
 
 class MainBoard {
@@ -22,6 +23,7 @@ public:
   virtual float getMCUTemperature() { return 25.0f; }
   virtual const char* getManufacturerName() { return "mock-board"; }
   virtual void reboot() {}
+  virtual bool handleCommand(const char*, uint32_t, char*) { return false; }
 };
 
 }

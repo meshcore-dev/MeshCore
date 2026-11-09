@@ -13,6 +13,16 @@ class CustomLR1110 : public LR1110 {
   public:
     CustomLR1110(Module *mod) : LR1110(mod) { }
 
+    int16_t begin(float freq = 434.0, float bw = 125.0, uint8_t sf = 9, uint8_t cr = 7,
+                  uint8_t syncWord = RADIOLIB_LR11X0_LORA_SYNC_WORD_PRIVATE, int8_t power = 10,
+                  uint16_t preambleLength = 8, float tcxoVoltage = 1.6) {
+      int16_t state = LR1110::begin(freq, bw, sf, cr, syncWord, power, preambleLength,
+                                    tcxoVoltage);
+      // RadioLib begin() defaults to LDO; use the LR1110 DC/DC regulator.
+      if (state == RADIOLIB_ERR_NONE) state = setRegulatorDCDC();
+      return state;
+    }
+
     size_t getPacketLength(bool update) override {
       size_t len = LR1110::getPacketLength(update);
       if (len == 0 && getIrqStatus() & RADIOLIB_LR11X0_IRQ_HEADER_ERR) {
@@ -29,8 +39,9 @@ class CustomLR1110 : public LR1110 {
     float getFreqMHz() const { return freqMHz; }
 
     int16_t setRxBoostedGainMode(bool en) {
-      _rx_boosted = en;
-      return LR1110::setRxBoostedGainMode(en);
+      int16_t status = LR1110::setRxBoostedGainMode(en);
+      if (status == RADIOLIB_ERR_NONE) _rx_boosted = en;
+      return status;
     }
 
     bool getRxBoostedGainMode() const { return _rx_boosted; }

@@ -34,6 +34,7 @@
 #include <helpers/StatsFormatHelper.h>
 #include <helpers/TxtDataHelpers.h>
 #include <helpers/RegionMap.h>
+#include <helpers/RoutingPolicy.h>
 #include "RateLimiter.h"
 
 #ifdef WITH_BRIDGE
@@ -58,10 +59,6 @@ struct RepeaterStats {
   uint32_t n_recv_errors;
 };
 
-#ifndef MAX_CLIENTS
-  #define MAX_CLIENTS           32
-#endif
-
 struct NeighbourInfo {
   mesh::Identity id;
   uint32_t advert_timestamp;
@@ -70,11 +67,11 @@ struct NeighbourInfo {
 };
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "6 Jun 2026"
+  #define FIRMWARE_BUILD_DATE   "15 Oct 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.16.0"
+  #define FIRMWARE_VERSION   "v1.18.0"
 #endif
 
 #define FIRMWARE_ROLE "repeater"
@@ -189,6 +186,9 @@ public:
   const char* getNodeName() { return _prefs.node_name; }
   NodePrefs* getNodePrefs() {
     return &_prefs;
+  }
+  bool isHiddenNode() const {
+    return _prefs.advert_interval == 0 && _prefs.flood_advert_interval == 0;
   }
 
   void savePrefs() override {

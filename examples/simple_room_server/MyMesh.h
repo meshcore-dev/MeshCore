@@ -21,17 +21,18 @@
 #include <helpers/StatsFormatHelper.h>
 #include <helpers/ClientACL.h>
 #include <helpers/RegionMap.h>
+#include <helpers/RoutingPolicy.h>
 #include <RTClib.h>
 #include <target.h>
 
 /* ------------------------------ Config -------------------------------- */
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "6 Jun 2026"
+  #define FIRMWARE_BUILD_DATE   "15 Oct 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.16.0"
+  #define FIRMWARE_VERSION   "v1.18.0"
 #endif
 
 #ifndef LORA_FREQ
