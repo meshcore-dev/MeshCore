@@ -5,6 +5,9 @@
 #include <MicroNMEA.h>
 #include <RTClib.h>
 #include <string.h>
+#ifdef GPS_GUARD
+#include "GpsGuard.h"
+#endif
 
 #ifndef GPS_PERIODIC_ACQUISITION_TIMEOUT_MS
     #define GPS_PERIODIC_ACQUISITION_TIMEOUT_MS 300000UL
@@ -44,6 +47,9 @@ class MicroNMEALocationProvider : public LocationProvider {
     unsigned long _last_nmea_ms = 0;
     bool _uart_seen = false;
     bool _nmea_seen = false;
+#ifdef GPS_GUARD
+    GpsGuard _guard;
+#endif
 
     static uint32_t ageMs(unsigned long timestamp) {
         return (uint32_t)(millis() - timestamp);
@@ -80,6 +86,11 @@ class MicroNMEALocationProvider : public LocationProvider {
         // only store a fix when the snapshot is coherent (sats > 0).
         // Returns true if the fix was stored.
         if (nmea.getNumSatellites() == 0) return false;
+#ifdef GPS_GUARD
+        // only plausible, stable fixes become the last fix (position, telemetry, time sync)
+        if (!_guard.acceptFix(nmea.getLatitude(), nmea.getLongitude(), nmea.getNumSatellites(),
+                              nmea.getHDOP(), getTimestamp())) return false;
+#endif
 
         LastFix fix;
         fix.latitude = nmea.getLatitude();
@@ -106,12 +117,20 @@ class MicroNMEALocationProvider : public LocationProvider {
             (millis() - _last_time_sync) > TIME_SYNC_INTERVAL) {
             _time_sync_needed = true;
         }
-        if (_time_sync_needed && time_valid > 2 && _clock != nullptr) {
+        if (_time_sync_needed && time_valid > 2 && _clock != nullptr && timeSyncAllowed()) {
             _clock->setCurrentTime(getTimestamp());
             _time_sync_needed = false;
             _last_time_sync = millis();
         }
         if (isValid()) time_valid++;
+    }
+
+    bool timeSyncAllowed() {
+#ifdef GPS_GUARD
+        return _guard.acceptTime(getTimestamp(), _clock->getCurrentTime());
+#else
+        return true;
+#endif
     }
 
 public:
@@ -195,7 +214,15 @@ public:
     }
 
     // Position, altitude and satellite count describe the last saved fix
-    // Before the first saved fix, fall back to the live parser state.
+    // Before the first saved fix, fall back to the live parser state
+    // (not with GPS_GUARD: an unverified position is never reported).
+#ifdef GPS_GUARD
+    GpsGuard* getGuard() override { return &_guard; }
+    bool hasValidFix() override { return _lastFix.valid; }
+    long getLatitude() override { return _lastFix.latitude; }
+    long getLongitude() override { return _lastFix.longitude; }
+    long getAltitude() override { return _lastFix.altitude; }
+#else
     long getLatitude() override {
         return _lastFix.valid ? _lastFix.latitude : nmea.getLatitude();
     }
@@ -207,6 +234,23 @@ public:
         long alt = 0;
         nmea.getAltitude(alt);
         return alt;
+    }
+#endif
+
+    // GPS time minus clock time, from a current fix with a settled time
+    bool getClockOffset(long& offset) override {
+        if (_clock == nullptr || !isValid() || time_valid < 3) return false;
+        offset = (long)getTimestamp() - (long)_clock->getCurrentTime();
+        return true;
+    }
+
+    // write the current GPS time to the clock now (caller has done its own checks)
+    bool applyTimeNow() override {
+        if (_clock == nullptr || !isValid() || time_valid < 3) return false;
+        _clock->setCurrentTime(getTimestamp());
+        _time_sync_needed = false;
+        _last_time_sync = millis();
+        return true;
     }
     long satellitesCount() override {
         return _lastFix.valid ? _lastFix.satellites : nmea.getNumSatellites();
@@ -286,6 +330,12 @@ public:
                     _nmea_seen = true;
 
                     const char* messageId = nmea.getMessageID();
+#ifdef GPS_GUARD
+                    if (parsed && !nmea.isValid() &&
+                        (strcmp(messageId, "GGA") == 0 || strcmp(messageId, "RMC") == 0)) {
+                        _guard.noFix(nmea.getNumSatellites());
+                    }
+#endif
                     if (parsed && nmea.isValid() &&
                         (strcmp(messageId, "GGA") == 0 || strcmp(messageId, "RMC") == 0)) {
                         if (!saveFix()) continue;  // incoherent snapshot

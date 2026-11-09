@@ -19,7 +19,18 @@ public:
   virtual uint32_t getGpsPeriod() const = 0;
   virtual void setGpsPeriod(uint32_t seconds) = 0;
 
+  // Reference position for the anti-spoofing guard (GPS_GUARD), e.g. the configured node position.
+  virtual bool getGuardReference(double& lat, double& lon) const { return false; }
+  // Saved fence radius for the guard; false = not set, use the build default.
+  virtual bool getGuardFence(uint32_t& metres) const { return false; }
+  virtual void setGuardFence(uint32_t metres) { }
+  // Saved on/off state of the guard; false = not set, guard on.
+  virtual bool getGuardEnabled(bool& enabled) const { return false; }
+  virtual void setGuardEnabled(bool enabled) { }
+
   bool setGpsEnabled(SensorManager& sensors, bool enabled);
+  void applyGuardReference(SensorManager& sensors) const;
+  static void onClockSetManually(SensorManager& sensors);
   bool setGpsPeriod(SensorManager& sensors, uint32_t seconds);
   bool apply(SensorManager& sensors) const;
   bool handleCommand(const char* command, SensorManager& sensors, char* reply);

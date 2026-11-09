@@ -71,6 +71,23 @@ public:
         return _useI2c ? _lastFix.timestamp : _nmea.getTimestamp();
     }
 
+    // the anti-spoofing guard (GPS_GUARD) only covers the serial NMEA path
+    GpsGuard* getGuard() override {
+        return _useI2c ? nullptr : _nmea.getGuard();
+    }
+
+    bool hasValidFix() override {
+        return _useI2c ? LocationProvider::hasValidFix() : _nmea.hasValidFix();
+    }
+
+    bool getClockOffset(long& offset) override {
+        return _useI2c ? false : _nmea.getClockOffset(offset);
+    }
+
+    bool applyTimeNow() override {
+        return _useI2c ? false : _nmea.applyTimeNow();
+    }
+
     void sendSentence(const char* sentence) override {
         if (!_useI2c) _nmea.sendSentence(sentence);
     }
