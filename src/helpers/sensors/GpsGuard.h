@@ -200,7 +200,7 @@ public:
   }
 
   // GPS time is only written to the clock while a trusted fix is current, it is not
-  // older than this firmware, and (once the clock is valid) it only nudges the clock.
+  // older than this firmware, and (once the clock is plausible) it only nudges the clock.
   bool acceptTime(uint32_t gps_time, uint32_t clock_time) {
     const char* why = NULL;
     long step = 0;
@@ -208,7 +208,9 @@ public:
       why = "nofix";
     } else if (gps_time < minEpoch() || gps_time > maxEpoch()) {
       why = "range";
-    } else if (clock_time >= minEpoch()) {   // clock already holds a plausible time
+    } else if (clock_time >= minEpoch() && clock_time <= maxEpoch()) {
+      // The clock already holds a plausible time. A clock outside that window (e.g. a
+      // bogus 2080 date at boot) is treated like an unset one, so GPS can correct it.
       step = (long)gps_time - (long)clock_time;
       long limit = GPS_GUARD_TIME_MAX_STEP;
       if (_time_accepted) {
