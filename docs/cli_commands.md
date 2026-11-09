@@ -795,6 +795,8 @@ adverts running, set an explicit value in the 60-240 range.
 
 **Note:** Setting on wildcard `*` drops packets without region transport codes
 
+**Note:** `allowf`/`denyf` affect only the named region. Child regions do not inherit the flag; set `F` on each region line in `region load`, or run `region allowf` for each region that should allow flooding.
+
 ---
 
 #### Show information for a region
@@ -814,6 +816,8 @@ adverts running, set an explicit value in the 60-240 range.
 **Parameters:**
 - `name`: Region name
 
+**Note:** The home region is a local marker (shown with `^` in the region tree); it does not affect forwarding.
+
 ---
 
 #### View or change the default scope region for this node
@@ -824,6 +828,8 @@ adverts running, set an explicit value in the 60-240 range.
 **Parameters:**
 - `name`: Region name,  or <null> to reset/clear
 
+**Note:** The default region is the scope used for floods originated by this node; it does not restrict which regions this node forwards.
+
 ---
 
 #### Create a new region
@@ -833,6 +839,8 @@ adverts running, set an explicit value in the 60-240 range.
 **Parameters:**
 - `name`: Region name
 - `parent_name`: Parent region name (optional, defaults to wildcard)
+
+**Note:** `region put` creates a new region with flooding enabled, regardless of the parent's flag. The parent only sets the position in the region tree; it does not change the region's transport key or flood permission.
 
 ---
 
@@ -845,7 +853,7 @@ adverts running, set an explicit value in the 60-240 range.
 - **`name`** — Create `name` as a child of the current cursor (equivalent to `region put name` with the cursor as parent). Cursor moves to `name`.
 - **`name|jump`** *(or `name,jump`)* — Create `name` as a child of the current cursor, then move the cursor to `jump` (must already exist on the node, or have been created earlier in this command). `jump` is **not** the parent of `name`; use this form to pop back up and start another branch.
 
-**Behavior:** Each created region defaults to flood-allowed (same as `region put`). The reply is the resulting region tree (same format as bare `region`); review it before running `region save` to persist. On error, the reply is `Err - ...` and any regions placed before the failure remain on the node, just like a partial chain of `region put`.
+**Behavior:** Each created region defaults to flood-allowed (same as `region put`). The reply is the resulting region tree (same format as bare `region`); review it before running `region save` to persist. Parent/child relationships only affect the tree layout and removal order; they do not change a region's transport key or flood permission. On error, the reply is `Err - ...` and any regions placed before the failure remain on the node, just like a partial chain of `region put`.
 
 **Existing regions:** `region def` does not clear the existing tree — if a name already exists, its parent is updated to the current cursor; otherwise a new region is created. To start from scratch, `region remove` the unwanted regions first.
 
@@ -935,8 +943,8 @@ region save
 
 **Explanation:**
 - Creates a wildcard region `*` with flooding enabled
-- Enables flooding for all regions automatically
-- Applies only to packets without transport codes
+- Allows unscoped flood packets (packets without transport codes)
+- Does not change the flood permission of named regions
 
 ---
 
@@ -958,12 +966,12 @@ region save
 ```
 region load 
 #Europe F
-  #UK
-    #London
-    #Manchester
-  #France
-    #Paris
-    #Lyon
+  #UK F
+    #London F
+    #Manchester F
+  #France F
+    #Paris F
+    #Lyon F
 <blank line to end region load>
 region save
 ```
@@ -971,7 +979,7 @@ region save
 **Explanation:**
 - Creates `#Europe` region with flooding enabled
 - Adds nested child regions (`#UK`, `#France`)
-- All nested regions inherit the flooding flag from parent
+- Each nested region needs `F` on its own line; the flag is not inherited from the parent
 
 ---
 
@@ -979,13 +987,13 @@ region save
 ```
 region load 
 * F
-  #NorthAmerica
-    #USA
-      #NewYork
-      #California
-    #Canada
-      #Ontario
-      #Quebec
+  #NorthAmerica F
+    #USA F
+      #NewYork F
+      #California F
+    #Canada F
+      #Ontario F
+      #Quebec F
 <blank line to end region load>
 region save
 ```
@@ -993,7 +1001,7 @@ region save
 **Explanation:**
 - Creates wildcard region `*` with flooding enabled
 - Adds nested `#NorthAmerica` hierarchy
-- Enables flooding for all child regions automatically
+- `* F` applies only to packets without transport codes; each named region still needs its own `F`
 - Useful for global networks with specific regional rules
 
 ---
