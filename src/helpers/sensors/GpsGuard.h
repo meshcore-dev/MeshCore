@@ -265,11 +265,14 @@ public:
   // e.g. "ok 7sat time ok +1s", "rej region time rej nofix",
   // "ok 9sat time rej step 3600s ALERT gps-clk +3600s 75m"
   void formatStatus(char* out, size_t out_size) const {
+    // The time status is only refreshed when a sync is due: without a current trusted fix,
+    // do not keep showing an old "ok" as if GPS time were usable now.
+    const char* time_status = (_time_status[0] == 'o' && !trustedFixIsCurrent()) ? "rej nofix" : _time_status;
     if (_time_alert) {
-      snprintf(out, out_size, "%s time %s ALERT gps-clk %+lds %lum", _fix_status, _time_status,
+      snprintf(out, out_size, "%s time %s ALERT gps-clk %+lds %lum", _fix_status, time_status,
                _time_disagree_offset, (unsigned long)((uint32_t)(millis() - _time_disagree_since_ms) / 60000));
     } else {
-      snprintf(out, out_size, "%s time %s", _fix_status, _time_status);
+      snprintf(out, out_size, "%s time %s", _fix_status, time_status);
     }
   }
 };
