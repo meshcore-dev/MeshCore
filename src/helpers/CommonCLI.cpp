@@ -249,6 +249,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "ERR: bad pubkey");
       }
+    } else if (memcmp(command, "tempradio ", 10) == 0 && strlen(&command[10]) >= sizeof(tmp)) {
+      strcpy(reply, "Error, invalid params");   // would not fit tmp
     } else if (memcmp(command, "tempradio ", 10) == 0) {
       strcpy(tmp, &command[10]);
       const char *parts[5];
@@ -305,6 +307,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "null");
       }
+    } else if (memcmp(command, "sensor set ", 11) == 0 && strlen(&command[11]) >= sizeof(tmp)) {
+      strcpy(reply, "can't find custom var");   // would not fit tmp
     } else if (memcmp(command, "sensor set ", 11) == 0) {
       strcpy(tmp, &command[11]);
       const char *parts[2];
@@ -431,7 +435,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         bool enabled = l->isEnabled(); // is EN pin on ?
         bool fix = l->isValid();       // has fix ?
         int sats = l->satellitesCount();
-        bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
+        const char* setting = _sensors->getSettingByKey("gps");
+        bool active = setting != NULL && strcmp(setting, "1") == 0;
         if (enabled) {
           sprintf(reply, "on, %s, %s, %d sats",
             active?"active":"deactivated",
@@ -679,6 +684,8 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error: unsupported");
     };
   #if defined(USE_LR2021)
+  } else if (memcmp(config, "extra.sf ", 9) == 0 && strlen(&config[9]) >= sizeof(tmp)) {
+    sprintf(reply, "Invalid extra SF config");   // would not fit tmp
   } else if (memcmp(config, "extra.sf ", 9) == 0) {
     strcpy(tmp, &config[9]);
     const char *parts[4];
@@ -838,7 +845,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
       sprintf(reply, "No extra SF configured");
     }
   } else {
-    sprintf(reply, "??: %s", config);
+    snprintf(reply, 160, "??: %s", config);
   }
 }
 
