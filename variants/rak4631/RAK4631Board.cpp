@@ -96,6 +96,22 @@ void RAK4631Board::initiateShutdown(uint8_t reason) {
   }
 #endif
 
+#if defined(DISPLAY_CLASS)
+  // The OLED stays powered from 3V3 in SYSTEMOFF and keeps showing its last frame,
+  // which makes a successful power-off look like a freeze. Paths such as the
+  // long-press and the CLI "poweroff" command bypass UITask::shutdown(), so blank
+  // the panel here: display off (0xAE) and charge pump off (0x8D, 0x10).
+  #ifndef DISPLAY_ADDRESS
+    #define DISPLAY_ADDRESS 0x3C
+  #endif
+  Wire.beginTransmission(DISPLAY_ADDRESS);
+  Wire.write(0x00);  // control byte: command stream
+  Wire.write(0xAE);
+  Wire.write(0x8D);
+  Wire.write(0x10);
+  Wire.endTransmission();
+#endif
+
   // Disconnect LoRa pins and detach RadioLib interrupts before powering down
   // Otherwise, the collapsing power rail on the SX1262 triggers a false DETECT wakeup
   detachInterrupt(digitalPinToInterrupt(P_LORA_DIO_1));
