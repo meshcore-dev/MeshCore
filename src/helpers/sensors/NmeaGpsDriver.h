@@ -4,6 +4,9 @@
 
 #include <Arduino.h>
 #include <helpers/RefCountedDigitalPin.h>
+#include <MeshCore.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifndef UART_TYPE
 #ifdef NRF52_PLATFORM
@@ -88,6 +91,8 @@ class NmeaGpsDriver : public GpsDriver {
     int _enableActive = HIGH;
     int _resetActive = LOW;
     uint32_t _baudRate = 9600;
+    const uint32_t* _probeBauds = nullptr;  // optional rates to try in detect(), set by the board
+    uint8_t _probeCount = 0;
     int _hardwareEnablePin = -1;
     int _hardwareEnableActive = HIGH;
     bool _started = false;
@@ -115,6 +120,65 @@ class NmeaGpsDriver : public GpsDriver {
         _started = true;
     }
 
+    void reopenSerial(uint32_t baud) {
+        _hardwareSerial->end();
+        if (_txPin != -1 && _rxPin != -1) {
+            _hardwareSerial->setPins(_txPin, _rxPin);
+        }
+        _hardwareSerial->begin(baud);
+        drain();
+    }
+
+    // True if a complete NMEA sentence with a valid checksum arrives within timeout_ms.
+    bool seesValidNmea(uint32_t timeout_ms) {
+        char line[100];
+        int len = -1;  // -1 = waiting for '$'
+        const uint32_t start = millis();
+        while ((uint32_t)(millis() - start) < timeout_ms) {
+            if (available() <= 0) { delay(2); continue; }
+            const char c = (char)read();
+            if (c == '$') { len = 0; continue; }
+            if (len < 0) continue;
+            if (c == '\r' || c == '\n') {
+                line[len] = '\0';
+                const char* star = strchr(line, '*');
+                if (star != nullptr && strlen(star) >= 3) {
+                    uint8_t sum = 0;
+                    for (const char* p = line; p < star; p++) sum ^= (uint8_t)*p;
+                    if (sum == (uint8_t)strtoul(star + 1, nullptr, 16)) return true;
+                }
+                len = -1;
+            } else if (len < (int)sizeof(line) - 1) {
+                line[len++] = c;
+            } else {
+                len = -1;  // longer than any NMEA sentence: wrong baud rate
+            }
+        }
+        return false;
+    }
+
+    // Bytes arriving does not mean the baud rate is right: at the wrong rate the
+    // parser only sees garbage and never gets a fix. Try the configured rate, then the
+    // board's list, and keep the first that yields valid NMEA. The rate is kept in
+    // _baudRate, so later power cycles reopen the UART with it.
+    bool tryBaudRate(uint32_t baud) {
+        reopenSerial(baud);
+        if (!seesValidNmea(2000)) return false;
+        _baudRate = baud;
+        MESH_DEBUG_PRINTLN("GPS baud rate: %lu", (unsigned long)_baudRate);
+        return true;
+    }
+
+    void detectBaudRate() {
+        const uint32_t configured = _baudRate;
+        if (tryBaudRate(configured)) return;
+        for (uint8_t i = 0; i < _probeCount; i++) {
+            if (_probeBauds[i] != configured && tryBaudRate(_probeBauds[i])) return;
+        }
+        reopenSerial(configured);
+        MESH_DEBUG_PRINTLN("GPS baud rate not detected, using %lu", (unsigned long)configured);
+    }
+
     void stopHardware() {
         if (!_started) return;
 
@@ -134,10 +198,12 @@ public:
                   int enableActive = GPS_EN_ACTIVE, int resetActive = GPS_RESET_ACTIVE,
                   uint32_t baudRate = GPS_BAUD_RATE,
                   int hardwareEnablePin = PIN_GPS_SWITCH,
-                  int hardwareEnableActive = GPS_SWITCH_ACTIVE)
+                  int hardwareEnableActive = GPS_SWITCH_ACTIVE,
+                  const uint32_t* probeBauds = nullptr, uint8_t probeCount = 0)
         : _hardwareSerial(&serial), _peripheralPower(peripheralPower), _txPin(txPin), _rxPin(rxPin),
           _resetPin(resetPin), _enablePin(enablePin), _enableActive(enableActive),
           _resetActive(resetActive), _baudRate(baudRate),
+          _probeBauds(probeBauds), _probeCount(probeBauds != nullptr ? probeCount : 0),
           _hardwareEnablePin(hardwareEnablePin), _hardwareEnableActive(hardwareEnableActive) {
         if (_resetPin != -1) {
             pinMode(_resetPin, OUTPUT);
@@ -151,6 +217,13 @@ public:
             pinMode(_hardwareEnablePin, INPUT);
         }
     }
+
+    // Board with a GPS whose baud rate is not known in advance: detect() also tries the
+    // rates in probeBauds (after the configured one). The array must stay valid (static).
+    NmeaGpsDriver(UART_TYPE& serial, const uint32_t* probeBauds, uint8_t probeCount)
+        : NmeaGpsDriver(serial, PIN_GPS_TX, PIN_GPS_RX, GPS_RESET, GPS_EN, nullptr,
+                        GPS_EN_ACTIVE, GPS_RESET_ACTIVE, GPS_BAUD_RATE, PIN_GPS_SWITCH,
+                        GPS_SWITCH_ACTIVE, probeBauds, probeCount) {}
 
     void begin() override {
 #if !GPS_SWITCH_IS_HARDWARE
@@ -220,14 +293,18 @@ public:
     }
 
     bool detect(uint32_t timeout_ms) override {
-        if (available() > 0) return true;
+        bool found = available() > 0;
 
         const uint32_t deadline = millis() + timeout_ms;
-        while ((int32_t)(millis() - deadline) < 0) {
-            if (available() > 0) return true;
-            delay(10);
+        while (!found && (int32_t)(millis() - deadline) < 0) {
+            found = available() > 0;
+            if (!found) delay(10);
         }
-        return false;
+        // only on a real detection (timeout > 0), not on the quick "still active?" polls
+        if (found && timeout_ms > 0 && _probeCount > 0 && _started && _hardwareSerial != nullptr) {
+            detectBaudRate();
+        }
+        return found;
     }
 
     int available() {
