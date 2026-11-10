@@ -515,6 +515,20 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, max 64");
     } 
+  } else if (memcmp(config, "flood.max.type ", 15) == 0) {
+    uint8_t type, hops;
+    int rc = mesh::parseFloodMaxTypeCmd(&config[15], &type, &hops);
+    if (rc == FLOOD_MAX_CMD_BAD_TYPE) {
+      strcpy(reply, "Error, unknown packet type");
+    } else if (rc != FLOOD_MAX_CMD_OK) {
+      strcpy(reply, "Error, hops 0..64 or off");
+    } else if (!mesh::setFloodMaxForType(_prefs->flood_max_types, sizeof(_prefs->flood_max_types),
+                                         type, hops)) {
+      strcpy(reply, "Error, type list full");
+    } else {
+      savePrefs();
+      strcpy(reply, "OK");
+    }
   } else if (memcmp(config, "flood.max.advert ", 17) == 0) {
     uint8_t m = atoi(&config[17]);
     if (m <= 64) {
@@ -680,6 +694,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lat));
   } else if (memcmp(config, "lon", 3) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lon));
+  } else if (memcmp(config, "flood.max.type", 14) == 0) {
+    mesh::formatFloodMaxTypes(_prefs->flood_max_types, reply, 160);
   } else if (memcmp(config, "flood.max.advert", 16) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_advert);
   } else if (memcmp(config, "flood.max.unscoped", 18) == 0) {

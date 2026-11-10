@@ -9,6 +9,7 @@
 #include <helpers/CommonRadioPrefs.h>
 #include <helpers/CommonGpsPrefs.h>
 #include <helpers/DynamicConfigSerializer.h>
+#include <helpers/RoutingPolicy.h>
 
 #if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
 #define WITH_BRIDGE
@@ -48,6 +49,9 @@ public:
   uint8_t flood_max = 0;
   uint8_t flood_max_unscoped = 0;
   uint8_t flood_max_advert = 0;
+  // Per payload type hop limits, as an exception list: "<type>:<hops>" entries separated by commas,
+  // eg. "0:5,1:5". Empty means no per type limits.
+  char flood_max_types[FLOOD_MAX_TYPES_LEN];
   uint8_t interference_threshold = 0;
   uint8_t agc_reset_interval = 0; // secs / 4
   // Bridge settings
@@ -214,6 +218,7 @@ private:
       def("f_max", _parent->flood_max);
       def("f_max_uns", _parent->flood_max_unscoped);
       def("f_max_adv", _parent->flood_max_advert);
+      def("f_max_pt", _parent->flood_max_types, sizeof(_parent->flood_max_types));
       def("loop", _parent->loop_detect);
     }
   public:
@@ -259,6 +264,7 @@ public:
     password[0] = 0;
     guest_password[0] = 0;
     bridge_secret[0] = 0;
+    flood_max_types[0] = 0;
     owner_info[0] = 0;
   }
 
