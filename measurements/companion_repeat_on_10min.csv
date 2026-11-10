@@ -1,0 +1,20 @@
+time,event,detail
+2026-11-10T13:54:29,connected,CC:FA:3F:DF:FD:C1
+2026-11-10T13:54:29,error,BleakError: Not connected
+2026-11-10T13:54:34,connected,CC:FA:3F:DF:FD:C1
+2026-11-10T13:54:34,reply,code=0x05 len=66
+2026-11-10T13:54:54,reply,code=0x0c len=11
+2026-11-10T13:55:14,reply,code=0x0c len=11
+2026-11-10T13:55:34,reply,code=0x0c len=11
+2026-11-10T13:55:55,reply,code=0x0c len=11
+2026-11-10T13:56:15,reply,code=0x0c len=11
+2026-11-10T13:56:35,reply,code=0x0c len=11
+2026-11-10T13:56:55,reply,code=0x0c len=11
+2026-11-10T13:57:15,reply,code=0x0c len=11
+2026-11-10T13:57:35,reply,code=0x0c len=11
+2026-11-10T13:57:56,reply,code=0x0c len=11
+2026-11-10T13:58:16,reply,code=0x0c len=11
+2026-11-10T13:58:36,reply,code=0x0c len=11
+2026-11-10T13:58:56,reply,code=0x0c len=11
+2026-11-10T13:59:16,reply,code=0x0c len=11
+2026-11-10T13:59:36,reply,code=0x0c len=11

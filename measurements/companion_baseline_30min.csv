@@ -1,0 +1,9 @@
+time,event,detail
+2026-11-10T13:47:46,connected,CC:FA:3F:DF:FD:C1
+2026-11-10T13:47:47,reply,code=0x05 len=66
+2026-11-10T13:48:02,reply,code=0x0c len=11
+2026-11-10T13:48:17,reply,code=0x0c len=11
+2026-11-10T13:48:32,reply,code=0x0c len=11
+2026-11-10T13:48:47,reply,code=0x0c len=11
+2026-11-10T13:49:02,reply,code=0x0c len=11
+2026-11-10T13:49:18,reply,code=0x0c len=11
