@@ -101,6 +101,7 @@ void GxEPDDisplay::turnOff(bool blank) {
   }
   _isOn = false;
   last_display_crc_value=0;
+  display.hibernate();
 }
 
 void GxEPDDisplay::blankScreen() {
@@ -112,8 +113,6 @@ void GxEPDDisplay::blankScreen() {
   display.epd2.setBusyCallback(NULL);
   _partial_refresh_count = 0;
   last_display_crc_value = 0;
-  // we can hibernate as screen has been cleaned
-  display.hibernate();
 }
 
 void GxEPDDisplay::clear() {
