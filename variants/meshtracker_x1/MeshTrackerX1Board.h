@@ -5,9 +5,6 @@
 #include <helpers/NRF52Board.h>
 
 class MeshTrackerX1Board : public NRF52BoardDCDC {
-protected:
-  uint8_t btn_prev_state;
-
 public:
   MeshTrackerX1Board() : NRF52Board("X1_OTA") {}
   void begin();
@@ -33,17 +30,6 @@ public:
 
   const char* getManufacturerName() const override {
     return "Seeed SenseCAP MeshTracker X1";
-  }
-
-  int buttonStateChanged() {
-  #ifdef BUTTON_PIN
-    uint8_t v = digitalRead(BUTTON_PIN);
-    if (v != btn_prev_state) {
-      btn_prev_state = v;
-      return (v == USER_BTN_PRESSED) ? 1 : -1;
-    }
-  #endif
-    return 0;
   }
 
   void powerOff() override {

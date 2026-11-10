@@ -1,11 +1,6 @@
 
 #include "GxEPDDisplay.h"
 
-#ifdef EXP_PIN_BACKLIGHT
-  #include <PCA9557.h>
-  extern PCA9557 expander;
-#endif
-
 #ifndef DISPLAY_ROTATION
   #define DISPLAY_ROTATION 3
 #endif
@@ -52,7 +47,7 @@ bool GxEPDDisplay::begin() {
   }
 
   display.setPartialWindow(0, 0, display.width(), display.height());
-  resetPartialRefreshCounter();
+  _partial_refresh_count = 0;
 
   #if DISP_BACKLIGHT
   digitalWrite(DISP_BACKLIGHT, LOW);
@@ -65,29 +60,55 @@ bool GxEPDDisplay::begin() {
 
 void GxEPDDisplay::turnOn() {
   if (!_init) begin();
-#if defined(DISP_BACKLIGHT) && !defined(BACKLIGHT_BTN)
-  digitalWrite(DISP_BACKLIGHT, HIGH);
-#elif defined(EXP_PIN_BACKLIGHT) && !defined(BACKLIGHT_BTN)
-  expander.digitalWrite(EXP_PIN_BACKLIGHT, HIGH);
-#endif
   if (!_isOn) {
     _isOn = true;
   }
 }
 
-void GxEPDDisplay::turnOff() {
-#if defined(DISP_BACKLIGHT) && !defined(BACKLIGHT_BTN)
-  digitalWrite(DISP_BACKLIGHT, LOW);
-#elif defined(EXP_PIN_BACKLIGHT) && !defined(BACKLIGHT_BTN)
-  expander.digitalWrite(EXP_PIN_BACKLIGHT, LOW);
-#endif
+void GxEPDDisplay::turnOn(int max_partial) {
+  setMaxPartialRefresh(max_partial);
+  turnOn();
+}
+
+// 24x24 sleep icon, MSB-first (matches GxEPDDisplay::drawXbm)
+static const uint8_t sleep_icon_24x24[] = {
+  0x00, 0x00, 0xff, 0x00, 0x00, 0xff, 0x00, 0xe0, 0x0e, 0x03, 0xc0, 0x18,
+  0x0f, 0x80, 0x70, 0x1f, 0x80, 0xff, 0x3f, 0x80, 0xff, 0x3f, 0x00, 0x00,
+  0x7f, 0x3f, 0x00, 0x7f, 0x3f, 0x00, 0xff, 0x0e, 0x00, 0xff, 0x1c, 0x7c,
+  0xff, 0xbf, 0x7c, 0xff, 0xbf, 0x38, 0xff, 0xc0, 0x7c, 0xff, 0xe0, 0x7c,
+  0xff, 0xf0, 0x00, 0x7f, 0xfc, 0x00, 0x7f, 0xff, 0xf8, 0x3f, 0xff, 0xf0,
+  0x1f, 0xff, 0xf0, 0x0f, 0xff, 0xe0, 0x07, 0xff, 0x80, 0x01, 0xff, 0x00
+};
+
+void GxEPDDisplay::drawSleepIcon() {
+  const int W = 24, H = 24;
+  int x = (int)(display.width() / scale_x) - W;   // top-right, logical coordinates
+  int y = 0;
+
+  display.fillRect((x - 5) * scale_x - 1, y * scale_y, (W+5) * scale_x + 2, (H-2) * scale_y + 1, GxEPD_WHITE);
+  _curr_color = GxEPD_BLACK;
+  drawXbm(x, y, sleep_icon_24x24, W, H);
+  display.display(true);
+}
+
+void GxEPDDisplay::turnOff(bool blank) {
+  if (blank) {
+    blankScreen();
+  } else {
+    drawSleepIcon();
+  }
   _isOn = false;
+  last_display_crc_value=0;
+}
+
+void GxEPDDisplay::blankScreen() {
   // do full refresh before powering off to clear screen
   // no full refresh needed at wakeup
   display.clearScreen(0xFF); // Clears microcontroller side RAM
   display.writeScreenBuffer(0xFF); // Forces 0xFF (White) into the display controller's history registers
-  resetPartialRefreshCounter();
-  last_display_crc_value=0;
+  _partial_refresh_count = 0;
+  last_display_crc_value = 0;
+  // we can hibernate as screen has been cleaned
   display.hibernate();
 }
 
@@ -101,15 +122,18 @@ void GxEPDDisplay::startFrame(ColorVal bkg) {
   display.fillScreen(bkg);
   display.setTextColor(_curr_color = UIColor::primary_txt);
   display_crc.reset();
-  if (_cycles_before_full_refresh != 0) {
-    display.setPartialWindow(0, 0, display.width(), display.height());
-  } else {
+  if (_force_full_refresh 
+      || (_max_partial_refresh > 0 
+          && _partial_refresh_count >= _max_partial_refresh)) {
     // forces a full wipe of the screen ...
     display.clearScreen(0xFF); // Clears microcontroller side RAM
     display.writeScreenBuffer(0xFF); // Forces 0xFF (White) into the display controller's history registers
     // we'll need a partial refresh after that (whatever crc value is)
     last_display_crc_value = 0;
-    resetPartialRefreshCounter();
+    _partial_refresh_count = 0;
+    _force_full_refresh = false;
+  } else {
+    display.setPartialWindow(0, 0, display.width(), display.height());
   }
 }
 
@@ -216,9 +240,7 @@ void GxEPDDisplay::endFrame() {
   uint32_t crc = display_crc.finalize();
   if (crc != last_display_crc_value) {
     display.display(true);
-    if (_cycles_before_full_refresh > 0) {
-      _cycles_before_full_refresh--;
-    }
+    _partial_refresh_count++;
   }
   last_display_crc_value = crc;
 }

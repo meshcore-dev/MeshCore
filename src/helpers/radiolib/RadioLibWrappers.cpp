@@ -132,6 +132,9 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
     if (len > 0) {
       if (len > sz) { len = sz; }
       int err = _radio->readData(bytes, len);
+      if (err == RADIOLIB_ERR_NONE && !lastRxHadCRC()) {
+        err = RADIOLIB_ERR_LORA_HEADER_DAMAGED;  // header says no CRC, so the payload was never checked
+      }
       if (err != RADIOLIB_ERR_NONE) {
         MESH_DEBUG_PRINTLN("RadioLibWrapper: error: readData(%d)", err);
         len = 0;

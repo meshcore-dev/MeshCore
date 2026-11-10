@@ -341,7 +341,7 @@ uint8_t MyMesh::getAutoAddMaxHops() const {
 
 void MyMesh::onContactOverwrite(const uint8_t* pub_key) {
     _store->deleteBlobByKey(pub_key, PUB_KEY_SIZE); // delete from storage
-  if (_serial->isConnected()) {
+  if (_serial && _serial->isConnected()) {
     out_frame[0] = PUSH_CODE_CONTACT_DELETED;
     memcpy(&out_frame[1], pub_key, PUB_KEY_SIZE);
     _serial->writeFrame(out_frame, 1 + PUB_KEY_SIZE);
@@ -349,7 +349,7 @@ void MyMesh::onContactOverwrite(const uint8_t* pub_key) {
 }
 
 void MyMesh::onContactsFull() {
-  if (_serial->isConnected()) {
+  if (_serial && _serial->isConnected()) {
     out_frame[0] = PUSH_CODE_CONTACTS_FULL;
     _serial->writeFrame(out_frame, 1);
   }
@@ -993,6 +993,8 @@ void MyMesh::begin() {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
+  _prefs.adc_multiplier = constrain(_prefs.adc_multiplier, 0.0f, 10.0f);
+  if (!board.setAdcMultiplier(_prefs.adc_multiplier)) _prefs.adc_multiplier = 0.0f;
 
   _active_ble_pin = _prefs.ble_pin;
 
@@ -1175,7 +1177,9 @@ void MyMesh::handleCmdFrame(size_t len) {
                         ? ERR_CODE_NOT_FOUND
                         : ERR_CODE_UNSUPPORTED_CMD); // unknown recipient, or unsupported TXT_TYPE_*
     }
-  } else if (cmd_frame[0] == CMD_SEND_CHANNEL_TXT_MSG) { // send GroupChannel text msg
+  } else if (cmd_frame[0] == CMD_SEND_CHANNEL_TXT_MSG && len >= 7) { // send GroupChannel text msg
+    // 7 = code, txt_type, channel_idx and the 4 byte timestamp; the text may be empty.
+    // Without this the text length below is computed as len - 7 and turns negative.
     int i = 1;
     uint8_t txt_type = cmd_frame[i++]; // should be TXT_TYPE_PLAIN
     uint8_t channel_idx = cmd_frame[i++];
@@ -2091,6 +2095,11 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
+  if (_prefs.getGpsPrefs()->handleCommand(command, sensors, reply)) {
+    if (_prefs.getGpsPrefs()->isDirty()) { savePrefs(); }
+    return true;
+  }
+
   // hook for variant-specific CLI processing
   if (board.handleCommand(command, sender_timestamp, reply)) {
     if (_prefs.isDirty()) { savePrefs(); }
@@ -2121,6 +2130,23 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     sprintf(reply, "> %s", _prefs.node_name);
     return true;
   }
+
+#ifdef PIN_BUZZER
+  if (strcmp(command, "get buzzer") == 0) {
+    sprintf(reply, "> %s", _prefs.buzzer_quiet ? "off" : "on");
+    return true;
+  }
+  if (memcmp(command, "set buzzer ", 11) == 0) {
+    if (strcmp(&command[11], "on") == 0 || strcmp(&command[11], "off") == 0) {
+      _prefs.buzzer_quiet = strcmp(&command[11], "off") == 0;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: state must be on or off");
+    }
+    return true;
+  }
+#endif
 
   if (memcmp(command, "set pin ", 8) == 0) {
     _prefs.ble_pin = atoi(&command[8]);
@@ -2191,8 +2217,36 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
+  if (memcmp(command, "set adc.multiplier ", 19) == 0) {   // same as CommonCLI
+    float mult = atof(&command[19]);
+    if (mult < 0.0f || mult > 10.0f) {
+      strcpy(reply, "Error, must be from 0 to 10");
+    } else if (board.setAdcMultiplier(mult)) {
+      _prefs.adc_multiplier = mult;
+      savePrefs();
+      if (mult == 0.0f) {
+        strcpy(reply, "OK - using default board multiplier");
+      } else {
+        sprintf(reply, "OK - multiplier set to %.3f", mult);
+      }
+    } else {
+      strcpy(reply, "Error: unsupported");
+    }
+    return true;
+  }
+  if (strcmp(command, "get adc.multiplier") == 0) {
+    float mult = board.getAdcMultiplier();
+    if (mult == 0.0f) {
+      strcpy(reply, "Error: unsupported");
+    } else {
+      sprintf(reply, "> %.3f", mult);
+    }
+    return true;
+  }
+
   if (strcmp(command, "get tz.offset") == 0) {
-    sprintf(reply, "> %.1f", _prefs.tz_offset);
+    float q = _prefs.tz_offset * 4;
+    sprintf(reply, (q == (int)q && ((int)q & 1)) ? "> %.2f" : "> %.1f", _prefs.tz_offset);
     return true;
   }
   if (memcmp(command, "set tz.offset ", 14) == 0) {
@@ -2206,6 +2260,120 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     }
     return true;
   }
+#ifdef DISPLAY_CLASS
+  if (memcmp(command, "set ui.show_clock", 17) == 0) {
+    _prefs.ui_show_clock = atoi(&command[17]) ? 1 : 0;
+    savePrefs();
+    sprintf(reply, "> now %d", _prefs.ui_show_clock);
+    return true;
+  }
+  if (memcmp(command, "set ui.auto_off_delay", 21) == 0) {
+    _prefs.ui_auto_off_delay = atoi(&command[21]);
+    savePrefs();
+    sprintf(reply, "> now %d seconds", _prefs.ui_auto_off_delay);
+    return true;
+  }
+  if (memcmp(command, "set ui.backlight_delay", 22) == 0) {
+    _prefs.ui_backlight_delay = atoi(&command[22]);
+    savePrefs();
+    if (_prefs.ui_backlight_delay >= 0)    
+      sprintf(reply, "> now %d seconds", _prefs.ui_backlight_delay);
+    else if (_prefs.ui_backlight_delay == -1)
+      sprintf(reply, "> now always on (-1)");
+    else
+      sprintf(reply, "> now disabled (<-1)");
+    return true;
+  }
+  if (memcmp(command, "set ui.backlight_on_keys", 24) == 0) {
+    _prefs.ui_backlight_on_keys = atoi(&command[24]);
+    savePrefs();
+    sprintf(reply, "> now %d", _prefs.ui_backlight_on_keys);
+    return true;
+  }
+  if (memcmp(command, "set ui.backlight_on_msgs", 24) == 0) {
+    _prefs.ui_backlight_on_msgs = atoi(&command[24]);
+    savePrefs();
+    sprintf(reply, "> now %d", _prefs.ui_backlight_on_msgs);
+    return true;
+  }
+  if (memcmp(command, "set ui.auto_off_blank", 21) == 0) {
+    _prefs.ui_auto_off_blank = atoi(&command[21]);
+    savePrefs();
+    sprintf(reply, "> now %d", _prefs.ui_auto_off_blank);
+    return true;
+  }
+  if (memcmp(command, "set ui.auto_off_keep_msgs", 25) == 0) {
+    _prefs.ui_auto_off_keep_msgs = atoi(&command[25]);
+    savePrefs();
+    sprintf(reply, "> now %d", _prefs.ui_auto_off_keep_msgs);
+    return true;
+  }
+  if (memcmp(command, "set ui.max_partial", 18) == 0) {
+    _prefs.ui_max_partial = atoi(&command[18]);
+    savePrefs();
+    sprintf(reply, "> now %d (applied at next screen wakeup)", _prefs.ui_max_partial);
+    return true;
+  }
+  if (memcmp(command, "set ui.nd_name", 14) == 0) {
+    _prefs.ui_nd_name = atoi(&command[14]);
+    savePrefs();
+    sprintf(reply, "> ui.nd_name is now %d", _prefs.ui_nd_name);
+    return true;
+  }
+  if (memcmp(command, "set ui.gps_action", 17) == 0) {
+    const char* v = &command[17];
+    while (*v == ' ') v++;
+    _prefs.ui_gps_action = (memcmp(v, "once", 4) == 0 || memcmp(v, "trigger", 7) == 0 || *v == '1') ? 1 : 0;   // anything else: toggle
+    savePrefs();
+    sprintf(reply, "> now %s", _prefs.ui_gps_action ? "once" : "toggle");
+    return true;
+  }
+  if (memcmp(command, "get ui.gps_action", 17) == 0) {
+    sprintf(reply, "> %s", _prefs.ui_gps_action ? "once" : "toggle");
+    return true;
+  }
+  if (memcmp(command, "get ui.show_clock", 17) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_show_clock);
+    return true;
+  }
+  if (memcmp(command, "get ui.auto_off_delay", 21) == 0) {
+    sprintf(reply, "> %d seconds", _prefs.ui_auto_off_delay);
+    return true;
+  }
+  if (memcmp(command, "get ui.backlight_delay", 22) == 0) {
+    if (_prefs.ui_backlight_delay >= 0)    
+      sprintf(reply, "> %d seconds", _prefs.ui_backlight_delay);
+    else if (_prefs.ui_backlight_delay == -1)
+      sprintf(reply, "> always on (-1)");
+    else
+      sprintf(reply, "> disabled (<-1)");
+    return true;
+  }
+  if (memcmp(command, "get ui.backlight_on_keys", 24) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_backlight_on_keys);
+    return true;
+  }
+  if (memcmp(command, "get ui.backlight_on_msgs", 24) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_backlight_on_msgs);
+    return true;
+  }
+  if (memcmp(command, "get ui.auto_off_blank", 21) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_auto_off_blank);
+    return true;
+  }
+  if (memcmp(command, "get ui.auto_off_keep_msgs", 25) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_auto_off_keep_msgs);
+    return true;
+  }
+  if (memcmp(command, "get ui.max_partial", 18) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_max_partial);
+    return true;
+  }
+  if (memcmp(command, "get ui.nd_name", 14) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_nd_name);
+    return true;
+  }
+#endif
 
   return false;  // not handled
 }

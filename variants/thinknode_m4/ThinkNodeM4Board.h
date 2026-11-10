@@ -9,7 +9,6 @@ protected:
 #if NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
 #endif
-  uint8_t btn_prev_state;
   HardwareSerial * battery_serial;
   uint16_t bat_level_mv = 0;
   uint8_t bat_level_percent =0;
@@ -30,17 +29,6 @@ public:
 
   const char* getManufacturerName() const override {
     return "Elecrow ThinkNode M4";
-  }
-
-  int buttonStateChanged() {
-  #ifdef BUTTON_PIN
-    uint8_t v = digitalRead(BUTTON_PIN);
-    if (v != btn_prev_state) {
-      btn_prev_state = v;
-      return (v == USER_BTN_PRESSED) ? 1 : -1;
-    }
-  #endif
-    return 0;
   }
 
   void shutdownPeripherals() override {

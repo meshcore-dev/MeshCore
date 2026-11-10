@@ -2,6 +2,7 @@
 #include <cstdint> // For uint8_t, uint32_t
 #include <helpers/ConfigSerializer.h>
 #include <helpers/CommonRadioPrefs.h>
+#include <helpers/CommonGpsPrefs.h>
 #include <helpers/DynamicConfigSerializer.h>
 
 #define TELEM_MODE_DENY            0
@@ -35,6 +36,9 @@ public:
   uint8_t  vibe_quiet = 0;
   uint8_t  gps_enabled = 0;      // GPS enabled flag (0=disabled, 1=enabled)
   uint32_t gps_interval = 0;     // GPS read interval in seconds
+  uint32_t gps_period = 0;       // periodic acquisition interval in seconds
+  int32_t gps_fence = -1;        // GPS_GUARD fence in metres, 0 = off, -1 = build default
+  uint8_t gps_guard = 1;         // GPS_GUARD on/off
   uint8_t autoadd_config = 0;    // bitmask for auto-add contacts config
   uint8_t rx_boosted_gain = 0; // SX126x RX boosted gain mode (0=power saving, 1=boosted)
   uint8_t radio_fem_rxgain = 0; // external LoRa FEM RX gain (LNA)
@@ -48,6 +52,7 @@ public:
   char default_scope_name[31];
   uint8_t default_scope_key[16];
   float tz_offset = 0;
+  float adc_multiplier = 0;   // battery ADC multiplier, 0 = board default
 #ifdef ENABLE_WIFI_INTERFACE
   #ifndef WIFI_SSID
     #define WIFI_SSID ""
@@ -57,6 +62,39 @@ public:
   uint8_t wifi_enabled = 1; // enabled by default to allow wifi only builds to work. wifi won't be started if ssid is empty
   // use ssid from prefs, or fallback to ssid from build flags
   const char* getWifiSSID() const { return wifi_ssid[0] ? wifi_ssid : WIFI_SSID; }
+#endif
+#ifdef DISPLAY_CLASS
+  #ifndef UI_SHOW_CLOCK
+    #define UI_SHOW_CLOCK 0
+  #endif
+  #ifndef AUTO_OFF_MILLIS
+    #define AUTO_OFF_MILLIS 15000
+  #endif
+  #ifndef EINK_MAX_PARTIAL_REFRESH
+    #define EINK_MAX_PARTIAL_REFRESH 0
+  #endif
+  uint8_t ui_show_clock = UI_SHOW_CLOCK;
+  uint32_t ui_auto_off_delay = AUTO_OFF_MILLIS / 1000;
+  int32_t ui_backlight_delay = 5;
+  #if defined(BACKLIGHT_BTN)
+  uint8_t ui_backlight_on_keys = 0;
+  #else
+  uint8_t ui_backlight_on_keys = 1;
+  #endif
+  uint8_t ui_backlight_on_msgs = 0;
+#ifdef UI_SCREENOFF_BLANK
+  uint8_t ui_auto_off_blank = 1;
+#else
+  uint8_t ui_auto_off_blank = 0;
+#endif
+  uint8_t ui_auto_off_keep_msgs = 1;
+  uint8_t ui_max_partial = EINK_MAX_PARTIAL_REFRESH;
+  uint8_t ui_nd_name = 1;
+#ifdef PIN_GPS_SWITCH
+  uint8_t ui_gps_action = 1;
+#else
+  uint8_t ui_gps_action = 0;
+#endif
 #endif
 
 private:
@@ -102,8 +140,8 @@ private:
     void setIntThresh(uint8_t t) override { _parent->interference_threshold = t; markDirty(); }
     uint8_t getRxGain() const override { return _parent->rx_boosted_gain; }
     void setRxGain(uint8_t g) override { _parent->rx_boosted_gain = g; markDirty(); }
-    uint8_t getTxPower() const override { return _parent->tx_power_dbm; }
-    void setTxPower(uint8_t dbm) override { _parent->tx_power_dbm = dbm; markDirty(); }
+    int8_t getTxPower() const override { return _parent->tx_power_dbm; }
+    void setTxPower(int8_t dbm) override { _parent->tx_power_dbm = dbm; markDirty(); }
     float getRxDelay() const override { return _parent->rx_delay_base; }
     void setRxDelay(float d) override { _parent->rx_delay_base = d; markDirty(); }
     uint16_t getAgcResetInt() const override { return _parent->agc_reset_interval * 4; }
@@ -123,16 +161,36 @@ private:
   };
   RadioPrefs radio;
 
-  class GPSPrefs : public ConfigSerializer {  // COPIED from CommonCLI (for now)
+  class GPSPrefs : public CommonGpsPrefs {
     NodePrefs* _parent;
   protected:
     void structure() override {
       def("en", _parent->gps_enabled); // boolean
       def("int", _parent->gps_interval);   // interval in seconds
+      def("period", _parent->gps_period);  // periodic acquisition interval in seconds
       def("adv_loc", _parent->advert_loc_policy);
+#ifdef GPS_GUARD
+      def("fence", _parent->gps_fence);
+      def("guard", _parent->gps_guard);
+#endif
     }
   public:
     GPSPrefs(NodePrefs* parent) : _parent(parent) { }
+    bool isGpsEnabled() const override { return _parent->gps_enabled; }
+    void setGpsEnabled(bool enabled) override { _parent->gps_enabled = enabled; markDirty(); }
+    uint32_t getGpsPeriod() const override { return _parent->gps_period; }
+    void setGpsPeriod(uint32_t seconds) override { _parent->gps_period = seconds; markDirty(); }
+    bool getGuardFence(uint32_t& metres) const override {
+      if (_parent->gps_fence < 0) return false;
+      metres = (uint32_t)_parent->gps_fence;
+      return true;
+    }
+    void setGuardFence(uint32_t metres) override { _parent->gps_fence = (int32_t)metres; markDirty(); }
+    bool getGuardEnabled(bool& enabled) const override {
+      enabled = _parent->gps_guard != 0;
+      return true;
+    }
+    void setGuardEnabled(bool enabled) override { _parent->gps_guard = enabled ? 1 : 0; markDirty(); }
   };
   GPSPrefs gps;
 
@@ -166,6 +224,7 @@ private:
       def("tel_loc", _parent->telemetry_mode_loc);
       def("tel_env", _parent->telemetry_mode_env);
       def("tz_offset", _parent->tz_offset);
+      def("adc_mult", _parent->adc_multiplier);
     }
   public:
     CompanionPrefs(NodePrefs* parent) : _parent(parent) { }
@@ -189,6 +248,28 @@ private:
   WiFiPrefs wifi;
 #endif
 
+#ifdef DISPLAY_CLASS
+  class UI_Prefs : public ConfigSerializer {
+    NodePrefs* _parent;
+  protected:
+    void structure() override {
+  	def("show_clock", _parent->ui_show_clock);
+  	def("auto_off", _parent->ui_auto_off_delay);
+  	def("bl_dly", _parent->ui_backlight_delay);
+  	def("bl_keys", _parent->ui_backlight_on_keys);
+  	def("bl_msgs", _parent->ui_backlight_on_msgs);
+    def("max_partial", _parent->ui_max_partial);
+  	def("off_blank", _parent->ui_auto_off_blank);
+  	def("off_keep_msgs", _parent->ui_auto_off_keep_msgs);
+    def("nd_name", _parent->ui_nd_name);
+    def("gps_act", _parent->ui_gps_action);
+    }
+  public:
+    UI_Prefs(NodePrefs* parent) : _parent(parent) {}
+  };
+  UI_Prefs ui;
+#endif
+
 protected:
   void structure() override {
     def("name", node_name, sizeof(node_name));
@@ -204,11 +285,17 @@ protected:
 #ifdef ENABLE_WIFI_INTERFACE
     def("wifi", wifi);
 #endif
+#ifdef DISPLAY_CLASS
+    def("ui", ui);
+#endif
   }
 public:
   NodePrefs() : radio(this), gps(this), companion(this), custom(&radio)
 #ifdef ENABLE_WIFI_INTERFACE
     , wifi(this)
+#endif
+#ifdef DISPLAY_CLASS
+    , ui(this)
 #endif
   {
     node_name[0] = 0;
@@ -220,8 +307,9 @@ public:
   void setRepeatEn(bool en) { repeat.disable_fwd = en ? 0 : 1; }
 
   CommonRadioPrefs* getRadioPrefs() { return &radio; }
+  CommonGpsPrefs* getGpsPrefs() { return &gps; }
   KeyValueStore* getCustom() { return &custom; }
 
-  bool isDirty() const override { return ConfigSerializer::isDirty() || radio.isDirty() || custom.isDirty(); }
-  void clearDirty() override { ConfigSerializer::clearDirty(); radio.clearDirty(); custom.clearDirty(); }
+  bool isDirty() const override { return ConfigSerializer::isDirty() || radio.isDirty() || gps.isDirty() || custom.isDirty(); }
+  void clearDirty() override { ConfigSerializer::clearDirty(); radio.clearDirty(); gps.clearDirty(); custom.clearDirty(); }
 };
