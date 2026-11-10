@@ -2093,6 +2093,11 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
+  if (_prefs.getGpsPrefs()->handleCommand(command, sensors, reply)) {
+    if (_prefs.getGpsPrefs()->isDirty()) { savePrefs(); }
+    return true;
+  }
+
   // hook for variant-specific CLI processing
   if (board.handleCommand(command, sender_timestamp, reply)) {
     if (_prefs.isDirty()) { savePrefs(); }
@@ -2284,6 +2289,18 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     _prefs.ui_nd_name = atoi(&command[14]);
     savePrefs();
     sprintf(reply, "> ui.nd_name is now %d", _prefs.ui_nd_name);
+    return true;
+  }
+  if (memcmp(command, "set ui.gps_action", 17) == 0) {
+    const char* v = &command[17];
+    while (*v == ' ') v++;
+    _prefs.ui_gps_action = (memcmp(v, "once", 4) == 0 || memcmp(v, "trigger", 7) == 0 || *v == '1') ? 1 : 0;   // anything else: toggle
+    savePrefs();
+    sprintf(reply, "> now %s", _prefs.ui_gps_action ? "once" : "toggle");
+    return true;
+  }
+  if (memcmp(command, "get ui.gps_action", 17) == 0) {
+    sprintf(reply, "> %s", _prefs.ui_gps_action ? "once" : "toggle");
     return true;
   }
   if (memcmp(command, "get ui.show_clock", 17) == 0) {

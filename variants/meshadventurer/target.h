@@ -15,8 +15,7 @@
 #endif
 
 class MASensorManager : public SensorManager {
-  bool gps_active = false;
-  LocationProvider * _location;
+  LocationProvider* _location;
 
   void start_gps();
   void stop_gps();

@@ -86,6 +86,30 @@ public:
   }
 };
 
+#if ENV_INCLUDE_GPS == 1
+// exact period with the largest unit that divides it: "30s", "5m", "2h"
+static void formatGpsPeriod(char* buf, size_t size, uint32_t seconds) {
+  if (seconds % 3600 == 0) {
+    snprintf(buf, size, "%luh", (unsigned long)(seconds / 3600));
+  } else if (seconds % 60 == 0) {
+    snprintf(buf, size, "%lum", (unsigned long)(seconds / 60));
+  } else {
+    snprintf(buf, size, "%lus", (unsigned long)seconds);
+  }
+}
+
+// age of the last fix, rounded down to a single unit: "45s", "12m", "3h"
+static void formatFixAge(char* buf, size_t size, uint32_t seconds) {
+  if (seconds < 60) {
+    snprintf(buf, size, "%lus", (unsigned long)seconds);
+  } else if (seconds < 3600) {
+    snprintf(buf, size, "%lum", (unsigned long)(seconds / 60));
+  } else {
+    snprintf(buf, size, "%luh", (unsigned long)(seconds / 3600));
+  }
+}
+#endif
+
 class HomeScreen : public UIScreen {
   enum HomePage {
     FIRST,
@@ -392,16 +416,28 @@ public:
       char buf[50];
       int y = 18;
       bool gps_state = _task->getGPSState();
-#ifdef PIN_GPS_SWITCH
-      bool hw_gps_state = digitalRead(PIN_GPS_SWITCH);
-      if (gps_state != hw_gps_state) {
-        strcpy(buf, gps_state ? "gps off(hw)" : "gps off(sw)");
-      } else {
-        strcpy(buf, gps_state ? "gps on" : "gps off");
+      bool hw_gps_state = nmea != NULL && nmea->isHardwareEnabled();
+      uint32_t period = nmea != NULL ? nmea->getGpsPeriod() : 0;
+      char fix_buf[12] = "";
+      if (nmea != NULL) {
+        uint32_t fix_age = nmea->getLastFixAge();
+        if (fix_age == UINT32_MAX) {
+          strcpy(fix_buf, "no fix");
+        } else {
+          formatFixAge(fix_buf, sizeof(fix_buf), fix_age);
+        }
       }
-#else
-      strcpy(buf, gps_state ? "gps on" : "gps off");
-#endif
+      if (nmea != NULL && nmea->hasHardwareEnableState() && gps_state != hw_gps_state) {
+        strcpy(buf, gps_state ? "gps off(hw)" : "gps off(sw)");
+      } else if (!gps_state) {
+        strcpy(buf, "gps off");
+      } else if (period == 0) {
+        strcpy(buf, "gps on");
+      } else {
+        char per[12];
+        formatGpsPeriod(per, sizeof(per), period);
+        snprintf(buf, sizeof(buf), "%s (%s)", nmea != NULL && nmea->isActive() ? "active" : "sleep", per);
+      }
       display.setColor(UIColor::primary_txt);
       display.drawTextLeftAlign(0, y, buf);
       if (nmea == NULL) {
@@ -410,8 +446,7 @@ public:
         display.drawTextLeftAlign(0, y, "Can't access GPS");
       } else {
         display.setColor(UIColor::primary_txt);
-        strcpy(buf, nmea->isValid()?"fix":"no fix");
-        display.drawTextRightAlign(display.width()-1, y, buf);
+        display.drawTextRightAlign(display.width()-1, y, fix_buf);
         y = y + 12;
         display.setColor(UIColor::secondary_txt);
         display.drawTextLeftAlign(0, y, "sat");
@@ -597,7 +632,7 @@ public:
     }
 #if ENV_INCLUDE_GPS == 1
     if (c == KEY_ENTER && _page == HomePage::GPS) {
-      _task->toggleGPS();
+      if (_node_prefs->ui_gps_action == 1) _task->triggerGPS(); else _task->toggleGPS();
       return true;
     }
 #endif
@@ -1182,21 +1217,28 @@ void UITask::toggleGPS() {
     for (int i = 0; i < num; i++) {
       if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
         if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
-          _sensors->setSettingValue("gps", "0");
-          _node_prefs->gps_enabled = 0;
+          _node_prefs->getGpsPrefs()->setGpsEnabled(*_sensors, false);
           notify(UIEventType::ack);
         } else {
-          _sensors->setSettingValue("gps", "1");
-          _node_prefs->gps_enabled = 1;
+          _node_prefs->getGpsPrefs()->setGpsEnabled(*_sensors, true);
           notify(UIEventType::ack);
         }
         the_mesh.savePrefs();
-        showAlert(_node_prefs->gps_enabled ? "GPS: Enabled" : "GPS: Disabled", 800);
+        showAlert(_node_prefs->getGpsPrefs()->isGpsEnabled() ? "GPS: Enabled" : "GPS: Disabled", 800);
         _next_refresh = 0;
         break;
       }
     }
   }
+}
+
+void UITask::triggerGPS() {
+  LocationProvider* location = _sensors != NULL ? _sensors->getLocationProvider() : NULL;
+  if (location != NULL && !(location->hasHardwareEnableState() && !location->isHardwareEnabled())
+      && location->startOnce()) {
+    notify(UIEventType::ack);
+  }
+  _next_refresh = 0;
 }
 
 void UITask::toggleBuzzer() {

@@ -26,9 +26,10 @@ VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #if ENV_INCLUDE_GPS
-  #include <helpers/sensors/MicroNMEALocationProvider.h>
-  MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
-  EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
+  #include <helpers/sensors/RakLocationProvider.h>
+  RakI2cGpsDriver gps_driver;
+  RakLocationProvider location(gps_driver, &rtc_clock);
+  EnvironmentSensorManager sensors(location);
 #else
   EnvironmentSensorManager sensors;
 #endif
