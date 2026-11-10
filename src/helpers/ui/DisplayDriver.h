@@ -24,6 +24,7 @@ public:
   virtual bool isOn() = 0;
   virtual bool isEink() { return false; } // default to non-eink, override in eink drivers
   virtual void forceFullRefresh() {} // next refresh will be full for eink
+  virtual void setBusyHook(void (*hook)()) {} // eink: hook is called repeatedly while waiting for panel refresh
   virtual void turnOn() = 0;
   virtual void turnOn(int max_partial) { turnOn(); }
   virtual void turnOff() = 0;
