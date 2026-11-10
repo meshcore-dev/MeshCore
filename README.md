@@ -38,6 +38,7 @@ For developers:
 
 - Install [PlatformIO](https://docs.platformio.org) in [Visual Studio Code](https://code.visualstudio.com).
 - Clone and open the MeshCore repository in Visual Studio Code.
+- For the LilyGO T3 STM32, see the [board build and flashing guide](./variants/lilygo_t3_stm32/README.md).
 - See the example applications you can modify and run:
   - [Companion Radio](./examples/companion_radio) - For use with an external chat app, over BLE, USB or Wi-Fi.
   - [KISS Modem](./examples/kiss_modem) - Serial KISS protocol bridge for host applications. ([protocol docs](./docs/kiss_modem_protocol.md))
