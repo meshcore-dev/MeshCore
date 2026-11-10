@@ -328,14 +328,17 @@ static void query_ina3221(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
 #endif
 
 #if ENV_INCLUDE_INA219
-static uint8_t init_ina219(TwoWire* wire, uint8_t) {
-  // INA219 static instance was constructed with the address; begin() uses it.
-  return INA219.begin(wire) ? 1 : 0;
+static Adafruit_INA219 INA219_ALT((TELEM_INA219_ADDRESS == 0x40) ? 0x41 : 0x40);
+static Adafruit_INA219* active_ina219 = &INA219;
+
+static uint8_t init_ina219(TwoWire* wire, uint8_t addr) {
+  active_ina219 = (addr == TELEM_INA219_ADDRESS) ? &INA219 : &INA219_ALT;
+  return active_ina219->begin(wire) ? 1 : 0;
 }
 static void query_ina219(uint8_t ch, uint8_t, CayenneLPP& lpp) {
-  lpp.addVoltage(ch, INA219.getBusVoltage_V());
-  lpp.addCurrent(ch, INA219.getCurrent_mA() / 1000.0f);
-  lpp.addPower(ch, INA219.getPower_mW() / 1000.0f);
+  lpp.addVoltage(ch, active_ina219->getBusVoltage_V());
+  lpp.addCurrent(ch, active_ina219->getCurrent_mA() / 1000.0f);
+  lpp.addPower(ch, active_ina219->getPower_mW() / 1000.0f);
 }
 #endif
 
@@ -507,6 +510,7 @@ struct SensorDef {
 };
 
 #define TELEM_BOSCH_ALT_ADDR(addr) ((uint8_t)((addr) == 0x76 ? 0x77 : 0x76))
+#define TELEM_INA219_ALT_ADDR(addr) ((uint8_t)((addr) == 0x40 ? 0x41 : 0x40))
 
 static const SensorDef SENSOR_TABLE[] = {
 #if ENV_INCLUDE_AHTX0
@@ -542,6 +546,7 @@ static const SensorDef SENSOR_TABLE[] = {
 #endif
 #if ENV_INCLUDE_INA219
   { TELEM_INA219_ADDRESS,  "INA219",       init_ina219,   query_ina219   },
+  { TELEM_INA219_ALT_ADDR(TELEM_INA219_ADDRESS), "INA219", init_ina219, query_ina219 },
 #endif
 #if ENV_INCLUDE_INA260
   { TELEM_INA260_ADDRESS,  "INA260",       init_ina260,   query_ina260   },
@@ -565,6 +570,7 @@ static const SensorDef SENSOR_TABLE[] = {
 };
 
 #undef TELEM_BOSCH_ALT_ADDR
+#undef TELEM_INA219_ALT_ADDR
 
 static const size_t SENSOR_TABLE_SIZE = (sizeof(SENSOR_TABLE) / sizeof(SENSOR_TABLE[0])) - 1;
 
