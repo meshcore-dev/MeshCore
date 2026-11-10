@@ -31,6 +31,7 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
   _auto_off = millis() + AUTO_OFF_MILLIS;
   _node_prefs = node_prefs;
   _display->turnOn();
+  boardScreen.begin(*_board, *_display);
 
   // strip off dash and commit hash by changing dash to null terminator
   // e.g: v1.2.3-abcdef -> v1.2.3
@@ -45,7 +46,10 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
   free(version);
 }
 
-void UITask::renderCurrScreen() {
+unsigned long UITask::renderCurrScreen() {
+  uint32_t interval;
+  if (boardScreen.renderIfSelected(interval)) return interval;
+  _display->startFrame();
   char tmp[80];
   if (millis() < BOOT_SCREEN_MILLIS) { // boot screen
     // meshcore logo
@@ -89,16 +93,28 @@ void UITask::renderCurrScreen() {
     sprintf(tmp, "BW: %03.2f CR: %d", _node_prefs->bw, _node_prefs->cr);
     _display->print(tmp);
   }
+  return 1000;
 }
 
 void UITask::loop() {
+  const uint8_t boardEvents = boardScreen.pollEvents();
+  bool handlingInput = false;
+  const bool canChangePage = millis() >= BOOT_SCREEN_MILLIS;
+  if (boardScreen.handleInput(boardEvents, canChangePage)) {
+    handlingInput = true;
+    _auto_off = millis() + AUTO_OFF_MILLIS;
+    _next_refresh = 0;
+  }
 #ifdef PIN_USER_BTN
   if (millis() >= _next_read) {
     int btnState = digitalRead(PIN_USER_BTN);
     if (btnState != _prevBtnState) {
       if (btnState == USER_BTN_PRESSED) {  // pressed?
+        handlingInput = true;
         if (_display->isOn()) {
-          // TODO: any action ?
+          if (canChangePage && boardScreen.togglePage()) {
+            _next_refresh = 0;
+          }
         } else {
           _display->turnOn();
         }
@@ -110,13 +126,17 @@ void UITask::loop() {
   }
 #endif
 
+  if (boardScreen.handleFocusRequest(boardEvents, canChangePage, handlingInput)) {
+    _auto_off = millis() + AUTO_OFF_MILLIS;
+    _next_refresh = 0;
+  }
+
   if (_display->isOn()) {
     if (millis() >= _next_refresh) {
-      _display->startFrame();
-      renderCurrScreen();
+      unsigned long interval = renderCurrScreen();
       _display->endFrame();
 
-      _next_refresh = millis() + 1000;   // refresh every second
+      _next_refresh = millis() + interval;
     }
     if (millis() > _auto_off) {
       _display->turnOff();

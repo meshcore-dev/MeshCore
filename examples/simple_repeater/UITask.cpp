@@ -35,6 +35,7 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
   _started_at = millis();
   _node_prefs = node_prefs;
   _display->turnOn();
+  boardScreen.begin(*_board, *_display);
 
 #if defined(PIN_USER_BTN) && defined(DISPLAY_CLASS)
   user_btn.begin();
@@ -53,7 +54,10 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
   free(version);
 }
 
-void UITask::renderCurrScreen() {
+unsigned long UITask::renderCurrScreen() {
+  uint32_t interval;
+  if (!_powering_off_at && boardScreen.renderIfSelected(interval)) return interval;
+  _display->startFrame();
   char tmp[80];
   if (millis() < _started_at + BOOT_SCREEN_MILLIS) { // boot screen
     // meshcore logo
@@ -107,14 +111,26 @@ void UITask::renderCurrScreen() {
     sprintf(tmp, "BW: %03.2f CR: %d", _node_prefs->bw, _node_prefs->cr);
     _display->print(tmp);
   }
+  return 1000;
 }
 
 void UITask::loop() {
+  const uint8_t boardEvents = boardScreen.pollEvents();
+  bool handlingInput = false;
+  const bool canChangePage = !_powering_off_at && millis() - _started_at >= BOOT_SCREEN_MILLIS;
+  if (boardScreen.handleInput(boardEvents, canChangePage)) {
+    handlingInput = true;
+    _auto_off = millis() + AUTO_OFF_MILLIS;
+    _next_refresh = 0;
+  }
 #if defined(PIN_USER_BTN) && defined(DISPLAY_CLASS)
   int ev = user_btn.check();
+  handlingInput = handlingInput || ev != BUTTON_EVENT_NONE;
   if (ev == BUTTON_EVENT_CLICK) {
     if (_display->isOn()) {
-      // TODO: any action ?
+      if (canChangePage && boardScreen.togglePage()) {
+        _next_refresh = 0;
+      }
     } else {
       _display->turnOn();
     }
@@ -122,17 +138,26 @@ void UITask::loop() {
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
       _display->turnOn();
       Serial.println("Powering Off");
-      _powering_off_at = millis() + POWEROFF_DELAY; 
+      _powering_off_at = millis() + POWEROFF_DELAY;
+      if (boardScreen.available()) {
+        _next_refresh = 0;
+        _auto_off = millis() + AUTO_OFF_MILLIS;
+      }
   }
 #endif
 
+  const bool canTakePowerEvent = !_powering_off_at && millis() - _started_at >= BOOT_SCREEN_MILLIS;
+  if (boardScreen.handleFocusRequest(boardEvents, canTakePowerEvent, handlingInput)) {
+    _auto_off = millis() + AUTO_OFF_MILLIS;
+    _next_refresh = 0;
+  }
+
   if (_display->isOn()) {
     if (millis() >= _next_refresh) {
-      _display->startFrame();
-      renderCurrScreen();
+      unsigned long interval = renderCurrScreen();
       _display->endFrame();
 
-      _next_refresh = millis() + 1000;   // refresh every second
+      _next_refresh = millis() + interval;
     }
     if (millis() > _auto_off) {
       _display->turnOff();

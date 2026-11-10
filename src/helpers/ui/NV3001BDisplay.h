@@ -25,13 +25,24 @@
 #endif
 
 class NV3001BDisplay : public DisplayDriver {
+#ifdef NRF52_PLATFORM
+  SPIClass& spi;
+#else
   SPIClass spi;
+#endif
   RefCountedDigitalPin* periph_power;
   bool is_on = false;
   uint16_t color = 0xffff;
   uint8_t text_size = 1;
   int cursor_x = 0;
   int cursor_y = 0;
+  bool nativePixels = false;
+
+  int scaleX(int x) const;
+  int scaleY(int y) const;
+  int scaleWidth(int x, int w) const;
+  int scaleHeight(int y, int h) const;
+  int textPixelScaleY(uint8_t size) const;
 
   void writeCommand(uint8_t cmd);
   void writeBytes(const uint8_t* data, size_t len);
@@ -43,10 +54,16 @@ class NV3001BDisplay : public DisplayDriver {
   void drawChar(int x, int y, char ch);
 
 public:
+#ifdef NRF52_PLATFORM
+  explicit NV3001BDisplay(SPIClass& bus) :
+      DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT), spi(bus), periph_power(nullptr) { }
+#else
   NV3001BDisplay(RefCountedDigitalPin* power = nullptr) :
       DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT), spi(NV3001B_SPI_HOST), periph_power(power) { }
+#endif
 
   bool begin();
+  void setNativePixels(bool enabled) override;
   static const char* driverName() { return "NV3001B"; }
   static uint16_t physicalWidth() { return NV3001B_PANEL_WIDTH; }
   static uint16_t physicalHeight() { return NV3001B_PANEL_HEIGHT; }

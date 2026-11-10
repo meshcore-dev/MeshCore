@@ -107,21 +107,27 @@ ColorVal UIColor::popup_bkg =  0x07FF;  // CYAN
 ColorVal UIColor::popup_txt = 0x0000;
 ColorVal UIColor::corp_blue = 0x001A;
 
-static int scaleX(int x) {
-  return (int)(x * DISPLAY_SCALE_X);
+void NV3001BDisplay::setNativePixels(bool enabled) {
+  nativePixels = enabled;
+  setLogicalSize(enabled ? NV3001B_SCREEN_WIDTH : NV3001B_LOGICAL_WIDTH,
+                 enabled ? NV3001B_SCREEN_HEIGHT : NV3001B_LOGICAL_HEIGHT);
 }
 
-static int scaleY(int y) {
-  return (int)(y * DISPLAY_SCALE_Y);
+int NV3001BDisplay::scaleX(int x) const {
+  return nativePixels ? x : (int)(x * DISPLAY_SCALE_X);
 }
 
-static int scaleWidth(int x, int w) {
+int NV3001BDisplay::scaleY(int y) const {
+  return nativePixels ? y : (int)(y * DISPLAY_SCALE_Y);
+}
+
+int NV3001BDisplay::scaleWidth(int x, int w) const {
   if (w <= 0) return 0;
   int scaled = scaleX(x + w) - scaleX(x);
   return scaled > 0 ? scaled : 1;
 }
 
-static int scaleHeight(int y, int h) {
+int NV3001BDisplay::scaleHeight(int y, int h) const {
   if (h <= 0) return 0;
   int scaled = scaleY(y + h) - scaleY(y);
   return scaled > 0 ? scaled : 1;
@@ -183,7 +189,8 @@ static int textPixelScaleX(uint8_t size) {
   return size <= 1 ? NV3001B_TEXT_SIZE1_SCALE_X : NV3001B_TEXT_SIZE2_SCALE_X;
 }
 
-static int textPixelScaleY(uint8_t size) {
+int NV3001BDisplay::textPixelScaleY(uint8_t size) const {
+  if (nativePixels) return textPixelScaleX(size);  // Square glyph pixels on the native canvas.
   return size <= 1 ? NV3001B_TEXT_SIZE1_SCALE_Y : NV3001B_TEXT_SIZE2_SCALE_Y;
 }
 
@@ -254,10 +261,26 @@ void NV3001BDisplay::writeColor(uint16_t rgb, uint32_t count) {
   spi.beginTransaction(SPISettings(SPI_FREQUENCY, MSBFIRST, SPI_MODE0));
   digitalWrite(PIN_TFT_DC, HIGH);
   digitalWrite(PIN_TFT_CS, LOW);
+#ifdef NRF52_PLATFORM
+  // EasyDMA needs a RAM buffer. Send repeated pixels in bursts at 4 MHz.
+  uint8_t pixels[64];
+  size_t bytes = sizeof(pixels);
+  if (count < bytes / 2) bytes = count * 2;
+  for (size_t i = 0; i < bytes; i += 2) {
+    pixels[i] = hi;
+    pixels[i + 1] = lo;
+  }
+  while (count) {
+    if (count < bytes / 2) bytes = count * 2;
+    spi.transfer(pixels, nullptr, bytes);
+    count -= bytes / 2;
+  }
+#else
   while (count--) {
     spi.transfer(hi);
     spi.transfer(lo);
   }
+#endif
   digitalWrite(PIN_TFT_CS, HIGH);
   spi.endTransaction();
 }
@@ -425,7 +448,11 @@ bool NV3001BDisplay::begin() {
   digitalWrite(PIN_TFT_DC, HIGH);
   delay(20);
 
+#ifdef NRF52_PLATFORM
+  spi.begin();  // Pins are set by the nRF52 variant.
+#else
   spi.begin(PIN_TFT_SCL, PIN_TFT_MISO, PIN_TFT_SDA, PIN_TFT_CS);
+#endif
   if (PIN_TFT_RST >= 0) {
     pinMode(PIN_TFT_RST, OUTPUT);
     digitalWrite(PIN_TFT_RST, HIGH);
@@ -456,6 +483,9 @@ void NV3001BDisplay::turnOff() {
   if (!is_on) return;
 
   writeOptionalPin(PIN_TFT_BL, !PIN_TFT_BL_ACTIVE);
+#ifdef NRF52_PLATFORM
+  spi.end();
+#endif
   writeOptionalPin(PIN_TFT_EN, !PIN_TFT_EN_ACTIVE);
   is_on = false;
   if (periph_power) periph_power->release();
@@ -544,7 +574,8 @@ uint16_t NV3001BDisplay::getTextWidth(const char* str) {
 
   uint16_t len = 0;
   while (str[len] && str[len] != '\n' && str[len] != '\r') len++;
-  return (uint16_t)((len * 6 * textPixelScaleX(text_size)) / DISPLAY_SCALE_X);
+  const int pixels = len * 6 * textPixelScaleX(text_size);
+  return nativePixels ? pixels : (uint16_t)(pixels / DISPLAY_SCALE_X);
 }
 
 void NV3001BDisplay::endFrame() {

@@ -15,12 +15,16 @@ class DisplayDriver {
   int _w, _h;
 protected:
   DisplayDriver(int w, int h) { _w = w; _h = h; }
+  void setLogicalSize(int w, int h) { _w = w; _h = h; }
 public:
   //enum Color { DARK=0, LIGHT, RED, GREEN, BLUE, YELLOW, ORANGE }; // on b/w screen, colors will be !=0 synonym of light
 
   int width() const { return _w; }
   int height() const { return _h; }
 
+  // Optional physical-pixel coordinate mode. Unsupported displays keep their
+  // existing logical coordinate system.
+  virtual void setNativePixels(bool) {}
   virtual bool isOn() = 0;
   virtual bool isEink() { return false; } // default to non-eink, override in eink drivers
   virtual void forceFullRefresh() {} // next refresh will be full for eink
