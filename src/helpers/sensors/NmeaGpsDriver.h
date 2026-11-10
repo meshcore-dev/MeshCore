@@ -64,6 +64,18 @@
     #endif
 #endif
 
+// Optional rates detect() tries after GPS_BAUD_RATE, for GPS modules whose baud rate is
+// not known in advance (e.g. -D GPS_BAUD_PROBE_LIST=9600,115200,38400). Used by every
+// NmeaGpsDriver that does not pass its own list.
+#ifdef GPS_BAUD_PROBE_LIST
+    static const uint32_t NMEA_GPS_PROBE_BAUDS[] = { GPS_BAUD_PROBE_LIST };
+    #define GPS_PROBE_BAUDS NMEA_GPS_PROBE_BAUDS
+    #define GPS_PROBE_COUNT ((uint8_t)(sizeof(NMEA_GPS_PROBE_BAUDS) / sizeof(NMEA_GPS_PROBE_BAUDS[0])))
+#else
+    #define GPS_PROBE_BAUDS nullptr
+    #define GPS_PROBE_COUNT 0
+#endif
+
 #ifndef PIN_GPS_SWITCH
     #define PIN_GPS_SWITCH (-1)
 #endif
@@ -199,7 +211,7 @@ public:
                   uint32_t baudRate = GPS_BAUD_RATE,
                   int hardwareEnablePin = PIN_GPS_SWITCH,
                   int hardwareEnableActive = GPS_SWITCH_ACTIVE,
-                  const uint32_t* probeBauds = nullptr, uint8_t probeCount = 0)
+                  const uint32_t* probeBauds = GPS_PROBE_BAUDS, uint8_t probeCount = GPS_PROBE_COUNT)
         : _hardwareSerial(&serial), _peripheralPower(peripheralPower), _txPin(txPin), _rxPin(rxPin),
           _resetPin(resetPin), _enablePin(enablePin), _enableActive(enableActive),
           _resetActive(resetActive), _baudRate(baudRate),
