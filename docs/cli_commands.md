@@ -997,6 +997,25 @@ region save
 - Useful for global networks with specific regional rules
 
 ---
+### Advert location
+
+#### View or change the advert location policy
+**Usage:**
+- `gps advert`
+- `gps advert <policy>`
+
+**Parameters:**
+- `policy`: `none`|`share`|`prefs`
+  - `none`: don't include location in adverts
+  - `share`: share gps location (from SensorManager). Only available when GPS support is compiled in.
+  - `prefs`: location stored in node's lat and lon settings (see `set lat` / `set lon`)
+
+**Default:** `prefs` (repeater, room server and sensor)
+
+**Note:** Available on all builds, including those without GPS support. In a build without GPS, a previously stored `share` policy falls back to `prefs`.
+
+---
+
 ### GPS (When GPS support is compiled in)
 
 #### View GPS state
@@ -1096,21 +1115,6 @@ Covers serial NMEA receivers (`MicroNMEALocationProvider`).
 #### Set this node's location based on the GPS coordinates
 **Usage:** 
 - `gps setloc`
-
----
-
-#### View or change the GPS advert policy
-**Usage:**
-- `gps advert`
-- `gps advert <policy>`
-
-**Parameters:** 
-- `policy`: `none`|`share`|`prefs` 
-  - `none`: don't include location in adverts
-  - `share`: share gps location (from SensorManager)
-  - `prefs`: location stored in node's lat and lon settings
-
-**Default:** `prefs`
 
 ---
 

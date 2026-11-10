@@ -171,10 +171,12 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
   if (_prefs->advert_loc_policy == ADVERT_LOC_NONE) {
     AdvertDataBuilder builder(node_type, _prefs->node_name);
     return builder.encodeTo(app_data);
+#if ENV_INCLUDE_GPS == 1
   } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE) {
     AdvertDataBuilder builder(node_type, _prefs->node_name, _sensors->node_lat, _sensors->node_lon);
     return builder.encodeTo(app_data);
-  } else {
+#endif
+  } else {   // ADVERT_LOC_PREFS (or a stale 'share' in a build without GPS)
     AdvertDataBuilder builder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
     return builder.encodeTo(app_data);
   }
@@ -355,14 +357,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       if (_prefs->getGpsPrefs()->isDirty()) savePrefs();
     } else if (memcmp(command, "region", 6) == 0) {
       handleRegionCmd(command, reply);
-#if ENV_INCLUDE_GPS == 1
-    } else if (memcmp(command, "gps setloc", 10) == 0) {
-      _prefs->node_lat = _sensors->node_lat;
-      _prefs->node_lon = _sensors->node_lon;
-      _prefs->getGpsPrefs()->applyGuardReference(*_sensors);
-      savePrefs();
-      strcpy(reply, "OK");
-    } else if (memcmp(command, "gps advert", 10) == 0) {
+    } else if (memcmp(command, "gps advert", 10) == 0) {   // available without GPS too, for the 'prefs' location
       if (strlen(command) == 10) {
         switch (_prefs->advert_loc_policy) {
           case ADVERT_LOC_NONE:
@@ -382,9 +377,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         savePrefs();
         strcpy(reply, "OK");
       } else if (memcmp(command+11, "share", 5) == 0) {
+#if ENV_INCLUDE_GPS == 1
         _prefs->advert_loc_policy = ADVERT_LOC_SHARE;
         savePrefs();
         strcpy(reply, "OK");
+#else
+        strcpy(reply, "Error, no GPS support");
+#endif
       } else if (memcmp(command+11, "prefs", 5) == 0) {
         _prefs->advert_loc_policy = ADVERT_LOC_PREFS;
         savePrefs();
@@ -392,6 +391,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "Error, invalid policy");
       }
+#if ENV_INCLUDE_GPS == 1
+    } else if (memcmp(command, "gps setloc", 10) == 0) {
+      _prefs->node_lat = _sensors->node_lat;
+      _prefs->node_lon = _sensors->node_lon;
+      _prefs->getGpsPrefs()->applyGuardReference(*_sensors);
+      savePrefs();
+      strcpy(reply, "OK");
 #endif
     } else if (memcmp(command, "powersaving on", 14) == 0) {
 #if defined(NRF52_PLATFORM)
