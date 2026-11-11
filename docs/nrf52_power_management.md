@@ -4,6 +4,8 @@
 
 The nRF52 Power Management module provides battery protection features to prevent over-discharge, minimise likelihood of brownout and flash corruption conditions existing, and enable safe voltage-based recovery.
 
+> **Note (v1.18.0 and later):** since [#2377](https://github.com/meshcore-dev/MeshCore/pull/2377), the `NRF52_POWER_MANAGEMENT` build flag is no longer set in the default builds of most nRF52 variants, including `xiao_nrf52`, `rak4631`, `rak3401`, `heltec_t114`, `heltec_t096`, `sensecap_solar`, `muziworks_r1_neo` and the `gat562_*` variants. On those boards the boot voltage protection and LPCOMP/VBUS wake described below are not compiled in, the `PWRMGT_*` values in their `variant.h` have no effect, and `get pwrmgt.support` returns `unsupported`. At the time of writing, the flag is still enabled for `heltec_t1`, `heltec_tower_v2` and `muzi_base` (boot lockout threshold 3100 mV).
+
 ## Features
 
 ### Boot Voltage Protection
@@ -35,29 +37,29 @@ Shutdown reason codes (stored in GPREGRET2):
 ## Supported Boards
 
 
-| Board                                     | Implemented | LPCOMP wake | VBUS wake |
-|-------------------------------------------|-------------|-------------|-----------|
-| Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes         | Yes         | Yes       |
-| RAK4631 (`rak4631`)                       | Yes         | Yes         | Yes       |
-| Heltec T114 (`heltec_t114`)               | Yes         | Yes         | Yes       |
-| GAT562 Mesh Watch13                       | Yes         | Yes         | Yes       |
-| Promicro nRF52840                         | No          | No          | No        |
-| RAK WisMesh Tag                           | No          | No          | No        |
-| Heltec Mesh Solar                         | No          | No          | No        |
-| LilyGo T-Echo / T-Echo Lite               | No          | No          | No        |
-| SenseCAP Solar                            | Yes         | Yes         | Yes       |
-| WIO Tracker L1 / L1 E-Ink                 | No          | No          | No        |
-| WIO WM1110                                | No          | No          | No        |
-| Mesh Pocket                               | No          | No          | No        |
-| Nano G2 Ultra                             | No          | No          | No        |
-| ThinkNode M1/M3/M6                        | No          | No          | No        |
-| T1000-E                                   | No          | No          | No        |
-| Ikoka Nano/Stick/Handheld (nRF)           | No          | No          | No        |
-| Keepteen LT1                              | No          | No          | No        |
-| Minewsemi ME25LS01                        | No          | No          | No        |
+| Board                                     | Implemented | LPCOMP wake | VBUS wake | Enabled in default build (v1.18.0+) |
+|-------------------------------------------|-------------|-------------|-----------|-------------------------------------|
+| Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes         | Yes         | Yes       | No                                  |
+| RAK4631 (`rak4631`)                       | Yes         | Yes         | Yes       | No                                  |
+| Heltec T114 (`heltec_t114`)               | Yes         | Yes         | Yes       | No                                  |
+| GAT562 Mesh Watch13                       | Yes         | Yes         | Yes       | No                                  |
+| Promicro nRF52840                         | No          | No          | No        | —                                   |
+| RAK WisMesh Tag                           | No          | No          | No        | —                                   |
+| Heltec Mesh Solar                         | No          | No          | No        | —                                   |
+| LilyGo T-Echo / T-Echo Lite               | No          | No          | No        | —                                   |
+| SenseCAP Solar                            | Yes         | Yes         | Yes       | No                                  |
+| WIO Tracker L1 / L1 E-Ink                 | No          | No          | No        | —                                   |
+| WIO WM1110                                | No          | No          | No        | —                                   |
+| Mesh Pocket                               | No          | No          | No        | —                                   |
+| Nano G2 Ultra                             | No          | No          | No        | —                                   |
+| ThinkNode M1/M3/M6                        | No          | No          | No        | —                                   |
+| T1000-E                                   | No          | No          | No        | —                                   |
+| Ikoka Nano/Stick/Handheld (nRF)           | No          | No          | No        | —                                   |
+| Keepteen LT1                              | No          | No          | No        | —                                   |
+| Minewsemi ME25LS01                        | No          | No          | No        | —                                   |
 
 Notes:
-- "Implemented" reflects Phase 1 (boot lockout + shutdown reason capture).
+- "Implemented" reflects that the Phase 1 code (boot lockout + shutdown reason capture) exists for the board; it only takes effect when the board is built with `-D NRF52_POWER_MANAGEMENT` (see "Enabled in default build" and the note in the Overview).
 - User power-off on Heltec T114 does not enable LPCOMP wake.
 - VBUS detection is used to skip boot lockout on external power, and VBUS wake is configured alongside LPCOMP when supported hardware exposes VBUS to the nRF52.
 
