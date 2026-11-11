@@ -23,7 +23,12 @@
 #endif
 
 class MicroNMEALocationProvider : public LocationProvider {
-    char _nmeaBuffer[100];
+    // MicroNMEA never writes past the length it is given, but its fixed-width field
+    // skips can read a few bytes past the end of a malformed sentence. The zeroed tail
+    // lets those reads stop on NUL bytes instead of reading the members that follow.
+    static constexpr size_t NMEA_BUFFER_LEN = 100;
+    static constexpr size_t NMEA_BUFFER_TAIL = 16;
+    char _nmeaBuffer[NMEA_BUFFER_LEN + NMEA_BUFFER_TAIL] = {};
     MicroNMEA nmea;
     mesh::RTCClock* _clock;
     NmeaGpsDriver* _driver;
@@ -135,7 +140,7 @@ class MicroNMEALocationProvider : public LocationProvider {
 
 public:
     MicroNMEALocationProvider(NmeaGpsDriver& driver, mesh::RTCClock* clock = nullptr)
-        : nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock), _driver(&driver) {}
+        : nmea(_nmeaBuffer, NMEA_BUFFER_LEN), _clock(clock), _driver(&driver) {}
 
     void begin() override {
         _begin_calls++;
