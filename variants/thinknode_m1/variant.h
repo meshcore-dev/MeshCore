@@ -81,7 +81,7 @@
 #define BUTTON_PIN              PIN_BUTTON1
 #define PIN_USER_BTN            BUTTON_PIN
 
-#define PIN_BUTTON2             (11)
+#define PIN_BUTTON2             (39)
 #define BUTTON_PIN2             PIN_BUTTON2
 
 #define EXTERNAL_FLASH_DEVICES MX25R1635F
@@ -131,6 +131,11 @@ extern const int SCK;
 #define DISP_BUSY               (3)
 #define DISP_BACKLIGHT          (43)
 
+#define PIN_DISPLAY_CS DISP_CS
+#define PIN_DISPLAY_DC DISP_DC
+#define PIN_DISPLAY_RST DISP_RST
+#define PIN_DISPLAY_BUSY DISP_BUSY
+
 ////////////////////////////////////////////////////////////////////////////////
 // GPS
 
@@ -141,3 +146,5 @@ extern const int SCK;
 #define PIN_GPS_PPS             (36)
 #define PIN_GPS_STANDBY         (34)
 #define PIN_GPS_SWITCH          (33)
+#define GPS_SWITCH_IS_HARDWARE  (0)
+#define GPS_SWITCH_TURNS_GPS_ON (1)

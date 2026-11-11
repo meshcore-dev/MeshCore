@@ -14,7 +14,6 @@
 #endif
 
 class SolarSensorManager : public SensorManager {
-  bool gps_active = false;
   bool gps_detected = false;
   LocationProvider* _location;
 

@@ -2,6 +2,7 @@
 #include <cstdint> // For uint8_t, uint32_t
 #include <helpers/ConfigSerializer.h>
 #include <helpers/CommonRadioPrefs.h>
+#include <helpers/CommonGpsPrefs.h>
 #include <helpers/DynamicConfigSerializer.h>
 
 #define TELEM_MODE_DENY            0
@@ -27,12 +28,17 @@ public:
   uint8_t telemetry_mode_loc = 0;
   uint8_t telemetry_mode_env = 0;
   float rx_delay_base = 0;
+  float tx_delay_factor = 0;
+  float direct_tx_delay_factor = 0;
   uint32_t ble_pin = 0;
   uint8_t  advert_loc_policy = 0;
   uint8_t  buzzer_quiet = 0;
   uint8_t  vibe_quiet = 0;
   uint8_t  gps_enabled = 0;      // GPS enabled flag (0=disabled, 1=enabled)
   uint32_t gps_interval = 0;     // GPS read interval in seconds
+  uint32_t gps_period = 0;       // periodic acquisition interval in seconds
+  int32_t gps_fence = -1;        // GPS_GUARD fence in metres, 0 = off, -1 = build default
+  uint8_t gps_guard = 1;         // GPS_GUARD on/off
   uint8_t autoadd_config = 0;    // bitmask for auto-add contacts config
   uint8_t rx_boosted_gain = 0; // SX126x RX boosted gain mode (0=power saving, 1=boosted)
   uint8_t radio_fem_rxgain = 0; // external LoRa FEM RX gain (LNA)
@@ -41,8 +47,55 @@ public:
   uint8_t path_hash_mode = 0;    // which path mode to use when sending
   uint8_t autoadd_max_hops = 0;  // 0 = no limit, 1 = direct (0 hops), N = up to N-1 hops (max 64)
   uint8_t cad_enabled = 0;
+  uint8_t interference_threshold = 0;
+  uint8_t agc_reset_interval = 0;  // secs / 4
   char default_scope_name[31];
   uint8_t default_scope_key[16];
+  float tz_offset = 0;
+  float adc_multiplier = 0;   // battery ADC multiplier, 0 = board default
+#ifdef ENABLE_WIFI_INTERFACE
+  #ifndef WIFI_SSID
+    #define WIFI_SSID ""
+  #endif
+  char wifi_ssid[33] = {0};   // if empty, the compile-time WIFI_SSID is used
+  char wifi_pwd[64] = {0};
+  uint8_t wifi_enabled = 1; // enabled by default to allow wifi only builds to work. wifi won't be started if ssid is empty
+  // use ssid from prefs, or fallback to ssid from build flags
+  const char* getWifiSSID() const { return wifi_ssid[0] ? wifi_ssid : WIFI_SSID; }
+#endif
+#ifdef DISPLAY_CLASS
+  #ifndef UI_SHOW_CLOCK
+    #define UI_SHOW_CLOCK 0
+  #endif
+  #ifndef AUTO_OFF_MILLIS
+    #define AUTO_OFF_MILLIS 15000
+  #endif
+  #ifndef EINK_MAX_PARTIAL_REFRESH
+    #define EINK_MAX_PARTIAL_REFRESH 0
+  #endif
+  uint8_t ui_show_clock = UI_SHOW_CLOCK;
+  uint32_t ui_auto_off_delay = AUTO_OFF_MILLIS / 1000;
+  int32_t ui_backlight_delay = 5;
+  #if defined(BACKLIGHT_BTN)
+  uint8_t ui_backlight_on_keys = 0;
+  #else
+  uint8_t ui_backlight_on_keys = 1;
+  #endif
+  uint8_t ui_backlight_on_msgs = 0;
+#ifdef UI_SCREENOFF_BLANK
+  uint8_t ui_auto_off_blank = 1;
+#else
+  uint8_t ui_auto_off_blank = 0;
+#endif
+  uint8_t ui_auto_off_keep_msgs = 1;
+  uint8_t ui_max_partial = EINK_MAX_PARTIAL_REFRESH;
+  uint8_t ui_nd_name = 1;
+#ifdef PIN_GPS_SWITCH
+  uint8_t ui_gps_action = 1;
+#else
+  uint8_t ui_gps_action = 0;
+#endif
+#endif
 
 private:
   class RadioPrefs : public CommonRadioPrefs {
@@ -54,16 +107,16 @@ private:
       def("sf", _parent->sf);
       def("cr", _parent->cr);
       def("cad", _parent->cad_enabled);
-      //def("int_thr", _parent->interference_threshold);
+      def("int_thr", _parent->interference_threshold);
       def("rxgain", _parent->rx_boosted_gain);
       def("fem_rxgain", _parent->radio_fem_rxgain);   // fem_rxgain WAS mapped to wrong JSON property previously
       def("fem_txgain", _parent->radio_fem_txgain);
       def("tx", _parent->tx_power_dbm);
       def("af", _parent->airtime_factor);
       def("rxdelay", _parent->rx_delay_base);
-      //def("f_txdelay", _parent->tx_delay_factor);   currently hard-coded
-      //def("d_txdelay", _parent->direct_tx_delay_factor);  currently hard-coded
-      //def("agc_int", _parent->agc_reset_interval);
+      def("f_txdelay", _parent->tx_delay_factor);
+      def("d_txdelay", _parent->direct_tx_delay_factor);
+      def("agc_int", _parent->agc_reset_interval);
       def("hash_mode", _parent->path_hash_mode);
       def("multi_ack", _parent->multi_acks);
     }
@@ -83,24 +136,24 @@ private:
     void setAirtimeFactor(float af) override { _parent->airtime_factor = af; markDirty(); }
     bool isCadEnabled() const override { return _parent->cad_enabled; }
     void setCadEnabled(bool en) override { _parent->cad_enabled = en; markDirty(); }
-    uint8_t getIntThresh() const override { return 0; }
-    void setIntThresh(uint8_t t) override { /* no-op */ }
+    uint8_t getIntThresh() const override { return _parent->interference_threshold; }
+    void setIntThresh(uint8_t t) override { _parent->interference_threshold = t; markDirty(); }
     uint8_t getRxGain() const override { return _parent->rx_boosted_gain; }
     void setRxGain(uint8_t g) override { _parent->rx_boosted_gain = g; markDirty(); }
-    uint8_t getTxPower() const override { return _parent->tx_power_dbm; }
-    void setTxPower(uint8_t dbm) override { _parent->tx_power_dbm = dbm; markDirty(); }
+    int8_t getTxPower() const override { return _parent->tx_power_dbm; }
+    void setTxPower(int8_t dbm) override { _parent->tx_power_dbm = dbm; markDirty(); }
     float getRxDelay() const override { return _parent->rx_delay_base; }
     void setRxDelay(float d) override { _parent->rx_delay_base = d; markDirty(); }
-    uint8_t getAgcResetInt() const override { return 0; }
-    void setAgcResetInt(uint8_t secs) override { /* no-op */ }
+    uint16_t getAgcResetInt() const override { return _parent->agc_reset_interval * 4; }
+    void setAgcResetInt(uint16_t secs) override { _parent->agc_reset_interval = secs / 4; markDirty(); }
     uint8_t getHashMode() const override { return _parent->path_hash_mode; }
     void setHashMode(uint8_t m) override { _parent->path_hash_mode = m; markDirty(); }
     uint8_t getMultiAcks() const override { return _parent->multi_acks; }
     void setMultiAcks(uint8_t m) override { _parent->multi_acks = m; markDirty(); }
-    float getFloodTxDelay() const override { return 0.5f; }  //   currently hard-coded
-    void setFloodTxDelay(float d) override { /* no-op */ }
-    float getDirectTxDelay() const override { return 0.2f; }  //   currently hard-coded
-    void setDirectTxDelay(float d) override { /* no-op */ }
+    float getFloodTxDelay() const override { return _parent->tx_delay_factor; }
+    void setFloodTxDelay(float d) override { _parent->tx_delay_factor = d; markDirty(); }
+    float getDirectTxDelay() const override { return _parent->direct_tx_delay_factor; }
+    void setDirectTxDelay(float d) override { _parent->direct_tx_delay_factor = d; markDirty(); }
     uint8_t getFEMRxGain() const override { return _parent->radio_fem_rxgain; }
     void setFEMRxGain(uint8_t g) override { _parent->radio_fem_rxgain = g; markDirty(); }
     uint8_t getFEMTxGain() const override { return _parent->radio_fem_txgain; }
@@ -108,16 +161,36 @@ private:
   };
   RadioPrefs radio;
 
-  class GPSPrefs : public ConfigSerializer {  // COPIED from CommonCLI (for now)
+  class GPSPrefs : public CommonGpsPrefs {
     NodePrefs* _parent;
   protected:
     void structure() override {
       def("en", _parent->gps_enabled); // boolean
       def("int", _parent->gps_interval);   // interval in seconds
+      def("period", _parent->gps_period);  // periodic acquisition interval in seconds
       def("adv_loc", _parent->advert_loc_policy);
+#ifdef GPS_GUARD
+      def("fence", _parent->gps_fence);
+      def("guard", _parent->gps_guard);
+#endif
     }
   public:
     GPSPrefs(NodePrefs* parent) : _parent(parent) { }
+    bool isGpsEnabled() const override { return _parent->gps_enabled; }
+    void setGpsEnabled(bool enabled) override { _parent->gps_enabled = enabled; markDirty(); }
+    uint32_t getGpsPeriod() const override { return _parent->gps_period; }
+    void setGpsPeriod(uint32_t seconds) override { _parent->gps_period = seconds; markDirty(); }
+    bool getGuardFence(uint32_t& metres) const override {
+      if (_parent->gps_fence < 0) return false;
+      metres = (uint32_t)_parent->gps_fence;
+      return true;
+    }
+    void setGuardFence(uint32_t metres) override { _parent->gps_fence = (int32_t)metres; markDirty(); }
+    bool getGuardEnabled(bool& enabled) const override {
+      enabled = _parent->gps_guard != 0;
+      return true;
+    }
+    void setGuardEnabled(bool enabled) override { _parent->gps_guard = enabled ? 1 : 0; markDirty(); }
   };
   GPSPrefs gps;
 
@@ -150,6 +223,8 @@ private:
       def("tel_base", _parent->telemetry_mode_base);
       def("tel_loc", _parent->telemetry_mode_loc);
       def("tel_env", _parent->telemetry_mode_env);
+      def("tz_offset", _parent->tz_offset);
+      def("adc_mult", _parent->adc_multiplier);
     }
   public:
     CompanionPrefs(NodePrefs* parent) : _parent(parent) { }
@@ -157,6 +232,43 @@ private:
   CompanionPrefs companion;
 
   DynamicConfigSerializer custom;
+
+#ifdef ENABLE_WIFI_INTERFACE
+  class WiFiPrefs : public ConfigSerializer {
+    NodePrefs* _parent;
+  protected:
+    void structure() override {
+      def("ssid", _parent->wifi_ssid, sizeof(_parent->wifi_ssid));
+      def("pwd", _parent->wifi_pwd, sizeof(_parent->wifi_pwd));
+      def("enabled", _parent->wifi_enabled);
+    }
+  public:
+    WiFiPrefs(NodePrefs* parent) : _parent(parent) { }
+  };
+  WiFiPrefs wifi;
+#endif
+
+#ifdef DISPLAY_CLASS
+  class UI_Prefs : public ConfigSerializer {
+    NodePrefs* _parent;
+  protected:
+    void structure() override {
+  	def("show_clock", _parent->ui_show_clock);
+  	def("auto_off", _parent->ui_auto_off_delay);
+  	def("bl_dly", _parent->ui_backlight_delay);
+  	def("bl_keys", _parent->ui_backlight_on_keys);
+  	def("bl_msgs", _parent->ui_backlight_on_msgs);
+    def("max_partial", _parent->ui_max_partial);
+  	def("off_blank", _parent->ui_auto_off_blank);
+  	def("off_keep_msgs", _parent->ui_auto_off_keep_msgs);
+    def("nd_name", _parent->ui_nd_name);
+    def("gps_act", _parent->ui_gps_action);
+    }
+  public:
+    UI_Prefs(NodePrefs* parent) : _parent(parent) {}
+  };
+  UI_Prefs ui;
+#endif
 
 protected:
   void structure() override {
@@ -170,9 +282,22 @@ protected:
     def("repeat", repeat);
     def("comp", companion);
     def("custom", custom);
+#ifdef ENABLE_WIFI_INTERFACE
+    def("wifi", wifi);
+#endif
+#ifdef DISPLAY_CLASS
+    def("ui", ui);
+#endif
   }
 public:
-  NodePrefs() : radio(this), gps(this), companion(this), custom(&radio) {
+  NodePrefs() : radio(this), gps(this), companion(this), custom(&radio)
+#ifdef ENABLE_WIFI_INTERFACE
+    , wifi(this)
+#endif
+#ifdef DISPLAY_CLASS
+    , ui(this)
+#endif
+  {
     node_name[0] = 0;
     default_scope_name[0] = 0;
     memset(default_scope_key, 0, sizeof(default_scope_key));
@@ -182,8 +307,9 @@ public:
   void setRepeatEn(bool en) { repeat.disable_fwd = en ? 0 : 1; }
 
   CommonRadioPrefs* getRadioPrefs() { return &radio; }
+  CommonGpsPrefs* getGpsPrefs() { return &gps; }
   KeyValueStore* getCustom() { return &custom; }
 
-  bool isDirty() const override { return ConfigSerializer::isDirty() || radio.isDirty() || custom.isDirty(); }
-  void clearDirty() override { ConfigSerializer::clearDirty(); radio.clearDirty(); custom.clearDirty(); }
+  bool isDirty() const override { return ConfigSerializer::isDirty() || radio.isDirty() || gps.isDirty() || custom.isDirty(); }
+  void clearDirty() override { ConfigSerializer::clearDirty(); radio.clearDirty(); gps.clearDirty(); custom.clearDirty(); }
 };

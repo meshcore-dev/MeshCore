@@ -42,7 +42,11 @@ public:
   }
 
   const char* getManufacturerName() const override {
+  #if defined(PICO_RP2350)
+    return "Pico 2 W";
+  #else
     return "Pico W";
+  #endif
   }
 
   void reboot() override {

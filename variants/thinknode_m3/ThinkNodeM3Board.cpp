@@ -6,7 +6,6 @@
 
 void ThinkNodeM3Board::begin() {
   NRF52Board::begin();
-  btn_prev_state = HIGH;
 
   Wire.begin();
 
