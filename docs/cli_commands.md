@@ -507,7 +507,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   - `moderate`: packets are dropped if repeater's ID/hash appears 2 or more times (1-byte), 1 or more (2-byte), 1 or more (3-byte)
   - `strict`: packets are dropped if repeater's ID/hash appears 1 or more times (1-byte), 1 or more (2-byte), 1 or more (3-byte)
   
-**Default:** `off`
+**Default:** `minimal` for new repeater installs since v1.18.0 ([#3239](https://github.com/meshcore-dev/MeshCore/pull/3239)). Repeaters upgraded from an earlier version keep the value already stored in their preferences (`off` unless it was changed).
 
 **Note:** When it is enabled, repeaters will now reject flood packets which look like they are in a loop. This has been happening recently in some meshes when there is just a single 'bad' repeater firmware out there (probably some forked or custom firmware). If the payload is messed with, then forwarded, the same packet ends up causing a packet storm, repeated up to the max 64 hops. This feature was added in firmware 1.14
 
