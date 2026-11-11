@@ -276,27 +276,30 @@ void setup() {
 #endif
 
 #ifdef HAS_ESP_MDNS
-  String nodeName = the_mesh.getNodeName();
-  String sanitizedNodeName;
-  sanitizedNodeName.reserve(nodeName.length());
-  for (size_t i = 0; i < nodeName.length(); ++i) {
+  const char* nodeName = the_mesh.getNodeName();
+
+  // "meshcore_" prefix + sanitized node name, capped at 63 chars (max DNS label length)
+  char mdnsName[64];
+  const size_t prefixLen = snprintf(mdnsName, sizeof(mdnsName), "meshcore_");
+  size_t pos = prefixLen;
+  for (size_t i = 0; nodeName[i] != '\0' && pos < sizeof(mdnsName) - 1; ++i) {
     const char c = nodeName[i];
     if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
         (c >= '0' && c <= '9') || c == '-' || c == '_') {
-      sanitizedNodeName += c;
+      mdnsName[pos++] = c;
     }
   }
+  mdnsName[pos] = '\0';
 
-  String mdnsName = "meshcore_";
-  mdnsName += sanitizedNodeName;
-  if (!MDNS.begin(mdnsName.c_str())) {
+  if (!MDNS.begin(mdnsName)) {
     WIFI_DEBUG_PRINTLN("mDNS failed to start!");
   } else {
     MDNS.addService("meshcore", "tcp", TCP_PORT);
-    MDNS.addServiceTxt("meshcore", "tcp", "node-name", the_mesh.getNodeName());
+    MDNS.addServiceTxt("meshcore", "tcp", "node-name", nodeName);
     MDNS.addServiceTxt("meshcore", "tcp", "firmware-version", FIRMWARE_VERSION);
-    String protocol; protocol+=FIRMWARE_VER_CODE;
-    MDNS.addServiceTxt("meshcore", "tcp", "protocol-version", protocol.c_str());
+    char protocol[12];
+    snprintf(protocol, sizeof(protocol), "%d", (int)FIRMWARE_VER_CODE);
+    MDNS.addServiceTxt("meshcore", "tcp", "protocol-version", protocol);
     MDNS.addServiceTxt("meshcore", "tcp", "build-date", __DATE__);
     MDNS.addServiceTxt("meshcore", "tcp", "build-time", __TIME__);
   }
