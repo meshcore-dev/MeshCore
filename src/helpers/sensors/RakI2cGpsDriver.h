@@ -41,7 +41,9 @@ class RakI2cGpsDriver : public GpsDriver {
         }
 
 #ifndef RAK_3401
-        pinMode(powerPin, INPUT);
+        if (powerPin != WB_IO2) {
+            pinMode(powerPin, INPUT);
+        }
 #endif
         return false;
     }
