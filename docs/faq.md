@@ -821,6 +821,9 @@ For companion radios, you can set these radios' transmit power in the smartphone
 | **Ikoka Stick E22-900M33S**                                                        | 2W Model                            | 9 dBm                | 2W                     | **DO NOT EXCEED** (Risk of burn out) [data sheet](https://www.cdebyte.com/pdf-down.aspx?id=4216) Refer to your local government's requirements |
 | **Heltec V4**                                                                      | Standard Output                     | 10 dBm               | 22 dBm (~0.15W)        |                                                                                                                                                |
 |                                                                                    | High Output                         | 22 dBm               | 28 dBm (~0.5W to 0.6W) |                                                                                                                                                |
+| **RAK3401 + RAK13302** (WisMesh 1W Booster)                                         | 1W Output (firmware default)        | 22 dBm               | 30 dBm (1W)            | ~1000 mA peak @ 5 V, per RAK13302 VD [data sheet](https://docs.rakwireless.com/product-categories/wisblock/rak13302/datasheet-vd/). Refer to your local government's requirements |
+|                                                                                    | Reduced Output                      | 19 dBm               | 27 dBm (~0.5W)         | ~740 mA peak @ 5 V |
+|                                                                                    | Reduced Output                      | 16 dBm               | 24 dBm (~0.25W)        | ~560 mA peak @ 5 V |
 
 ---
 
