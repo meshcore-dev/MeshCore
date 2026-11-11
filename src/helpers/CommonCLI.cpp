@@ -467,6 +467,22 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     }
+  } else if (memcmp(config, "advert.loc ", 11) == 0) {
+    if (memcmp(config+11, "none", 4) == 0) {
+      _prefs->advert_loc_policy = ADVERT_LOC_NONE;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(config+11, "share", 5) == 0) {
+      _prefs->advert_loc_policy = ADVERT_LOC_SHARE;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(config+11, "prefs", 5) == 0) {
+      _prefs->advert_loc_policy = ADVERT_LOC_PREFS;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, invalid policy");
+    }    
   } else if (memcmp(config, "guest.password ", 15) == 0) {
     StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
     savePrefs();
@@ -665,6 +681,20 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", ((uint32_t) _prefs->flood_advert_interval));
   } else if (memcmp(config, "advert.interval", 15) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
+  } else if (memcmp(config, "advert.loc", 10) == 0) {
+    switch (_prefs->advert_loc_policy) {
+      case ADVERT_LOC_NONE:
+        strcpy(reply, "> none");
+        break;
+      case ADVERT_LOC_PREFS:
+        strcpy(reply, "> prefs");
+        break;
+      case ADVERT_LOC_SHARE:
+        strcpy(reply, "> share");
+        break;
+      default:
+        strcpy(reply, "Error, invalid policy");
+    }    
   } else if (memcmp(config, "guest.password", 14) == 0) {
     sprintf(reply, "> %s", _prefs->guest_password);
   } else if (sender_timestamp == 0 && memcmp(config, "prv.key", 7) == 0) {  // from serial command line only

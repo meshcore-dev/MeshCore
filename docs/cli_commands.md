@@ -1101,6 +1101,8 @@ Covers serial NMEA receivers (`MicroNMEALocationProvider`).
 
 #### View or change the GPS advert policy
 **Usage:**
+- `get advert.loc`
+- `set advert.loc <policy>`
 - `gps advert`
 - `gps advert <policy>`
 
@@ -1108,9 +1110,11 @@ Covers serial NMEA receivers (`MicroNMEALocationProvider`).
 - `policy`: `none`|`share`|`prefs` 
   - `none`: don't include location in adverts
   - `share`: share gps location (from SensorManager)
-  - `prefs`: location stored in node's lat and lon settings
+  - `prefs`: location stored in node's lat and lon settings (can be different from gps value)
 
 **Default:** `prefs`
+
+**Note:** `gps advert` command is the old format but is only accessible when a gps is attached to the unit. It has been kept for compatibility but one should prefer using `get/set` commands instead.
 
 ---
 
