@@ -266,7 +266,8 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
       onCommandDataRecv(from, packet, sender_timestamp, text);  // let UI know
       // NOTE: no ack expected for CLI_DATA replies
     } else if (flags == TXT_TYPE_CLI_COMMAND) {
-      uint8_t temp[166];
+      // 5-byte datagram header + 3-byte reflected CLI prefix + 160-byte reply text + NUL
+      uint8_t temp[169];
       char *command = (char *)&data[5];
       char *reply = (char *)&temp[5];
       *reply = 0;
