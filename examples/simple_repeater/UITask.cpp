@@ -140,8 +140,10 @@ void UITask::loop() {
   }
 
   if (_powering_off_at > 0) { // power off timer armed
-#ifdef LED_PIN
+#if defined(LED_PIN) && defined(LED_STATE_ON)
     digitalWrite(LED_PIN, LED_STATE_ON); // switch on the led until poweroff
+    delay(1000);
+    digitalWrite(LED_PIN, !LED_STATE_ON); // off LED
 #endif
     // actual powerOff() deferred to main loop, which waits for pending mesh work
   }

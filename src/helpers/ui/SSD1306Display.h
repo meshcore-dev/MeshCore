@@ -15,6 +15,10 @@
   #define DISPLAY_ADDRESS   0x3C
 #endif
 
+#if defined(PIN_OLED_CS) != defined(PIN_OLED_DC)
+  #error "SPI OLED requires both PIN_OLED_CS and PIN_OLED_DC"
+#endif
+
 class SSD1306Display : public DisplayDriver {
   Adafruit_SSD1306 display;
   bool _isOn;
@@ -24,7 +28,11 @@ class SSD1306Display : public DisplayDriver {
   bool i2c_probe(TwoWire& wire, uint8_t addr);
 public:
   SSD1306Display(RefCountedDigitalPin* peripher_power=NULL) : DisplayDriver(128, 64), 
+#if defined(PIN_OLED_CS) && defined(PIN_OLED_DC)
+      display(128, 64, &SPI, PIN_OLED_DC, PIN_OLED_RESET, PIN_OLED_CS),
+#else
       display(128, 64, &Wire, PIN_OLED_RESET),
+#endif
       _peripher_power(peripher_power)
   {
     _isOn = false; 

@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "t1000e_sensors.h"
 #include "target.h"
+#include <helpers/sensors/AirohaGpsDriver.h>
 #include <helpers/sensors/MicroNMEALocationProvider.h>
 
 T1000eBoard board;
@@ -10,8 +11,9 @@ RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BU
 WRAPPER_CLASS radio_driver(radio, board);
 
 VolatileRTCClock rtc_clock;
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
-T1000SensorManager sensors = T1000SensorManager(nmea);
+AirohaGpsDriver gps_driver(Serial1);
+MicroNMEALocationProvider nmea(gps_driver, &rtc_clock);
+T1000SensorManager sensors(nmea, gps_driver);
 
 #ifdef DISPLAY_CLASS
   NullDisplayDriver display;
@@ -80,57 +82,16 @@ mesh::LocalIdentity radio_new_identity() {
 }
 
 void T1000SensorManager::start_gps() {
-  gps_active = true;
-  //_nmea->begin();
-  // this init sequence should be better 
-  // comes from seeed examples and deals with all gps pins
-  pinMode(GPS_EN, OUTPUT);
-  digitalWrite(GPS_EN, HIGH);
-  delay(10);
-  pinMode(GPS_VRTC_EN, OUTPUT);
-  digitalWrite(GPS_VRTC_EN, HIGH);
-  delay(10);
-       
-  pinMode(GPS_RESET, OUTPUT);
-  digitalWrite(GPS_RESET, HIGH);
-  delay(10);
-  digitalWrite(GPS_RESET, LOW);
-       
-  pinMode(GPS_SLEEP_INT, OUTPUT);
-  digitalWrite(GPS_SLEEP_INT, HIGH);
-  pinMode(GPS_RTC_INT, OUTPUT);
-  digitalWrite(GPS_RTC_INT, LOW);
-  pinMode(GPS_RESETB, INPUT_PULLUP);
-}
-
-void T1000SensorManager::sleep_gps() {
-  gps_active = false;
-  digitalWrite(GPS_VRTC_EN, HIGH);
-  digitalWrite(GPS_EN, LOW);
-  digitalWrite(GPS_RESET, HIGH);
-  digitalWrite(GPS_SLEEP_INT, HIGH);
-  digitalWrite(GPS_RTC_INT, LOW);
-  pinMode(GPS_RESETB, OUTPUT);
-  digitalWrite(GPS_RESETB, LOW);
-  //_nmea->stop();
+  _nmea->setGpsOn(true);
 }
 
 void T1000SensorManager::stop_gps() {
-  gps_active = false;
-  digitalWrite(GPS_VRTC_EN, LOW);
-  digitalWrite(GPS_EN, LOW);
-  digitalWrite(GPS_RESET, HIGH);
-  digitalWrite(GPS_SLEEP_INT, HIGH);
-  digitalWrite(GPS_RTC_INT, LOW);
-  pinMode(GPS_RESETB, OUTPUT);
-  digitalWrite(GPS_RESETB, LOW);
-  //_nmea->stop();
+  _nmea->setGpsOn(false);
 }
 
 
 bool T1000SensorManager::begin() {
-  // init GPS
-  Serial1.begin(115200);
+  _gps_driver->initialize();
   return true;
 }
 
@@ -152,11 +113,10 @@ void T1000SensorManager::loop() {
   _nmea->loop();
 
   if (millis() > next_gps_update) {
-    if (gps_active && _nmea->isValid()) {
+    if (_nmea->isGpsOn() && _nmea->hasValidFix()) {
       node_lat = ((double)_nmea->getLatitude())/1000000.;
       node_lon = ((double)_nmea->getLongitude())/1000000.;
       node_altitude = ((double)_nmea->getAltitude()) / 1000.0;
-      //Serial.printf("lat %f lon %f\r\n", _lat, _lon);
     }
     next_gps_update = millis() + 1000;
   }
@@ -169,14 +129,14 @@ const char* T1000SensorManager::getSettingName(int i) const {
 }
 const char* T1000SensorManager::getSettingValue(int i) const {
   if (i == 0) {
-    return gps_active ? "1" : "0";
+    return _nmea->isGpsOn() ? "1" : "0";
   }
   return NULL;
 }
 bool T1000SensorManager::setSettingValue(const char* name, const char* value) {
   if (strcmp(name, "gps") == 0) {
     if (strcmp(value, "0") == 0) {
-      sleep_gps(); // sleep for faster fix !
+      stop_gps();
     } else {
       start_gps();
     }

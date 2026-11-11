@@ -125,6 +125,13 @@ void setup() {
 void loop() {
   // Handle Serial CLI
   int len = strlen(command);
+  // `command` must stay NUL-terminated within its bounds. If it ever isn't,
+  // strlen() above can return >= sizeof(command) and the loop below would then
+  // index past the buffer, so clamp defensively.
+  if (len >= (int)sizeof(command)) {
+    command[0] = 0;
+    len = 0;
+  }
   while (Serial.available() && len < sizeof(command)-1) {
     char c = Serial.read();
     if (c != '\n') {
@@ -134,8 +141,9 @@ void loop() {
     }
     if (c == '\r') break;
   }
-  if (len == sizeof(command)-1) {  // command buffer full
-    command[sizeof(command)-1] = '\r';
+  if (len == sizeof(command)-1) {  // buffer full: treat as a completed line
+    command[sizeof(command)-2] = '\r';  // place end-of-line marker inside the buffer
+    command[sizeof(command)-1] = 0;     // keep the buffer NUL-terminated
   }
 
   if (len > 0 && command[len - 1] == '\r') {  // received complete line
@@ -157,6 +165,8 @@ void loop() {
     command[0] = 0;  // reset command buffer
   }
 
+  board.loop();   // let the board feed its watchdog, run periodic housekeeping
+
 #ifdef ETHERNET_ENABLED
   ethernet_loop_maintain();
   if (ethernet_read_line(ethernet_command, sizeof(ethernet_command))) {
@@ -177,15 +187,14 @@ void loop() {
     if (userBtnDownAt == 0) {
       userBtnDownAt = millis();
     } else if ((unsigned long)(millis() - userBtnDownAt) >= USER_BTN_HOLD_OFF_MILLIS) {
-      if (!the_mesh.hasPendingWork()) {
+      static bool notified = false;
+      if (!notified) {
+        Serial.println("Powering off...");
+        notified = true;
+      }
+      if (!the_mesh.hasPendingShutdownWork()) {
         the_mesh.flushPending();
         board.powerOff();  // does not return
-      } else {
-        static bool notified = false;
-        if (!notified) {
-          Serial.println("Powering off...");
-          notified = true;
-        }
       }
     }
   } else {
@@ -197,7 +206,7 @@ void loop() {
   sensors.loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
-  if (ui_task.wantsPowerOff() && !the_mesh.hasPendingWork()) {
+  if (ui_task.wantsPowerOff() && !the_mesh.hasPendingShutdownWork()) {
     the_mesh.flushPending();
     board.powerOff();  // does not return
   }

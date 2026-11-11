@@ -14,10 +14,13 @@ public:
     digitalWrite(_pin, !_active);  // initial state
   }
 
+  // Both set the level, then make the pin an output again, since other code may have left it
+  // an input. On a RAK19007 with a RAK12501, WB_IO2 left as an input keeps 3V3_S in its last state.
   void claim() {
     _claims++;
     if (_claims > 0) {
       digitalWrite(_pin, _active);
+      pinMode(_pin, OUTPUT);
     }
   }
 
@@ -27,6 +30,7 @@ public:
     _claims--;
     if (_claims == 0) {
       digitalWrite(_pin, !_active);
+      pinMode(_pin, OUTPUT);
     }
   }
 };

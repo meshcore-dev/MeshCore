@@ -12,6 +12,7 @@
 #endif
 
 #include "NodePrefs.h"
+#include "MyMesh.h"
 
 enum class UIEventType {
     none,
@@ -22,29 +23,23 @@ enum class UIEventType {
     ack
 };
 
-class AbstractUITask {
+class AbstractUITask : public MyMesh::Listener {
 protected:
   mesh::MainBoard* _board;
   MultiSerialInterface* _interfaceManager;
-  bool _connected;
   bool _wants_shutdown = false;
-  bool _restart_on_shutdown = false;
 
   AbstractUITask(mesh::MainBoard* board, MultiSerialInterface* interfaceManager) : _board(board), _interfaceManager(interfaceManager) {
-    _connected = false;
   }
 
 public:
   bool wantsShutdown() const { return _wants_shutdown; }
-  bool isRestart() const { return _restart_on_shutdown; }
-  void setHasConnection(bool connected) { _connected = connected; }
-  bool hasConnection() const { return _connected; }
+  bool hasConnection() const { return _interfaceManager->isConnected(); }
   uint16_t getBattMilliVolts() const { return _board->getBattMilliVolts(); }
   bool isBluetoothEnabled() const { return _interfaceManager->isBluetoothEnabled(); }
   void enableBluetooth() { _interfaceManager->enableBluetooth(); }
   void disableBluetooth() { _interfaceManager->disableBluetooth(); }
-  virtual void msgRead(int msgcount) = 0;
-  virtual void newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) = 0;
+
   virtual void notify(UIEventType t = UIEventType::none) = 0;
   virtual void loop() = 0;
 };
