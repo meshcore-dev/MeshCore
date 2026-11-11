@@ -133,7 +133,6 @@ public:
     strcpy(_time_status, "-");
   }
   bool isTimeAlert() const { return _time_alert; }
-  long getAlertOffset() const { return _time_disagree_offset; }
 
   // Fix as reported by the receiver: lat/lon in micro-degrees, HDOP in tenths (255 = unknown),
   // gps_time = UTC epoch of the fix. Returns true if the fix can be stored as trusted.
