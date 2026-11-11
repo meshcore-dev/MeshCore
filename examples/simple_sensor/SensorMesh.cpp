@@ -790,9 +790,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
 {
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
-  last_read_time = uint32_t(0) - SENSOR_READ_INTERVAL_SECS;  // read immediately on the first loop
-  last_millis = 0;
-  uptime_millis = 0;
+  last_read_time = 0;
   num_alert_tasks = 0;
   set_radio_at = revert_radio_at = 0;
   recv_pkt_region = NULL;
@@ -1002,9 +1000,6 @@ bool  SensorMesh::getGPS(uint8_t channel, float& lat, float& lon, float& alt) {
 }
 
 void SensorMesh::loop() {
-  uint32_t now = millis();
-  uptime_millis += uint32_t(now - last_millis);
-  last_millis = now;
   mesh::Mesh::loop();
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
@@ -1034,8 +1029,7 @@ void SensorMesh::loop() {
   }
 
   uint32_t curr = getRTCClock()->getCurrentTime();
-  uint32_t uptime_secs = getUptimeSeconds();
-  if (uint32_t(uptime_secs - last_read_time) >= SENSOR_READ_INTERVAL_SECS) {
+  if (curr >= last_read_time + SENSOR_READ_INTERVAL_SECS) {
     telemetry.reset();
     telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
     // query other sensors -- target specific
@@ -1076,7 +1070,7 @@ void SensorMesh::loop() {
 
     onSensorDataRead();
 
-    last_read_time = uptime_secs;
+    last_read_time = curr;
   }
 
   // check the alert send queue
