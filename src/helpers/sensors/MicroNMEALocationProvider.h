@@ -54,6 +54,26 @@ class MicroNMEALocationProvider : public LocationProvider {
     bool _nmea_seen = false;
 #ifdef GPS_GUARD
     GpsGuard _guard;
+    uint8_t _gsa_fix_mode = 0;      // fix mode from the last GSA: 1 = none, 2 = 2D, 3 = 3D
+    unsigned long _gsa_ms = 0;
+
+    static bool isGsa(const char* id) {   // GPGSA, GNGSA, BDGSA, ...
+        const size_t n = strlen(id);
+        return n >= 3 && strcmp(id + n - 3, "GSA") == 0;
+    }
+    // $--GSA,<mode A/M>,<fix 1/2/3>,...
+    void parseGsa(const char* s) {
+        s = strchr(s, ',');
+        if (s != NULL) s = strchr(s + 1, ',');
+        if (s != NULL && s[1] >= '1' && s[1] <= '3') {
+            _gsa_fix_mode = s[1] - '0';
+            _gsa_ms = millis();
+        }
+    }
+    // 0 (unknown) if the receiver does not send GSA, or sent none recently
+    uint8_t currentFixMode() const {
+        return (_gsa_fix_mode != 0 && (uint32_t)(millis() - _gsa_ms) <= 2000) ? _gsa_fix_mode : 0;
+    }
 #endif
 
     static uint32_t ageMs(unsigned long timestamp) {
@@ -94,7 +114,7 @@ class MicroNMEALocationProvider : public LocationProvider {
 #ifdef GPS_GUARD
         // only plausible, stable fixes become the last fix (position, telemetry, time sync)
         if (!_guard.acceptFix(nmea.getLatitude(), nmea.getLongitude(), nmea.getNumSatellites(),
-                              nmea.getHDOP(), getTimestamp())) return false;
+                              nmea.getHDOP(), getTimestamp(), currentFixMode())) return false;
 #endif
 
         LastFix fix;
@@ -336,6 +356,7 @@ public:
 
                     const char* messageId = nmea.getMessageID();
 #ifdef GPS_GUARD
+                    if (isGsa(messageId)) parseGsa(nmea.getSentence());
                     if (parsed && !nmea.isValid() &&
                         (strcmp(messageId, "GGA") == 0 || strcmp(messageId, "RMC") == 0)) {
                         _guard.noFix(nmea.getNumSatellites());
@@ -395,5 +416,10 @@ public:
             fix_age,
             (unsigned long)_begin_calls,
             (unsigned long)_stop_calls);
+#ifdef GPS_GUARD
+        // fix mode from GSA (1 none, 2 2D, 3 3D, 0 no recent GSA)
+        const size_t len = strlen(out);
+        if (len < out_size) snprintf(out + len, out_size - len, " fm:%u", currentFixMode());
+#endif
     }
 };
