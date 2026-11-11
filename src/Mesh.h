@@ -210,6 +210,7 @@ public:
 
   void encodeDatagram(Packet* pkt, uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t len);
   void encodeAnonDatagram(Packet* pkt, uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len);
+  void encodePathReturn(Packet* pkt, const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
   void encodeAck(Packet* pkt, const uint8_t* ack, uint8_t len);
   void encodeMultiAck(Packet* pkt, const uint8_t* ack, uint8_t len, uint8_t remaining);
 

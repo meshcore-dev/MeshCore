@@ -553,6 +553,52 @@ Packet* Mesh::createAdvert(const LocalIdentity& id, const uint8_t* app_data, siz
 
 #define MAX_COMBINED_PATH  (MAX_PACKET_PAYLOAD - 2 - CIPHER_BLOCK_SIZE)
 
+void Mesh::encodePathReturn(Packet* packet, const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len) {
+  uint8_t path_hash_size = (path_len >> 6) + 1;
+  uint8_t path_hash_count = path_len & 63;
+
+  if (path_hash_count*path_hash_size + extra_len + 5 > MAX_COMBINED_PATH) {  // too long!!
+    MESH_DEBUG_PRINTLN("%s Mesh::encodePathReturn(): error, too long", getLogDateTime());
+    return;
+  }
+
+  int len = 0;
+  memcpy(&packet->payload[len], dest_hash, PATH_HASH_SIZE); len += PATH_HASH_SIZE;  // dest hash
+  len += self_id.copyHashTo(&packet->payload[len]);  // src hash
+
+  {
+    int data_len = 0;
+    uint8_t data[MAX_PACKET_PAYLOAD];
+
+    data[data_len++] = path_len;
+    memcpy(&data[data_len], path, path_hash_count*path_hash_size); data_len += path_hash_count*path_hash_size;
+    if (extra_len > 0) {
+      data[data_len++] = extra_type;
+      memcpy(&data[data_len], extra, extra_len); data_len += extra_len;
+    } else {
+      // append a timestamp, or random blob (to make packet_hash unique)
+      data[data_len++] = 0xFF;  // dummy payload type
+      getRNG()->random(&data[data_len], 4); data_len += 4;
+    }
+
+    if (packet->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (packet->transport_codes[1] >> 14) == CRYPTO_NEW_V1) {
+      uint8_t iv[3];  // new encryption
+      memcpy(iv, &packet->transport_codes[1], 2);  // session-id
+      iv[2] = packet->transport_codes[0] & 0xFF;  // seq-no
+      len += Utils::encryptThenMAC(secret, iv, 3, &packet->payload[len], data, data_len);
+    } else if (packet->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD && (packet->transport_codes[1] >> 14) == CRYPTO_NEW_V1) {
+      uint8_t iv[2];  // new encryption
+      memcpy(iv, &packet->transport_codes[1], 2);
+      len += Utils::encryptThenMAC(secret, iv, 2, &packet->payload[len], data, data_len);
+    } else {
+      // legacy encryption
+      len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+    }
+  }
+
+  packet->payload_len = len;
+}
+
 Packet* Mesh::createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len) {
   uint8_t dest_hash[PATH_HASH_SIZE];
   dest.copyHashTo(dest_hash);
