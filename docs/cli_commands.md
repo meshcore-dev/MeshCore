@@ -1085,7 +1085,7 @@ GPS time is written to the clock only while such a fix is current, never earlier
 Covers serial NMEA receivers (`MicroNMEALocationProvider`).
 
 **Usage:**
-- `gps guard`: status, e.g. `> ok 7sat time ok +1s`, `> rej region time rej nofix`, or `... ALERT gps-clk +3600s 75m` when a trusted fix has disagreed with the clock by the same offset for `GPS_GUARD_ALERT_MIN` minutes. While the alert is active, the offset in hours is also reported in telemetry on the next free channel.
+- `gps guard`: status, e.g. `> ok 7sat time ok +1s`, `> rej region time rej nofix`, `> ok 7sat time wait` (last check passed, no current trusted fix to check again, e.g. GPS asleep between periodic fixes), or `... ALERT gps-clk +3600s 75m` when a trusted fix has disagreed with the clock by the same offset for `GPS_GUARD_ALERT_MIN` minutes. While the alert is active, the offset in hours is also reported in telemetry on the next free channel.
 - `gps guard on`, `gps guard off`: turn the guard on or off (saved, default on). While off, every fix and GPS time is accepted and `gps guard` shows `off`.
 - `gps guard accept`: while an alert is active, confirm that the GPS time is right and apply it to the clock.
 - `gps fence`, `gps fence <metres>`: fence radius around the configured `lat`/`lon` (`0` = off). Default `GPS_GUARD_FENCE_M` (1000); a value set here is saved.
