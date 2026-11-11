@@ -999,9 +999,16 @@ region save
 ---
 ### GPS (When GPS support is compiled in)
 
-#### View or change GPS state
+#### View GPS state
 **Usage:**
 - `gps`
+
+**Note:** Reports the requested state, receiver activity, last-fix status (last fix gives number of sats and how long ago was the fix), and mode. In periodic mode, `waiting` means the receiver is off between acquisitions; the last fix remains available. `off(hw)` means a hardware GPS switch is off.
+
+---
+
+#### Change GPS state
+**Usage:**
 - `gps <state>`
 
 **Parameters:**
@@ -1009,15 +1016,80 @@ region save
 
 **Default:** `off`
 
-**Note:** Output format:
-- `off` when the GPS hardware is disabled
-- `on, {active|deactivated}, {fix|no fix}, {sat count} sats` when the GPS hardware is enabled
+---
+
+#### View or change the GPS acquisition period
+**Usage:**
+- `gps period`
+- `gps period <value>`
+
+**Parameters:**
+- `value`: `0` for continuous tracking, or a period. The value can be postfixed with `s`, `m`, `h` or `d` to specify the unit (seconds by default).
+
+**Note:** A periodic acquisition stops after receiving a valid fix, then resumes after the configured period.
+
+---
+
+#### View the last GPS fix
+**Usage:**
+- `gps fix`
+
+**Output:**
+- `> Fix (n sat): <lat>, <lon>`: the GPS currently has a fix.
+- `> Last fix <age> ago (n sat)[, acq <time>]: <lat>, <lon>`: position of the last valid fix; `acq` is shown only while the receiver is running and shows how for how long the gps has been trying to get a fix.
+- `> No fix[, acq <time>]`: no valid fix since the node started.
+
+**Note:** Ages and durations are given in `s`, `m` or `h`.
 
 ---
 
 #### Sync this node's clock with GPS time
 **Usage:** 
 - `gps sync`
+
+---
+
+#### On demand GPS fix
+**Usage:**
+- `gps once`
+- `gps once -s`
+
+**Parameters:**
+- `-s`: also sync this node's clock with GPS time (as `gps sync`)
+
+**Note:** Starts an acquisition now. If the GPS is off, it is switched and kept on until a valid fix and then turned off.
+
+**Reply:** `OK - turning on and acquiring` (GPS was off), `OK - waking gps` (periodic mode, receiver off between acquisitions) or `OK - gps already on`. `Error, gps hw switch off` if a hardware GPS switch is off, `Error, gps once not supported`.
+
+---
+
+#### View GPS time to first fix statistics
+**Usage:**
+- `gps fix_stats`
+
+**Output:** `> ttf:<last>/<max> ok:<n> miss:<n>`: last and maximum time between a start of the GPS and its first valid fix, then the last count of consecutive starts with a fix (`ok`) or without one (`miss`).
+
+---
+
+#### View GPS diagnostics
+**Usage:**
+- `gps diag`
+
+---
+
+#### GPS anti-spoofing guard (When built with `GPS_GUARD`)
+With `GPS_GUARD`, a fix becomes the node's last fix (position, telemetry, adverts) only after it passes plausibility checks: at least `GPS_GUARD_MIN_SATS` satellites, HDOP ≤ `GPS_GUARD_MAX_HDOP10`/10, inside the optional build-time region (`GPS_GUARD_LAT_MIN/MAX`, `GPS_GUARD_LON_MIN/MAX`), within the fence around the node's configured `lat`/`lon` (if set), no jump faster than `GPS_GUARD_MAX_SPEED_KMH`, and `GPS_GUARD_STABLE_FIXES` consistent fixes in a row. An unverified position is never reported.
+
+GPS time is written to the clock only while such a fix is current, never earlier than the firmware build date, and, once the clock holds a plausible time (from the build date to 10 years after it), only within `GPS_GUARD_TIME_MAX_STEP` seconds for the first sync and within clock drift (`GPS_GUARD_TIME_DRIFT_BASE` s + `GPS_GUARD_TIME_DRIFT_PPM`) afterwards. Setting the clock manually (`time`, `clock sync`) resets that anchor. A clock outside that window (e.g. a bogus date in 2080) is corrected by the first trusted fix.
+
+Covers serial NMEA receivers (`MicroNMEALocationProvider`).
+
+**Usage:**
+- `gps guard`: status, e.g. `> ok 7sat time ok +1s`, `> rej region time rej nofix`, or `... ALERT gps-clk +3600s 75m` when a trusted fix has disagreed with the clock by the same offset for `GPS_GUARD_ALERT_MIN` minutes. While the alert is active, the offset in hours is also reported in telemetry on the next free channel.
+- `gps guard on`, `gps guard off`: turn the guard on or off (saved, default on). While off, every fix and GPS time is accepted and `gps guard` shows `off`.
+- `gps guard accept`: while an alert is active, confirm that the GPS time is right and apply it to the clock.
+- `gps fence`, `gps fence <metres>`: fence radius around the configured `lat`/`lon` (`0` = off). Default `GPS_GUARD_FENCE_M` (1000); a value set here is saved.
+- `gps ref`: the reference position; follows `set lat`, `set lon` and `gps setloc`.
 
 ---
 
@@ -1174,6 +1246,13 @@ region save
 **Note:** Returns an error on boards without power management support.
 
 ---
+
+### Repeater health history
+
+History is queried over the mesh using the sensor-compatible `0x04` min/max/average
+request; there is no history CLI command. Retention and recording interval are controlled
+by `REPEATER_HISTORY_SLOTS` and `REPEATER_HISTORY_INTERVAL_SECS` at build time.
+See [Repeater health history](repeater_history.md) for the channel mapping and flags.
 
 ### Ethernet (when Ethernet support is compiled in)
 

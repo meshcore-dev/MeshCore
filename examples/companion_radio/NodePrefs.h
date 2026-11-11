@@ -2,6 +2,7 @@
 #include <cstdint> // For uint8_t, uint32_t
 #include <helpers/ConfigSerializer.h>
 #include <helpers/CommonRadioPrefs.h>
+#include <helpers/CommonGpsPrefs.h>
 #include <helpers/DynamicConfigSerializer.h>
 
 #define TELEM_MODE_DENY            0
@@ -35,6 +36,9 @@ public:
   uint8_t  vibe_quiet = 0;
   uint8_t  gps_enabled = 0;      // GPS enabled flag (0=disabled, 1=enabled)
   uint32_t gps_interval = 0;     // GPS read interval in seconds
+  uint32_t gps_period = 0;       // periodic acquisition interval in seconds
+  int32_t gps_fence = -1;        // GPS_GUARD fence in metres, 0 = off, -1 = build default
+  uint8_t gps_guard = 1;         // GPS_GUARD on/off
   uint8_t autoadd_config = 0;    // bitmask for auto-add contacts config
   uint8_t rx_boosted_gain = 0; // SX126x RX boosted gain mode (0=power saving, 1=boosted)
   uint8_t radio_fem_rxgain = 0; // external LoRa FEM RX gain (LNA)
@@ -48,6 +52,7 @@ public:
   char default_scope_name[31];
   uint8_t default_scope_key[16];
   float tz_offset = 0;
+  float adc_multiplier = 0;   // battery ADC multiplier, 0 = board default
 #ifdef ENABLE_WIFI_INTERFACE
   #ifndef WIFI_SSID
     #define WIFI_SSID ""
@@ -85,6 +90,11 @@ public:
   uint8_t ui_auto_off_keep_msgs = 1;
   uint8_t ui_max_partial = EINK_MAX_PARTIAL_REFRESH;
   uint8_t ui_nd_name = 1;
+#ifdef PIN_GPS_SWITCH
+  uint8_t ui_gps_action = 1;
+#else
+  uint8_t ui_gps_action = 0;
+#endif
 #endif
 
 private:
@@ -151,16 +161,36 @@ private:
   };
   RadioPrefs radio;
 
-  class GPSPrefs : public ConfigSerializer {  // COPIED from CommonCLI (for now)
+  class GPSPrefs : public CommonGpsPrefs {
     NodePrefs* _parent;
   protected:
     void structure() override {
       def("en", _parent->gps_enabled); // boolean
       def("int", _parent->gps_interval);   // interval in seconds
+      def("period", _parent->gps_period);  // periodic acquisition interval in seconds
       def("adv_loc", _parent->advert_loc_policy);
+#ifdef GPS_GUARD
+      def("fence", _parent->gps_fence);
+      def("guard", _parent->gps_guard);
+#endif
     }
   public:
     GPSPrefs(NodePrefs* parent) : _parent(parent) { }
+    bool isGpsEnabled() const override { return _parent->gps_enabled; }
+    void setGpsEnabled(bool enabled) override { _parent->gps_enabled = enabled; markDirty(); }
+    uint32_t getGpsPeriod() const override { return _parent->gps_period; }
+    void setGpsPeriod(uint32_t seconds) override { _parent->gps_period = seconds; markDirty(); }
+    bool getGuardFence(uint32_t& metres) const override {
+      if (_parent->gps_fence < 0) return false;
+      metres = (uint32_t)_parent->gps_fence;
+      return true;
+    }
+    void setGuardFence(uint32_t metres) override { _parent->gps_fence = (int32_t)metres; markDirty(); }
+    bool getGuardEnabled(bool& enabled) const override {
+      enabled = _parent->gps_guard != 0;
+      return true;
+    }
+    void setGuardEnabled(bool enabled) override { _parent->gps_guard = enabled ? 1 : 0; markDirty(); }
   };
   GPSPrefs gps;
 
@@ -194,6 +224,7 @@ private:
       def("tel_loc", _parent->telemetry_mode_loc);
       def("tel_env", _parent->telemetry_mode_env);
       def("tz_offset", _parent->tz_offset);
+      def("adc_mult", _parent->adc_multiplier);
     }
   public:
     CompanionPrefs(NodePrefs* parent) : _parent(parent) { }
@@ -231,6 +262,7 @@ private:
   	def("off_blank", _parent->ui_auto_off_blank);
   	def("off_keep_msgs", _parent->ui_auto_off_keep_msgs);
     def("nd_name", _parent->ui_nd_name);
+    def("gps_act", _parent->ui_gps_action);
     }
   public:
     UI_Prefs(NodePrefs* parent) : _parent(parent) {}
@@ -275,8 +307,9 @@ public:
   void setRepeatEn(bool en) { repeat.disable_fwd = en ? 0 : 1; }
 
   CommonRadioPrefs* getRadioPrefs() { return &radio; }
+  CommonGpsPrefs* getGpsPrefs() { return &gps; }
   KeyValueStore* getCustom() { return &custom; }
 
-  bool isDirty() const override { return ConfigSerializer::isDirty() || radio.isDirty() || custom.isDirty(); }
-  void clearDirty() override { ConfigSerializer::clearDirty(); radio.clearDirty(); custom.clearDirty(); }
+  bool isDirty() const override { return ConfigSerializer::isDirty() || radio.isDirty() || gps.isDirty() || custom.isDirty(); }
+  void clearDirty() override { ConfigSerializer::clearDirty(); radio.clearDirty(); gps.clearDirty(); custom.clearDirty(); }
 };

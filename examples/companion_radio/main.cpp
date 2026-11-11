@@ -2,6 +2,11 @@
 #include <Mesh.h>
 #include "MyMesh.h"
 
+#if defined(ENABLE_WIFI_INTERFACE) && defined(ENABLE_ESP_MDNS)
+#define HAS_ESP_MDNS
+#include <ESPmDNS.h>
+#endif
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -130,6 +135,10 @@ void halt() {
   char wifi_pwd[64] = WIFI_PWD;
   bool wifi_was_connected = false;
   bool wifi_enabled = false;   // set at boot from prefs; false also when the effective SSID is blank
+#endif
+
+#if defined(DISPLAY_CLASS) && defined(EINK_REFRESH_LOOP)
+static void loopDuringDisplayRefresh();
 #endif
 
 void setup() {
@@ -266,6 +275,33 @@ void setup() {
   interface_manager.addInterface(InterfaceType::Ethernet, &ethernet_interface);
 #endif
 
+#ifdef HAS_ESP_MDNS
+  String nodeName = the_mesh.getNodeName();
+  String sanitizedNodeName;
+  sanitizedNodeName.reserve(nodeName.length());
+  for (size_t i = 0; i < nodeName.length(); ++i) {
+    const char c = nodeName[i];
+    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+        (c >= '0' && c <= '9') || c == '-' || c == '_') {
+      sanitizedNodeName += c;
+    }
+  }
+
+  String mdnsName = "meshcore_";
+  mdnsName += sanitizedNodeName;
+  if (!MDNS.begin(mdnsName.c_str())) {
+    WIFI_DEBUG_PRINTLN("mDNS failed to start!");
+  } else {
+    MDNS.addService("meshcore", "tcp", TCP_PORT);
+    MDNS.addServiceTxt("meshcore", "tcp", "node-name", the_mesh.getNodeName());
+    MDNS.addServiceTxt("meshcore", "tcp", "firmware-version", FIRMWARE_VERSION);
+    String protocol; protocol+=FIRMWARE_VER_CODE;
+    MDNS.addServiceTxt("meshcore", "tcp", "protocol-version", protocol.c_str());
+    MDNS.addServiceTxt("meshcore", "tcp", "build-date", __DATE__);
+    MDNS.addServiceTxt("meshcore", "tcp", "build-time", __TIME__);
+  }
+#endif
+
 // add hardware serial interface
 #if defined(SERIAL_RX)
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);
@@ -284,15 +320,36 @@ void setup() {
 #ifdef DISPLAY_CLASS
   ui_task.begin(disp, &sensors, the_mesh.getNodePrefs());  // still want to pass this in as dependency, as prefs might be moved
   the_mesh.setListener(&ui_task);
+#ifdef EINK_REFRESH_LOOP
+  if (disp != NULL) disp->setBusyHook(loopDuringDisplayRefresh);
+#endif
 #endif
 
   board.onBootComplete();
 }
 
-void loop() {
+// Work that must keep running even while the UI is blocked (e.g. by an e-ink refresh).
+// Called from loop() and from the display busy hook, so both always run the same set.
+static void loopCore() {
   the_mesh.loop();
   interface_manager.loop();
   sensors.loop();
+}
+
+#if defined(DISPLAY_CLASS) && defined(EINK_REFRESH_LOOP)
+// Runs from inside the e-ink busy wait, so radio/BLE/sensors keep going during a panel refresh.
+// Must not touch the display: UI listener callbacks only update state and schedule the next frame.
+static void loopDuringDisplayRefresh() {
+  static bool active = false;
+  if (active) return;
+  active = true;
+  loopCore();
+  active = false;
+}
+#endif
+
+void loop() {
+  loopCore();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif

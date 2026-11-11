@@ -7,6 +7,7 @@ Since version 1.18 meshcore companion radio firmware has a CLI interface, which 
 - [Configuration](#configuration)
   - [System](#system)
   - [Radio](#radio)
+  - [GPS](#gps)
   - [BLE](#ble)
   - [Wifi](#wifi)
   - [UI](#ui)
@@ -65,6 +66,20 @@ Since version 1.18 meshcore companion radio firmware has a CLI interface, which 
 
 ---
 
+#### Fine-tune the battery reading
+**Usage:**
+- `get adc.multiplier`
+- `set adc.multiplier <value>`
+
+**Parameters:**
+- `value`: ADC multiplier (0.0-10.0)
+
+**Default:** `0.0` (value defined by board)
+
+**Note:** Returns "Error: unsupported" if the board doesn't support it. Same command as on repeaters, for boards whose battery divider resistors vary (e.g. DIY ProMicro / Faketec).
+
+---
+
 ### Radio
 
 Radio parameters are common to all roles and handled by `CommonRadioPrefs`.
@@ -116,6 +131,84 @@ Radio parameters are common to all roles and handled by `CommonRadioPrefs`.
 
 **Note:** Requires reboot to apply
 **Serial Only:** `set freq <frequency>`
+
+---
+
+### GPS
+
+#### View GPS state
+**Usage:**
+- `gps`
+
+**Note:** Reports the requested state, receiver activity, last-fix status (last fix gives number of sats and how long ago was the fix), and mode. In periodic mode, `waiting` means the receiver is off between acquisitions; the last fix remains available. `off(hw)` means a hardware GPS switch is off.
+
+---
+
+#### Change GPS state
+**Usage:**
+- `gps <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+---
+
+#### View or change the GPS acquisition period
+**Usage:**
+- `gps period`
+- `gps period <value>`
+
+**Parameters:**
+- `value`: `0` for continuous tracking, or a period. The value can be postfixed with `s`, `m`, `h` or `d` to specify the unit (seconds by default).
+
+**Note:** A periodic acquisition stops after receiving a valid fix, then resumes after the configured period.
+
+---
+
+#### View the last GPS fix
+**Usage:**
+- `gps fix`
+
+**Output:**
+- `> Fix (n sat): <lat>, <lon>`: the GPS currently has a fix.
+- `> Last fix <age> ago (n sat)[, acq <time>]: <lat>, <lon>`: position of the last valid fix; `acq` is shown only while the receiver is running and shows how for how long the gps has been trying to get a fix.
+- `> No fix[, acq <time>]`: no valid fix since the node started.
+
+**Note:** Ages and durations are given in `s`, `m` or `h`.
+
+---
+
+#### Sync this node's clock with GPS time
+**Usage:**
+- `gps sync`
+
+---
+
+#### On demand GPS fix
+**Usage:**
+- `gps once`
+- `gps once -s`
+
+**Parameters:**
+- `-s`: also sync this node's clock with GPS time (as `gps sync`)
+
+**Note:** Starts an acquisition now. If the GPS is off, it is switched and kept on until a valid fix and then turned off.
+
+**Reply:** `OK - turning on and acquiring` (GPS was off), `OK - waking gps` (periodic mode, receiver off between acquisitions) or `OK - gps already on`. `Error, gps hw switch off` if a hardware GPS switch is off, `Error, gps once not supported`.
+
+---
+
+#### View GPS time to first fix statistics
+**Usage:**
+- `gps fix_stats`
+
+**Output:** `> ttf:<last>/<max> ok:<n> miss:<n>`: last and maximum time between a start of the GPS and its first valid fix, then the last count of consecutive starts with a fix (`ok`) or without one (`miss`).
+
+---
+
+#### View GPS diagnostics
+**Usage:**
+- `gps diag`
 
 ---
 
@@ -370,6 +463,20 @@ Radio parameters are common to all roles and handled by `CommonRadioPrefs`.
 - `state`: `0` (disable) or `1` (enable)
 
 **Default:** `0` (or `UI_SHOW_CLOCK` build flag)
+
+---
+
+#### GPS key action
+**Usage:**
+- `set ui.gps_action <action>`
+- `get ui.gps_action`
+
+**Parameters:**
+- `action`: `toggle` (or `0`) to switch the GPS on and off, `once` (or `trigger`, `1`) to acquire a fix on demand, as `gps once`
+
+**Default:** `toggle`, or `once` on boards with a GPS switch
+
+**Note:** Only used by the `ui-new` screens for now.
 
 ---
 

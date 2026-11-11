@@ -993,6 +993,8 @@ void MyMesh::begin() {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
+  _prefs.adc_multiplier = constrain(_prefs.adc_multiplier, 0.0f, 10.0f);
+  if (!board.setAdcMultiplier(_prefs.adc_multiplier)) _prefs.adc_multiplier = 0.0f;
 
   _active_ble_pin = _prefs.ble_pin;
 
@@ -2093,6 +2095,11 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
+  if (_prefs.getGpsPrefs()->handleCommand(command, sensors, reply)) {
+    if (_prefs.getGpsPrefs()->isDirty()) { savePrefs(); }
+    return true;
+  }
+
   // hook for variant-specific CLI processing
   if (board.handleCommand(command, sender_timestamp, reply)) {
     if (_prefs.isDirty()) { savePrefs(); }
@@ -2210,6 +2217,33 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
+  if (memcmp(command, "set adc.multiplier ", 19) == 0) {   // same as CommonCLI
+    float mult = atof(&command[19]);
+    if (mult < 0.0f || mult > 10.0f) {
+      strcpy(reply, "Error, must be from 0 to 10");
+    } else if (board.setAdcMultiplier(mult)) {
+      _prefs.adc_multiplier = mult;
+      savePrefs();
+      if (mult == 0.0f) {
+        strcpy(reply, "OK - using default board multiplier");
+      } else {
+        sprintf(reply, "OK - multiplier set to %.3f", mult);
+      }
+    } else {
+      strcpy(reply, "Error: unsupported");
+    }
+    return true;
+  }
+  if (strcmp(command, "get adc.multiplier") == 0) {
+    float mult = board.getAdcMultiplier();
+    if (mult == 0.0f) {
+      strcpy(reply, "Error: unsupported");
+    } else {
+      sprintf(reply, "> %.3f", mult);
+    }
+    return true;
+  }
+
   if (strcmp(command, "get tz.offset") == 0) {
     float q = _prefs.tz_offset * 4;
     sprintf(reply, (q == (int)q && ((int)q & 1)) ? "> %.2f" : "> %.1f", _prefs.tz_offset);
@@ -2284,6 +2318,18 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     _prefs.ui_nd_name = atoi(&command[14]);
     savePrefs();
     sprintf(reply, "> ui.nd_name is now %d", _prefs.ui_nd_name);
+    return true;
+  }
+  if (memcmp(command, "set ui.gps_action", 17) == 0) {
+    const char* v = &command[17];
+    while (*v == ' ') v++;
+    _prefs.ui_gps_action = (memcmp(v, "once", 4) == 0 || memcmp(v, "trigger", 7) == 0 || *v == '1') ? 1 : 0;   // anything else: toggle
+    savePrefs();
+    sprintf(reply, "> now %s", _prefs.ui_gps_action ? "once" : "toggle");
+    return true;
+  }
+  if (memcmp(command, "get ui.gps_action", 17) == 0) {
+    sprintf(reply, "> %s", _prefs.ui_gps_action ? "once" : "toggle");
     return true;
   }
   if (memcmp(command, "get ui.show_clock", 17) == 0) {

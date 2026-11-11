@@ -103,7 +103,7 @@ For the common chat/server helpers in `BaseChatMesh`, the current request type v
 | `0x01` | get stats | get stats of repeater or room server               |
 | `0x02` | keepalive | (deprecated)    |
 | `0x03` | get telemetry | request node telemetry    |
-| `0x04` | get min/max/avg | get sensor node stats on time series data    |
+| `0x04` | get min/max/avg | get sensor or repeater time series statistics    |
 | `0x05` | get acl   | node ACL query    |
 | `0x06` | get neighbors   | node neighbors query    |
 | `0x08` | subscribe   | subscribe to telemetry push    |
@@ -140,7 +140,7 @@ Gets information about the node, possibly including the following:
 | req type       | 1            | 0x03 (request sub type)      |
 | permission mask  | 1          | bitwise inverse mask to AND to permissions (0 = get ALL telem values)   |
 
-#### Get Min/Max/Ave  (Sensor nodes)
+#### Get Min/Max/Ave (Sensor and repeater nodes)
 
 | Field          | Size (bytes) | Description                  |
 |----------------|--------------|------------------------------|
@@ -149,6 +149,28 @@ Gets information about the node, possibly including the following:
 | start          | 4            | starting time, seconds ago   |
 | end            | 4            | ending time, seconds ago     |
 | reserved       | 2            | should be zeroes   |
+
+Requires an authenticated client with the READ_ONLY role or higher. The range includes
+samples whose age is `end <= age < start`, in seconds. Request integers are little-endian.
+The repeater uses exactly the sensor request and response layout.
+
+The response body (after decryption) is:
+
+| Field          | Size (bytes) | Description |
+|----------------|--------------|-------------|
+| tag            | 4            | echoed request timestamp, little-endian |
+| current time   | 4            | current node RTC Unix time, little-endian |
+| series         | variable     | up to 8 series records, described below |
+
+Each series record contains a channel byte, an LPP type byte, then min, max, and average
+in that order. Each value uses the type's Cayenne LPP size, multiplier, sign, and
+big-endian encoding. There is no count byte; parse records to the end of the response.
+Nonzero reserved bytes return only the tag and current time.
+
+Repeater history is pull-only, uses uptime internally, and omits series with no valid
+samples in the requested range. Its returned current time still comes from the RTC;
+an unset or corrected RTC does not affect sampling or range selection. See
+[Repeater health history](repeater_history.md) for channels, retention, and build flags.
 
 #### Subscribe to Telemetry push - (Sensor nodes)
 

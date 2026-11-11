@@ -3,7 +3,7 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
 
-#include "TimeSeriesData.h"
+#include <helpers/TimeSeriesData.h>
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
 #include <InternalFileSystem.h>
@@ -88,6 +88,7 @@ public:
   void sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size);
 
 protected:
+  uint32_t getUptimeSeconds() const { return uptime_millis / 1000; }
   // current telemetry data queries
   float getVoltage(uint8_t channel) { return getTelemValue(channel, LPP_VOLTAGE); }
   float getCurrent(uint8_t channel) { return getTelemValue(channel, LPP_CURRENT); }
@@ -154,6 +155,8 @@ private:
   RegionEntry* load_stack[8];
   TransportKey default_scope;
   uint32_t last_read_time;
+  uint32_t last_millis;
+  uint64_t uptime_millis;
   int matching_peer_indexes[MAX_SEARCH_RESULTS];
   int num_alert_tasks;
   Trigger* alert_tasks[MAX_CONCURRENT_ALERTS];
@@ -173,7 +176,12 @@ private:
 
   #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
-    sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
+    if (sensors.getSettingByKey("gps_interval") != nullptr) {
+      char interval[11];
+      snprintf(interval, sizeof(interval), "%lu", (unsigned long)_prefs.gps_interval);
+      sensors.setSettingValue("gps_interval", interval);
+    }
+    _prefs.getGpsPrefs()->apply(sensors);
   }
 #endif
 };

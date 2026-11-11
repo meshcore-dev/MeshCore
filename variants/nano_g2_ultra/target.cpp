@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/sensors/MicroNMEALocationProvider.h>
+#include "NanoG2UltraGpsDriver.h"
 
 NanoG2Ultra board;
 
@@ -12,8 +13,10 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
-NanoG2UltraSensorManager sensors = NanoG2UltraSensorManager(nmea);
+// NanoG2UltraGpsDriver now handles the special init needed for NanoG2
+NanoG2UltraGpsDriver gps_driver(Serial1);
+MicroNMEALocationProvider nmea(gps_driver, &rtc_clock);
+NanoG2UltraSensorManager sensors = NanoG2UltraSensorManager(nmea, gps_driver);
 
 #ifdef DISPLAY_CLASS
 DISPLAY_CLASS display;
@@ -27,35 +30,19 @@ bool radio_init() {
 
 void NanoG2UltraSensorManager::start_gps() {
   MESH_DEBUG_PRINTLN("Starting GPS");
-  if (!gps_active) {
-    digitalWrite(PIN_GPS_STANDBY, HIGH); // Wake GPS from standby
-    Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
-    Serial1.begin(9600);
-    MESH_DEBUG_PRINTLN("Waiting for gps to power up");
-    delay(1000);
-    gps_active = true;
-  }
-  _location->begin();
+  _location->setGpsOn(true);
 }
 
 void NanoG2UltraSensorManager::stop_gps() {
   MESH_DEBUG_PRINTLN("Stopping GPS");
-  if (gps_active) {
-    digitalWrite(PIN_GPS_STANDBY, LOW); // sleep GPS
-    gps_active = false;
-  }
-  _location->stop();
+  _location->setGpsOn(false);
 }
 
 bool NanoG2UltraSensorManager::begin() {
-  digitalWrite(PIN_GPS_STANDBY, HIGH); // Wake GPS from standby
-  Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
-  Serial1.begin(9600);
   MESH_DEBUG_PRINTLN("Checking GPS switch state");
-  delay(1000);
 
   // Check initial switch state to determine if GPS should be active
-  if (Serial1.available() > 0) {
+  if (_gps_driver->detectAtBoot()) {
     MESH_DEBUG_PRINTLN("GPS was on at boot, GPS enabled");
     start_gps();
   } else {
@@ -75,14 +62,14 @@ bool NanoG2UltraSensorManager::querySensors(uint8_t requester_permissions, Cayen
 void NanoG2UltraSensorManager::loop() {
   static long next_gps_update = 0;
 
-  if (!gps_active) {
+  if (!_location->isGpsOn()) {
     return; // GPS is not active, skip further processing
   }
 
   _location->loop();
 
   if (millis() > next_gps_update) {
-    if (_location->isValid()) {
+    if (_location->isGpsOn() && _location->hasValidFix()) {
       node_lat = ((double)_location->getLatitude()) / 1000000.;
       node_lon = ((double)_location->getLongitude()) / 1000000.;
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
@@ -105,7 +92,7 @@ const char *NanoG2UltraSensorManager::getSettingName(int i) const {
 
 const char *NanoG2UltraSensorManager::getSettingValue(int i) const {
   if (i == 0) {
-    return gps_active ? "1" : "0";
+    return _location->isGpsOn() ? "1" : "0";
   }
   return NULL;
 }

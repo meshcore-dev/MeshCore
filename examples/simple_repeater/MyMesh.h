@@ -37,6 +37,22 @@
 #include <helpers/RoutingPolicy.h>
 #include "RateLimiter.h"
 
+#ifndef REPEATER_HISTORY_SLOTS
+#if defined(STM32_PLATFORM) || defined(RP2040_PLATFORM)
+#define REPEATER_HISTORY_SLOTS 0
+#else
+#define REPEATER_HISTORY_SLOTS 288
+#endif
+#endif
+#ifndef REPEATER_HISTORY_INTERVAL_SECS
+#define REPEATER_HISTORY_INTERVAL_SECS 300
+#endif
+
+#if REPEATER_HISTORY_SLOTS > 0
+#include <helpers/TimeSeriesData.h>
+static_assert(REPEATER_HISTORY_INTERVAL_SECS > 0, "History interval must be positive");
+#endif
+
 #ifdef WITH_BRIDGE
 extern AbstractBridge* bridge;
 #endif
@@ -82,6 +98,16 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   FILESYSTEM* _fs;
   uint32_t last_millis;
   uint64_t uptime_millis;
+#if REPEATER_HISTORY_SLOTS > 0
+  // Dedicated history channels 200..204; environment telemetry occupies 1..17.
+  enum { HISTORY_BATTERY = 200, HISTORY_NOISE, HISTORY_TX, HISTORY_RX, HISTORY_TEMPERATURE };
+  TimeSeriesData battery_history, noise_history, tx_history, rx_history, temperature_history;
+  uint32_t history_last_secs, history_battery_secs, history_airtime_secs;
+  uint32_t history_tx_millis, history_rx_millis;
+  float history_battery_total;
+  uint32_t history_battery_count;
+  void recordHistory();
+#endif
   unsigned long next_local_advert, next_flood_advert;
   bool _logging;
   NodePrefs _prefs;
@@ -159,7 +185,14 @@ protected:
 
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
-    sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
+    if (sensors.getSettingByKey("gps_interval") != nullptr) {
+      // gps_interval was introduced only for EnvironmentSensorManager
+      // and has little interest ... kept only as a legacy
+      char interval[11];
+      snprintf(interval, sizeof(interval), "%lu", (unsigned long)_prefs.gps_interval);
+      sensors.setSettingValue("gps_interval", interval);
+    }
+    _prefs.getGpsPrefs()->apply(sensors);
   }
 #endif
 
