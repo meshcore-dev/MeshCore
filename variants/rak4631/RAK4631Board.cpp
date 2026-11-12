@@ -131,10 +131,21 @@ void RAK4631Board::initiateShutdown(uint8_t reason) {
   digitalWrite(SX126X_POWER_EN, LOW);
 
 #if defined(BOARD_BUTTON_PIN)
-  // Ensure pullup is engaged and line is stably HIGH before arming SENSE
+#if defined(PIN_USER_BTN_ANA) && (PIN_USER_BTN_ANA >= 0)
+  // analogRead() disables the SAADC afterwards but leaves its channel inputs
+  // selecting the button's AIN pin. While selected, the pin's digital input reads 0,
+  // so the settle loop below never exits and SENSE could never see a press.
+  // Release every channel so the button pin works as a digital input again.
+  for (int i = 0; i < 8; i++) {
+    NRF_SAADC->CH[i].PSELP = SAADC_CH_PSELP_PSELP_NC;
+    NRF_SAADC->CH[i].PSELN = SAADC_CH_PSELN_PSELN_NC;
+  }
+#endif
+  // Ensure pullup is engaged and line is stably HIGH before arming SENSE (with 3s safety timeout)
   pinMode(BOARD_BUTTON_PIN, INPUT_PULLUP);
   uint32_t settle_start = millis();
-  while (millis() - settle_start < 50) {
+  uint32_t settle_timeout = millis();
+  while (millis() - settle_start < 50 && millis() - settle_timeout < 3000) {
     if (digitalRead(BOARD_BUTTON_PIN) == LOW) {
       settle_start = millis();
     }
@@ -191,8 +202,9 @@ void RAK4631Board::initiateShutdown(uint8_t reason) {
 #endif
 
 #if defined(BOARD_BUTTON_PIN)
-  // Ensure the button is unpressed before clearing latch
-  while (digitalRead(BOARD_BUTTON_PIN) == LOW) {
+  // Ensure the button is unpressed before clearing latch (with 3s safety timeout)
+  uint32_t release_timeout = millis();
+  while (digitalRead(BOARD_BUTTON_PIN) == LOW && millis() - release_timeout < 3000) {
     delay(10);
   }
 #endif
