@@ -87,17 +87,19 @@ class CustomSX1262 : public SX1262 {
       setRfSwitchPins(SX126X_RXEN, SX126X_TXEN);
   #endif 
 
-  // for improved RX with Heltec v4
-  #ifdef SX126X_REGISTER_PATCH
-    uint8_t r_data = 0;
-    readRegister(0x8B5, &r_data, 1);
-    r_data |= 0x01;
-    writeRegister(0x8B5, &r_data, 1);
-  #endif
+      applyAgcLockupFix();
 
       MESH_DEBUG_PRINTLN("SX1262 status=0x%02X device_errors=0x%04X", getStatus(), getDeviceErrors());
 
       return true;  // success
+    }
+
+    // Prevent AGC lockup under strong off-channel interference.
+    void applyAgcLockupFix() {
+      uint8_t r_data = 0;
+      readRegister(0x8B5, &r_data, 1);
+      r_data |= 0x01;
+      writeRegister(0x8B5, &r_data, 1);
     }
 
     int16_t startReceive() override {
