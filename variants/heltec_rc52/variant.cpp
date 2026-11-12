@@ -10,11 +10,6 @@ const uint32_t g_ADigitalPinMap[] = {
     16,   17,   18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
     32,   33,   34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47};
 
-static void resetOptionalPin(int pin)
-{
-  if (pin >= 0) nrf_gpio_cfg_default(pin);
-}
-
 void initVariant()
 {
   pinMode(PIN_BUTTON1, INPUT_PULLUP);
@@ -68,7 +63,7 @@ void variant_shutdown()
   nrf_gpio_cfg_default(PIN_SPI_MOSI);
   nrf_gpio_cfg_default(PIN_SPI_SCK);
 
-  resetOptionalPin(PIN_SPI1_MISO);
+  // SPI1 MISO is not connected; its sentinel is not a physical GPIO.
   nrf_gpio_cfg_default(PIN_SPI1_MOSI);
   nrf_gpio_cfg_default(PIN_SPI1_SCK);
 
