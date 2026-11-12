@@ -77,7 +77,11 @@ public:
   virtual float getLastRSSI() const override;
   virtual float getLastSNR() const override;
 
-  float packetScore(float snr, int packet_len) override { return packetScoreInt(snr, 10, packet_len); }  // assume sf=10
+  // The score depends on the spreading factor, because the SNR a packet needs
+  // to be decodable rises as the spreading factor falls. Ask the driver for it
+  // rather than assume one: a guess here is wrong on every radio that does not
+  // happen to run at that factor, and it silently stays wrong.
+  float packetScore(float snr, int packet_len) override { return packetScoreInt(snr, getSpreadingFactor(), packet_len); }
 
   virtual bool supportsRxBoostedGain() const { return false; }
   virtual bool setRxBoostedGainMode(bool) { return false; }
