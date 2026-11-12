@@ -214,8 +214,12 @@ void NV3001BDisplay::beginTransport() {
   pinMode(PIN_TFT_SDA, OUTPUT);
   digitalWrite(PIN_TFT_SCL, LOW);
   digitalWrite(PIN_TFT_SDA, LOW);
-#else
+#elif defined(NRF52_PLATFORM)
+  spi.begin();
+#elif defined(ESP_PLATFORM) || defined(ESP32_PLATFORM)
   spi.begin(PIN_TFT_SCL, PIN_TFT_MISO, PIN_TFT_SDA, PIN_TFT_CS);
+#else
+  spi.begin();
 #endif
 }
 
