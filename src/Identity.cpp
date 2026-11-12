@@ -4,6 +4,11 @@
 #include <ed_25519.h>
 #include <Ed25519.h>
 
+#ifdef USE_CC310_HW_CRYPTO
+#include <Adafruit_nRFCrypto.h>
+#include "nrf_cc310/include/crys_ec_edw_api.h"
+#endif
+
 namespace mesh {
 
 Identity::Identity() {
@@ -15,7 +20,18 @@ Identity::Identity(const char* pub_hex) {
 }
 
 bool Identity::verify(const uint8_t* sig, const uint8_t* message, int msg_len) const {
-#if 0
+#ifdef USE_CC310_HW_CRYPTO
+  // nRF52840 CryptoCell CC310 hardware Ed25519 verification. The software
+  // implementations need ~3KB of stack (which can overflow the Adafruit core's
+  // 4KB loop task stack from the advert receive path); the hardware path
+  // needs much less, around 600-700bytes. The CC310 workspace is static, faster,
+  // should save power at scale as well.
+  static CRYS_ECEDW_TempBuff_t cc310_tmp;
+  CRYSError_t rc = CRYS_ECEDW_Verify((uint8_t*)sig, CRYS_ECEDW_SIGNATURE_BYTES,
+                                     (uint8_t*)pub_key, CRYS_ECEDW_MOD_SIZE_IN_BYTES,
+                                     (uint8_t*)message, (size_t)msg_len, &cc310_tmp);
+  return rc == CRYS_OK;
+#elif 0
   // NOTE:  memory corruption bug was found in this function!!
   return ed25519_verify(sig, message, msg_len, pub_key);
 #else

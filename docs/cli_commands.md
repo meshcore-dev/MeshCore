@@ -211,7 +211,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Set by build flag:** `LORA_FREQ`, `LORA_BW`, `LORA_SF`, `LORA_CR`
 
-**Default:** `869.525,250,11,5`
+**Default:** `869.618,62.5,8,5`
 
 **Note:** Requires reboot to apply
 
@@ -256,7 +256,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `frequency`: Frequency in MHz
 
-**Default:** `869.525`
+**Default:** `869.618`
 
 **Note:** Requires reboot to apply
 **Serial Only:** `set freq <frequency>`
@@ -291,6 +291,22 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change the LoRa FEM transmit-path gain state on supported boards
+**Usage:**
+- `get radio.fem.txgain`
+- `set radio.fem.txgain <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Notes:**
+- This controls a software-selectable external LoRa FEM transmit gain where the board supports it.
+- On Station G3, remove the PA PL1 jumper to allow software control. `on` selects PA PL1 high/short and `off` selects PA PL1 low/open. The PA PL2 hardware jumper determines whether this switches between power levels 1/3 or 2/4.
+- Select an operating level and SX1262 transmit power that comply with local RF limits and the Station G3 power-supply requirements.
+- The setting is saved immediately, but on Station G3 the level is applied to the hardware at the start of the next transmit, so that the PA supply rail is never re-targeted while the PA is being driven. `get` reports the configured state, which may lead the hardware until the node next transmits.
+
+---
+
 ### System
 
 #### View or change this node's name
@@ -305,7 +321,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Default:** Varies by board
 
-**Note:** Max length varies. If a location is set, the max length is 24 bytes; 32 otherwise. Emoji and unicode characters may take more than one byte.
+**Note:** Advertised names can use up to 23 bytes when location is included and 31 bytes otherwise. Emoji and Unicode characters may take more than one byte. Names that exceed the available advert space are truncated at a valid UTF-8 code point boundary.
 
 ---
 
@@ -521,7 +537,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `value`: Direct transmit delay factor (0-2)
 
-**Default:** `0.2`
+**Default:** `0.3` (Repeater) - `0.2` (Room Server, Sensor)
 
 **Note:** Same collision-avoidance random window as `txdelay`, but applied to direct (non-flood, routed) traffic. The default is lower because direct packets are addressed to a specific next hop, so far fewer nodes compete to retransmit them.
 
@@ -612,7 +628,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set agc.reset.interval <value>`
 
 **Parameters:**
-- `value`: Interval in seconds rounded down to a multiple of 4 (17 becomes 16). 0 to disable.
+- `value`: Interval in seconds, 0-1020, rounded down to a multiple of 4 (17 becomes 16). 0 to disable.
 
 **Default:** `0.0`
 
@@ -638,7 +654,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `hours`: Interval in hours (3-168)
 
-**Default:** `12` (Repeater) - `0` (Sensor)
+**Default:** `47` (Repeater, Room Server) - `0`, disabled (Sensor)
 
 ---
 
@@ -650,7 +666,12 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `minutes`: Interval in minutes rounded down to the nearest multiple of 2 (61 becomes 60) (60-240)
 
-**Default:** `0`
+**Default:** `2` on a factory-fresh node, then `0` (disabled) once configured.
+
+**Note:** A new install ships with a 2 minute zero-hop advert interval. Saving
+any setting resets an interval below the 60 minute minimum to `0`, on the
+assumption that the node has now been deliberately configured. To keep zero-hop
+adverts running, set an explicit value in the 60-240 range.
 
 ---
 
@@ -978,9 +999,16 @@ region save
 ---
 ### GPS (When GPS support is compiled in)
 
-#### View or change GPS state
+#### View GPS state
 **Usage:**
 - `gps`
+
+**Note:** Reports the requested state, receiver activity, last-fix status (last fix gives number of sats and how long ago was the fix), and mode. In periodic mode, `waiting` means the receiver is off between acquisitions; the last fix remains available. `off(hw)` means a hardware GPS switch is off.
+
+---
+
+#### Change GPS state
+**Usage:**
 - `gps <state>`
 
 **Parameters:**
@@ -988,15 +1016,80 @@ region save
 
 **Default:** `off`
 
-**Note:** Output format:
-- `off` when the GPS hardware is disabled
-- `on, {active|deactivated}, {fix|no fix}, {sat count} sats` when the GPS hardware is enabled
+---
+
+#### View or change the GPS acquisition period
+**Usage:**
+- `gps period`
+- `gps period <value>`
+
+**Parameters:**
+- `value`: `0` for continuous tracking, or a period. The value can be postfixed with `s`, `m`, `h` or `d` to specify the unit (seconds by default).
+
+**Note:** A periodic acquisition stops after receiving a valid fix, then resumes after the configured period.
+
+---
+
+#### View the last GPS fix
+**Usage:**
+- `gps fix`
+
+**Output:**
+- `> Fix (n sat): <lat>, <lon>`: the GPS currently has a fix.
+- `> Last fix <age> ago (n sat)[, acq <time>]: <lat>, <lon>`: position of the last valid fix; `acq` is shown only while the receiver is running and shows how for how long the gps has been trying to get a fix.
+- `> No fix[, acq <time>]`: no valid fix since the node started.
+
+**Note:** Ages and durations are given in `s`, `m` or `h`.
 
 ---
 
 #### Sync this node's clock with GPS time
 **Usage:** 
 - `gps sync`
+
+---
+
+#### On demand GPS fix
+**Usage:**
+- `gps once`
+- `gps once -s`
+
+**Parameters:**
+- `-s`: also sync this node's clock with GPS time (as `gps sync`)
+
+**Note:** Starts an acquisition now. If the GPS is off, it is switched and kept on until a valid fix and then turned off.
+
+**Reply:** `OK - turning on and acquiring` (GPS was off), `OK - waking gps` (periodic mode, receiver off between acquisitions) or `OK - gps already on`. `Error, gps hw switch off` if a hardware GPS switch is off, `Error, gps once not supported`.
+
+---
+
+#### View GPS time to first fix statistics
+**Usage:**
+- `gps fix_stats`
+
+**Output:** `> ttf:<last>/<max> ok:<n> miss:<n>`: last and maximum time between a start of the GPS and its first valid fix, then the last count of consecutive starts with a fix (`ok`) or without one (`miss`).
+
+---
+
+#### View GPS diagnostics
+**Usage:**
+- `gps diag`
+
+---
+
+#### GPS anti-spoofing guard (When built with `GPS_GUARD`)
+With `GPS_GUARD`, a fix becomes the node's last fix (position, telemetry, adverts) only after it passes plausibility checks: at least `GPS_GUARD_MIN_SATS` satellites, HDOP ≤ `GPS_GUARD_MAX_HDOP10`/10, inside the optional build-time region (`GPS_GUARD_LAT_MIN/MAX`, `GPS_GUARD_LON_MIN/MAX`), within the fence around the node's configured `lat`/`lon` (if set), no jump faster than `GPS_GUARD_MAX_SPEED_KMH`, and `GPS_GUARD_STABLE_FIXES` consistent fixes in a row. An unverified position is never reported.
+
+GPS time is written to the clock only while such a fix is current, never earlier than the firmware build date, and, once the clock holds a plausible time (from the build date to 10 years after it), only within `GPS_GUARD_TIME_MAX_STEP` seconds for the first sync and within clock drift (`GPS_GUARD_TIME_DRIFT_BASE` s + `GPS_GUARD_TIME_DRIFT_PPM`) afterwards. Setting the clock manually (`time`, `clock sync`) resets that anchor. A clock outside that window (e.g. a bogus date in 2080) is corrected by the first trusted fix.
+
+Covers serial NMEA receivers (`MicroNMEALocationProvider`).
+
+**Usage:**
+- `gps guard`: status, e.g. `> ok 7sat time ok +1s`, `> rej region time rej nofix`, `> ok 7sat time wait` (last check passed, no current trusted fix to check again, e.g. GPS asleep between periodic fixes), or `... ALERT gps-clk +3600s 75m` when a trusted fix has disagreed with the clock by the same offset for `GPS_GUARD_ALERT_MIN` minutes.
+- `gps guard on`, `gps guard off`: turn the guard on or off (saved, default on). While off, every fix and GPS time is accepted and `gps guard` shows `off`.
+- `gps guard accept`: while an alert is active, confirm that the GPS time is right and apply it to the clock.
+- `gps fence`, `gps fence <metres>`: fence radius around the configured `lat`/`lon` (`0` = off). Default `GPS_GUARD_FENCE_M` (1000); a value set here is saved.
+- `gps ref`: the reference position; follows `set lat`, `set lon` and `gps setloc`.
 
 ---
 
@@ -1008,6 +1101,8 @@ region save
 
 #### View or change the GPS advert policy
 **Usage:**
+- `get advert.loc`
+- `set advert.loc <policy>`
 - `gps advert`
 - `gps advert <policy>`
 
@@ -1015,9 +1110,11 @@ region save
 - `policy`: `none`|`share`|`prefs` 
   - `none`: don't include location in adverts
   - `share`: share gps location (from SensorManager)
-  - `prefs`: location stored in node's lat and lon settings
+  - `prefs`: location stored in node's lat and lon settings (can be different from gps value)
 
 **Default:** `prefs`
+
+**Note:** `gps advert` command is the old format but is only accessible when a gps is attached to the unit. It has been kept for compatibility but one should prefer using `get/set` commands instead.
 
 ---
 

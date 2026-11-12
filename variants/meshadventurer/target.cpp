@@ -11,7 +11,8 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 ESP32RTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
+NmeaGpsDriver gps_driver(Serial1);
+MicroNMEALocationProvider nmea(gps_driver, &rtc_clock);
 MASensorManager sensors = MASensorManager(nmea);
 
 #ifdef DISPLAY_CLASS
@@ -37,23 +38,17 @@ mesh::LocalIdentity radio_new_identity() {
 
 
 void MASensorManager::start_gps() {
-  if(!gps_active) {
-    MESH_DEBUG_PRINTLN("starting GPS");
-    gps_active = true;
-  }
+  MESH_DEBUG_PRINTLN("starting GPS");
+  _location->setGpsOn(true);
 }
 
 void MASensorManager::stop_gps() {
-  if(gps_active) {
-    MESH_DEBUG_PRINTLN("stopping GPS");
-    gps_active = false;
-  }
+  MESH_DEBUG_PRINTLN("stopping GPS");
+  _location->setGpsOn(false);
 }
 
 bool MASensorManager::begin() {
-  Serial1.setPins(PIN_GPS_RX, PIN_GPS_TX);
-  Serial1.begin(9600);
-  delay(500);
+  // the GPS UART (pins, baud rate) is now configured by gps_driver when the GPS is started
   return true;
 }
 
@@ -67,8 +62,8 @@ bool MASensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& te
 void MASensorManager::loop() {
   static long next_gps_update = 0;
   _location->loop();
-  if(millis() > next_gps_update && gps_active) {
-    if(_location->isValid()) {
+  if(millis() > next_gps_update && _location->isGpsOn()) {
+    if(_location->hasValidFix()) {
       node_lat = ((double)_location->getLatitude()) / 1000000.;
       node_lon = ((double)_location->getLongitude()) / 1000000.;
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
@@ -85,7 +80,7 @@ const char* MASensorManager::getSettingName(int i) const {
 }
 const char* MASensorManager::getSettingValue(int i) const {
   if(i == 0) {
-    return gps_active ? "1" : "0";
+    return _location->isGpsOn() ? "1" : "0";
   }
   return NULL;
 }

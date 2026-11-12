@@ -11,7 +11,6 @@ protected:
 #if NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
 #endif
-  uint8_t btn_prev_state;
 
 public:
   ThinkNodeM3Board() : NRF52Board("THINKNODE_M3_OTA") {}
@@ -29,17 +28,6 @@ public:
 
   const char* getManufacturerName() const override {
     return "Elecrow ThinkNode M3";
-  }
-
-  int buttonStateChanged() {
-  #ifdef BUTTON_PIN
-    uint8_t v = digitalRead(BUTTON_PIN);
-    if (v != btn_prev_state) {
-      btn_prev_state = v;
-      return (v == LOW) ? 1 : -1;
-    }
-  #endif
-    return 0;
   }
 
   void powerOff() override {

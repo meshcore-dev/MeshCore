@@ -50,7 +50,7 @@ public:
 
   /**
    * \brief  checks the MAC (in leading bytes of 'src'), then if valid, decrypts remaining bytes in src.
-   * \returns  zero if MAC is invalid, otherwise the length of decrypted bytes in 'dest'
+   * \returns  zero if MAC is invalid or ciphertext is not block-aligned, otherwise the length of decrypted bytes in 'dest'
   */
   static int MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
 
@@ -82,6 +82,8 @@ public:
   static int parseTextParts(char* text, const char* parts[], int max_num, char separator=',');
 
   static bool isHexChar(char c);
+
+  static bool isZeroes(const uint8_t* buf, size_t len);
 };
 
 }

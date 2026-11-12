@@ -2,6 +2,7 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/KeyValueStore.h>
 
 // built-ins
 #define  PIN_VBAT_READ    26
@@ -15,6 +16,8 @@ protected:
 public:
   void begin();
   uint8_t getStartupReason() const override { return startup_reason; }
+
+  void attachDynamicPrefs(KeyValueStore* prefs) { }  // no-op
 
   void onBeforeTransmit() override {
     digitalWrite(LED_BUILTIN, HIGH);   // turn TX LED on
@@ -39,7 +42,11 @@ public:
   }
 
   const char* getManufacturerName() const override {
+  #if defined(PICO_RP2350)
+    return "Pico 2 W";
+  #else
     return "Pico W";
+  #endif
   }
 
   void reboot() override {

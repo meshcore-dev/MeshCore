@@ -15,6 +15,7 @@
 #include "soc/rtc.h"
 #include "esp_system.h"
 #include <driver/rtc_io.h>
+#include <helpers/KeyValueStore.h>
 
 class ESP32Board : public mesh::MainBoard {
 protected:
@@ -51,6 +52,8 @@ public:
   #endif    
   }
 
+  void attachDynamicPrefs(KeyValueStore* prefs) { }  // no-op
+
   // Temperature from ESP32 MCU
   float getMCUTemperature() override {
     uint32_t raw = 0;
@@ -66,9 +69,11 @@ public:
   virtual void powerOff() override;
   void enterDeepSleep(uint32_t secs);
 
+#ifdef P_LORA_DIO_1
   uint32_t getIRQGpio() override {
     return P_LORA_DIO_1; // default for SX1262
   }
+#endif
 
   void sleep(uint32_t secs) override {
     // Skip if not allow to sleep
@@ -79,6 +84,10 @@ public:
 
     // Set GPIO wakeup
     gpio_num_t wakeupPin = (gpio_num_t)getIRQGpio();    
+    if (wakeupPin == GPIO_NUM_NC) {  // no radio IRQ pin to wake on
+      delay(1);
+      return;
+    }
 
     // Configure timer wakeup
     if (secs > 0) {
@@ -197,18 +206,32 @@ public:
   }
 };
 
+// The time ESP32RTCClock restores after a reset, in RTC memory that a reset does
+// not clear. Defined once, in ESP32Board.cpp: the inline members below run in
+// every translation unit that uses them and must all see the same backup.
+extern uint32_t _rtc_backup_time;
+extern uint32_t _rtc_backup_magic;
+#define RTC_BACKUP_MAGIC  0xAA55CC33
+#define RTC_TIME_MIN      1772323200  // 1 Mar 2026
+
 class ESP32RTCClock : public mesh::RTCClock {
 public:
   ESP32RTCClock() { }
   void begin() {
     esp_reset_reason_t reason = esp_reset_reason();
-    if (reason == ESP_RST_POWERON) {
-      // start with some date/time in the recent past
-      struct timeval tv;
-      tv.tv_sec = 1715770351;  // 15 May 2024, 8:50pm
+    if (reason == ESP_RST_DEEPSLEEP) {
+      return;  // ESP-IDF preserves system time across deep sleep
+    }
+    // All other resets (power-on, crash, WDT, brownout) lose system time.
+    // Restore from RTC backup if valid, otherwise use hardcoded seed.
+    struct timeval tv;
+    if (_rtc_backup_magic == RTC_BACKUP_MAGIC && _rtc_backup_time > RTC_TIME_MIN) {
+      tv.tv_sec = _rtc_backup_time;
+    } else {
+      tv.tv_sec = RTC_TIME_MIN;
+    }
     tv.tv_usec = 0;
     settimeofday(&tv, NULL);
-  }
   }
   uint32_t getCurrentTime() override {
     time_t _now;
@@ -220,6 +243,16 @@ public:
     tv.tv_sec = time;
     tv.tv_usec = 0;
     settimeofday(&tv, NULL);
+    _rtc_backup_time = time;
+    _rtc_backup_magic = RTC_BACKUP_MAGIC;
+  }
+  void tick() override {
+    time_t now;
+    time(&now);
+    if (now > RTC_TIME_MIN && (uint32_t)now != _rtc_backup_time) {
+      _rtc_backup_time = (uint32_t)now;
+      _rtc_backup_magic = RTC_BACKUP_MAGIC;
+    }
   }
 };
 

@@ -72,10 +72,10 @@ public:
     _u8g2.sendBuffer();
   }
 
-  void startFrame(Color bkg = DARK) override {
-    _u8g2.clearBuffer();
-    _drawColor = 1;
-    _u8g2.setDrawColor(1);
+  void startFrame(ColorVal bkg = UIColor::window_bkg) override {
+    _u8g2.clearBuffer();  // TODO: apply 'bkg' color
+    _drawColor = UIColor::primary_txt;
+    _u8g2.setDrawColor(_drawColor);
     applyFont(1);
   }
 
@@ -83,8 +83,8 @@ public:
     applyFont(sz);
   }
 
-  void setColor(Color c) override {
-    _drawColor = (c != DARK) ? 1 : 0;
+  void setColor(ColorVal c) override {
+    _drawColor = c;
     _u8g2.setDrawColor(_drawColor);
   }
 
@@ -94,22 +94,18 @@ public:
   }
 
   void print(const char* str) override {
-    _u8g2.setDrawColor(_drawColor);
     _u8g2.drawStr(_cursorX, _cursorY, str);
   }
 
   void fillRect(int x, int y, int w, int h) override {
-    _u8g2.setDrawColor(_drawColor);
     _u8g2.drawBox(x, y, w, h);
   }
 
   void drawRect(int x, int y, int w, int h) override {
-    _u8g2.setDrawColor(_drawColor);
     _u8g2.drawFrame(x, y, w, h);
   }
 
   void drawXbm(int x, int y, const uint8_t* bits, int w, int h) override {
-    _u8g2.setDrawColor(1);
     _u8g2.drawXBM(x, y, w, h, bits);
   }
 

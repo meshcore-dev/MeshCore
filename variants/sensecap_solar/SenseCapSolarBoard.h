@@ -5,6 +5,19 @@
 #include <helpers/NRF52Board.h>
 
 class SenseCapSolarBoard : public NRF52BoardDCDC {
+#ifdef SENSECAP_SOLAR_WHITE_LED
+  // Dimmed white-LED heartbeat state (repeater builds only; enabled with
+  // -D SENSECAP_SOLAR_WHITE_LED in the PlatformIO env, so room-server and
+  // companion firmwares sharing this board class are unaffected).
+  bool white_led_ota_active_ = false;
+  bool white_led_pulse_active_ = false;
+  uint32_t white_led_last_pulse_at_ = 0;
+
+  void whiteLedHeartbeatOn();    // start 1 kHz PWM at 10% duty on LED_WHITE
+  void whiteLedHeartbeatOff();   // stop/release PWM, hold LED_WHITE LOW
+  void updateWhiteStatusLed();   // non-blocking 100 ms pulse every 5000 ms
+#endif
+
 protected:
 #ifdef NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
@@ -13,6 +26,13 @@ protected:
 public:
   SenseCapSolarBoard() : NRF52Board("SENSECAP_SOLAR_OTA") {}
   void begin();
+
+#ifdef SENSECAP_SOLAR_WHITE_LED
+  // Runs the white-LED heartbeat; invoked by the example main loops via the
+  // existing board.loop() call (mesh::MainBoard::loop() is a no-op by default).
+  void loop() override;
+  bool startOTAUpdate(const char *id, char reply[]) override;
+#endif
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
@@ -38,6 +58,9 @@ public:
   }
 
   void powerOff() override {
+#ifdef SENSECAP_SOLAR_WHITE_LED
+    whiteLedHeartbeatOff();   // stop/release the heartbeat PWM before shutdown
+#endif
     digitalWrite(LED_WHITE, LOW);
     digitalWrite(LED_BLUE, LOW);
 
