@@ -12,6 +12,11 @@
 #ifndef GPS_PERIODIC_ACQUISITION_TIMEOUT_MS
     #define GPS_PERIODIC_ACQUISITION_TIMEOUT_MS 300000UL
 #endif
+// limit for the periodic window before the first fix since boot (cold start can be long,
+// a full almanac takes 12.5 min); 0 = keep searching until a fix
+#ifndef GPS_FIRST_FIX_TIMEOUT_MS
+    #define GPS_FIRST_FIX_TIMEOUT_MS 900000UL
+#endif
 
 // in periodic mode, keep reading after the first valid fix until enough satellites
 // are used or the settle time has elapsed
@@ -363,10 +368,13 @@ public:
             }
         }
 
-        // no timeout until a first fix has been obtained (cold start can be long)
-        if (_acquiringPeriodically && _lastFix.valid &&
-            (uint32_t)(millis() - _acquisitionStarted) >= GPS_PERIODIC_ACQUISITION_TIMEOUT_MS) {
-            finishPeriodicAcquisition();
+        // a longer limit until a first fix has been obtained (cold start can be long)
+        if (_acquiringPeriodically) {
+            const uint32_t limit = _lastFix.valid ? GPS_PERIODIC_ACQUISITION_TIMEOUT_MS
+                                                  : GPS_FIRST_FIX_TIMEOUT_MS;
+            if (limit > 0 && (uint32_t)(millis() - _acquisitionStarted) >= limit) {
+                finishPeriodicAcquisition();
+            }
         }
 
         updateTime();

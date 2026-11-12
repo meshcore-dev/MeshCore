@@ -1026,7 +1026,7 @@ region save
 **Parameters:**
 - `value`: `0` for continuous tracking, or a period. The value can be postfixed with `s`, `m`, `h` or `d` to specify the unit (seconds by default).
 
-**Note:** A periodic acquisition stops after receiving a valid fix, then resumes after the configured period.
+**Note:** A periodic acquisition stops after receiving a valid fix, then resumes after the configured period. Without a fix it stops after 5 minutes, or after 15 minutes until the first fix since boot (`GPS_PERIODIC_ACQUISITION_TIMEOUT_MS`, `GPS_FIRST_FIX_TIMEOUT_MS`).
 
 ---
 
