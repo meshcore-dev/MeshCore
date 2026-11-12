@@ -87,13 +87,14 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     }
 
     if (self_id.isHashMatch(pkt->path, pkt->getPathHashSize()) && allowPacketForward(pkt)) {
+      uint32_t d = getDirectRetransmitDelay(pkt);
       if (pkt->getPayloadType() == PAYLOAD_TYPE_MULTIPART) {
-        return forwardMultipartDirect(pkt);
+        return forwardMultipartDirect(pkt, d);
       } else if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
         if (!_tables->wasSeen(pkt)) {  // don't retransmit!
           _tables->markSeen(pkt);
           removeSelfFromPath(pkt);
-          routeDirectRecvAcks(pkt, 0);
+          routeDirectRecvAcks(pkt, d);
         }
         return ACTION_RELEASE;
       }
@@ -102,7 +103,6 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         _tables->markSeen(pkt);
         removeSelfFromPath(pkt);
 
-        uint32_t d = getDirectRetransmitDelay(pkt);
         return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority 
       }
     }
@@ -356,7 +356,7 @@ DispatcherAction Mesh::routeRecvPacket(Packet* packet) {
   return ACTION_RELEASE;
 }
 
-DispatcherAction Mesh::forwardMultipartDirect(Packet* pkt) {
+DispatcherAction Mesh::forwardMultipartDirect(Packet* pkt, uint32_t delay_millis) {
   uint8_t remaining = pkt->payload[0] >> 4;  // num of packets in this multipart sequence still to be sent
   uint8_t type = pkt->payload[0] & 0x0F;
 
@@ -370,7 +370,7 @@ DispatcherAction Mesh::forwardMultipartDirect(Packet* pkt) {
     if (!_tables->wasSeen(&tmp)) {   // don't retransmit!
       _tables->markSeen(&tmp);
       removeSelfFromPath(&tmp);
-      routeDirectRecvAcks(&tmp, ((uint32_t)remaining + 1) * 300);  // expect multipart ACKs 300ms apart (x2)
+      routeDirectRecvAcks(&tmp, delay_millis + ((uint32_t)remaining + 1) * 300);  // expect multipart ACKs 300ms apart (x2)
     }
   }
   return ACTION_RELEASE;
@@ -380,13 +380,13 @@ void Mesh::routeDirectRecvAcks(Packet* packet, uint32_t delay_millis) {
   if (!packet->isMarkedDoNotRetransmit()) {
     uint8_t extra = getExtraAckTransmitCount();
     while (extra > 0) {
-      delay_millis += getDirectRetransmitDelay(packet) + 300;
       auto a1 = createMultiAck(packet->payload, packet->payload_len, extra);
       if (a1) {
         a1->path_len = Packet::copyPath(a1->path, packet->path, packet->path_len);
         a1->header &= ~PH_ROUTE_MASK;
         a1->header |= ROUTE_TYPE_DIRECT;
         sendPacket(a1, 0, delay_millis);
+        delay_millis += 300;
       }
       extra--;
     }

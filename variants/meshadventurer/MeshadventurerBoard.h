@@ -13,7 +13,7 @@
 
 #define  PIN_VBAT_READ    35
 
-#include "ESP32Board.h"
+#include "helpers/ESP32Board.h"
 
 class MeshadventurerBoard : public ESP32Board {
 

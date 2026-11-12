@@ -26,3 +26,4 @@
 #define PIN_GPS_RX                      (20)
 #define PIN_GPS_TX                      (19)
 #define PIN_GPS_SWITCH                  (10)
+#define GPS_SWITCH_IS_HARDWARE          (1)

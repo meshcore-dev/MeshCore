@@ -29,6 +29,12 @@
 
 #define AREF_VOLTAGE            (3.0)
 
+// External power and charger status lines.
+#define EXT_PWR_DETECT          (13)
+#define EXT_PWR_DETECT_VALUE    HIGH
+#define EXT_CHRG_DETECT         (15)
+#define EXT_CHRG_DETECT_VALUE   LOW
+
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins
 
@@ -102,7 +108,12 @@
 #define PIN_GPS_RX              (2)
 #define PIN_GPS_TX              (3)
 #define PIN_GPS_EN              (6)    // EN
-#define PIN_GPS_RESET           (29)
+#define PIN_GPS_RESET           (29)   // REINIT - must FLOAT; driving it (esp. HIGH) silences the L76K
+// The M6's L76K streams NMEA on its own and must not have its REINIT pin driven.
+// Tell the location provider there is no reset pin so it never touches pin 29
+// (driving it HIGH holds the module silent). Matches Meshtastic, which leaves
+// this pin as an input. See variant.cpp (pin 29 is intentionally not configured).
+#define GPS_RESET               (-1)
 #define PIN_GPS_STANDBY         (30)   // STANDBY
 #define PIN_GPS_PPS             (31)
 #define GPS_BAUD_RATE           9600

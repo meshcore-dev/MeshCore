@@ -10,33 +10,8 @@ on:
       - 'room-server-*'
 
 jobs:
-
-  build:
-    runs-on: ubuntu-latest
-    steps:
-
-      - name: Clone Repo
-        uses: actions/checkout@v6
-
-      - name: Setup Build Environment
-        uses: ./.github/actions/setup-build-environment
-
-      - name: Build Firmwares
-        env:
-          FIRMWARE_VERSION: ${{ env.GIT_TAG_VERSION }}
-        run: /usr/bin/env bash build.sh build-room-server-firmwares
-
-      - name: Upload Workflow Artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: room-server-firmwares
-          path: out
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          name: Room Server Firmware ${{ env.GIT_TAG_VERSION }}
-          body: ""
-          draft: true
-          files: out/*
+  build-room-server-firmwares:
+    uses: ./.github/workflows/firmware-builder.yml
+    with:
+      firmware_type: 'room-server'
+      release_title_prefix: 'Room Server Firmware'

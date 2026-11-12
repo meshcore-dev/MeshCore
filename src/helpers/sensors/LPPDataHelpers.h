@@ -63,12 +63,66 @@
 #define LPP_ERROR_OVERFLOW 1
 #define LPP_ERROR_UNKOWN_TYPE 2
 
-class LPPReader {
-  const uint8_t* _buf;
-  uint8_t _len;
-  uint8_t _pos;
+class LPPData {
+public:
+  static uint8_t getDataSize(uint8_t type) {
+    switch (type) {
+      case LPP_GPS:
+        return 9;
+      case LPP_POLYLINE:
+        return 8;  // TODO: this is MINIMIUM
+      case LPP_GYROMETER:
+      case LPP_ACCELEROMETER:
+        return 6;
+      case LPP_GENERIC_SENSOR:
+      case LPP_FREQUENCY:
+      case LPP_DISTANCE:
+      case LPP_ENERGY:
+      case LPP_UNIXTIME:
+        return 4;
+      case LPP_COLOUR:
+        return 3;
+      case LPP_ANALOG_INPUT:
+      case LPP_ANALOG_OUTPUT:
+      case LPP_LUMINOSITY:
+      case LPP_TEMPERATURE:
+      case LPP_CONCENTRATION:
+      case LPP_BAROMETRIC_PRESSURE:
+      case LPP_RELATIVE_HUMIDITY:
+      case LPP_ALTITUDE:
+      case LPP_VOLTAGE:
+      case LPP_CURRENT:
+      case LPP_DIRECTION:
+      case LPP_POWER:
+        return 2;
+    }
+    return 1;
+  }
 
-  float getFloat(const uint8_t * buffer, uint8_t size, uint32_t multiplier, bool is_signed) {
+  static uint32_t getMultiplier(uint8_t type) {
+    switch (type) {
+      case LPP_CURRENT:
+      case LPP_DISTANCE:
+      case LPP_ENERGY:
+        return 1000;
+      case LPP_VOLTAGE:
+      case LPP_ANALOG_INPUT:
+      case LPP_ANALOG_OUTPUT:
+        return 100;
+      case LPP_TEMPERATURE:
+      case LPP_BAROMETRIC_PRESSURE:
+      case LPP_RELATIVE_HUMIDITY:
+        return 10;
+    }
+    return 1;
+  }
+
+  static bool isSigned(uint8_t type) {
+    return type == LPP_ALTITUDE || type == LPP_TEMPERATURE || type == LPP_GYROMETER ||
+        type == LPP_ANALOG_INPUT || type == LPP_ANALOG_OUTPUT || type == LPP_GPS || type == LPP_ACCELEROMETER;
+  }
+
+  static float getFloat(const uint8_t * buffer, uint8_t size, uint32_t multiplier, bool is_signed) {
     uint32_t value = 0;
     for (uint8_t i = 0; i < size; i++) {
       value = (value << 8) + buffer[i];
@@ -84,6 +138,36 @@ class LPPReader {
     }
     return sign * ((float) value / multiplier);
   }
+
+  static uint8_t putFloat(uint8_t * dest, float value, uint8_t size, uint32_t multiplier, bool is_signed) {
+    // check sign
+    bool sign = value < 0;
+    if (sign) value = -value;
+
+    // get value to store
+    uint32_t v = value * multiplier;
+
+    // format an uint32_t as if it was an int32_t
+    if (is_signed & sign) {
+      uint32_t mask = (1 << (size * 8)) - 1;
+      v = v & mask;
+      if (sign) v = mask - v + 1;
+    }
+
+    // add bytes (MSB first)
+    for (uint8_t i=1; i<=size; i++) {
+      dest[size - i] = (v & 0xFF);
+      v >>= 8;
+    }
+    return size;
+  }
+
+};
+
+class LPPReader {
+  const uint8_t* _buf;
+  uint8_t _len;
+  uint8_t _pos;
 
 public:
   LPPReader(const uint8_t buf[], uint8_t len) : _buf(buf), _len(len), _pos(0) { }
@@ -103,72 +187,42 @@ public:
   }
 
   bool readGPS(float& lat, float& lon, float& alt) {
-    lat = getFloat(&_buf[_pos], 3, 10000, true); _pos += 3;
-    lon = getFloat(&_buf[_pos], 3, 10000, true); _pos += 3;
-    alt = getFloat(&_buf[_pos], 3, 100, true); _pos += 3;
+    lat = LPPData::getFloat(&_buf[_pos], 3, 10000, true); _pos += 3;
+    lon = LPPData::getFloat(&_buf[_pos], 3, 10000, true); _pos += 3;
+    alt = LPPData::getFloat(&_buf[_pos], 3, 100, true); _pos += 3;
     return _pos <= _len;
   }
   bool readVoltage(float& voltage) {
-    voltage = getFloat(&_buf[_pos], 2, 100, false); _pos += 2;
+    voltage = LPPData::getFloat(&_buf[_pos], 2, 100, false); _pos += 2;
     return _pos <= _len;
   }
   bool readCurrent(float& amps) {
-    amps = getFloat(&_buf[_pos], 2, 1000, true); _pos += 2;
+    amps = LPPData::getFloat(&_buf[_pos], 2, 1000, true); _pos += 2;
     return _pos <= _len;
   }
   bool readPower(float& watts) {
-    watts = getFloat(&_buf[_pos], 2, 1, false); _pos += 2;
+    watts = LPPData::getFloat(&_buf[_pos], 2, 1, false); _pos += 2;
     return _pos <= _len;
   }
   bool readTemperature(float& degrees_c) {
-    degrees_c = getFloat(&_buf[_pos], 2, 10, true); _pos += 2;
+    degrees_c = LPPData::getFloat(&_buf[_pos], 2, 10, true); _pos += 2;
     return _pos <= _len;
   }
   bool readPressure(float& pa) {
-    pa = getFloat(&_buf[_pos], 2, 10, false); _pos += 2;
+    pa = LPPData::getFloat(&_buf[_pos], 2, 10, false); _pos += 2;
     return _pos <= _len;
   }
   bool readRelativeHumidity(float& pct) {
-    pct = getFloat(&_buf[_pos], 1, 2, false); _pos += 1;
+    pct = LPPData::getFloat(&_buf[_pos], 1, 2, false); _pos += 1;
     return _pos <= _len;
   }
   bool readAltitude(float& m) {
-    m = getFloat(&_buf[_pos], 2, 1, true); _pos += 2;
+    m = LPPData::getFloat(&_buf[_pos], 2, 1, true); _pos += 2;
     return _pos <= _len;
   }
 
   void skipData(uint8_t type) {
-    switch (type) {
-      case LPP_GPS:
-        _pos += 9; break;
-      case LPP_POLYLINE:
-        _pos += 8; break;  // TODO: this is MINIMUM
-      case LPP_GYROMETER:
-      case LPP_ACCELEROMETER:
-        _pos += 6; break;
-      case LPP_GENERIC_SENSOR:
-      case LPP_FREQUENCY:
-      case LPP_DISTANCE:
-      case LPP_ENERGY:
-      case LPP_UNIXTIME:
-        _pos += 4; break;
-      case LPP_COLOUR:
-        _pos += 3; break;
-      case LPP_ANALOG_INPUT:
-      case LPP_ANALOG_OUTPUT:
-      case LPP_LUMINOSITY:
-      case LPP_TEMPERATURE:
-      case LPP_CONCENTRATION:
-      case LPP_BAROMETRIC_PRESSURE:
-      case LPP_ALTITUDE:
-      case LPP_VOLTAGE:
-      case LPP_CURRENT:
-      case LPP_DIRECTION:
-      case LPP_POWER:
-        _pos += 2; break;
-      default:
-        _pos++;
-    }
+    _pos += LPPData::getDataSize(type);
   }
 };
 
@@ -184,6 +238,19 @@ class LPPWriter {
 
 public:
   LPPWriter(uint8_t buf[], uint8_t max_len): _buf(buf), _max_len(max_len), _len(0) { }
+
+  bool writeData(uint8_t channel, uint8_t type, float v) {
+    uint8_t sz = LPPData::getDataSize(type);
+    bool s = LPPData::isSigned(type);
+    uint32_t mul = LPPData::getMultiplier(type);
+    if (_len + 2 + sz <= _max_len) {
+      _buf[_len++] = channel;
+      _buf[_len++] = type;
+      _len += LPPData::putFloat(&_buf[_len], v, sz, mul, s);
+      return true;
+    }
+    return false;
+  }
 
   bool writeVoltage(uint8_t channel, float voltage) {
     if (_len + 4 <= _max_len) {

@@ -14,9 +14,16 @@ public:
     ((CustomLR1110 *)_radio)->setBandwidth(bw);
     ((CustomLR1110 *)_radio)->setCodingRate(cr);
     updatePreamble(sf);
+    PacketMillis pm = calcMaxPacketMillis(sf, bw, cr, preambleLengthForSF(sf));
+    ((CustomLR1110 *)_radio)->setPreambleMillis(pm.preambleMillis);
+    ((CustomLR1110 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
   }
 
-  void doResetAGC() override { lr11x0ResetAGC((LR11x0 *)_radio, ((CustomLR1110 *)_radio)->getFreqMHz()); }
+  bool lastRxHadCRC() override {
+    bool crc = true;
+    ((CustomLR1110 *)_radio)->getLoRaRxHeaderInfo(NULL, &crc);
+    return crc;
+  }
   bool isReceivingPacket() override {
     return ((CustomLR1110 *)_radio)->isReceiving();
   }
@@ -41,10 +48,13 @@ public:
 
   uint8_t getSpreadingFactor() const override { return ((CustomLR1110 *)_radio)->getSpreadingFactor(); }
   
+  bool supportsRxBoostedGain() const override { return true; }
   bool setRxBoostedGainMode(bool en) override {
     return ((CustomLR1110 *)_radio)->setRxBoostedGainMode(en) == RADIOLIB_ERR_NONE;
   }
   bool getRxBoostedGainMode() const override {
     return ((CustomLR1110 *)_radio)->getRxBoostedGainMode();
   }
+
+  void doResetAGC() override { lr11x0ResetAGC((LR11x0 *)_radio, ((CustomLR1110 *)_radio)->getFreqMHz(), getRxBoostedGainMode()); }
 };

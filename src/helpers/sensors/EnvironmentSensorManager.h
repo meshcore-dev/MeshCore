@@ -20,7 +20,6 @@ protected:
   uint8_t      next_available_channel = TELEM_CHANNEL_SELF + 1;
 
   bool     gps_detected = false;
-  bool     gps_active = false;
   uint32_t gps_update_interval_sec = 1;
 
   #if ENV_INCLUDE_GPS
@@ -28,16 +27,13 @@ protected:
   void start_gps();
   void stop_gps();
   void initBasicGPS();
-  #ifdef RAK_BOARD
-  void rakGPSInit();
-  bool gpsIsAwake(uint8_t ioPin);
-  #endif
   #endif
 
 public:
   #if ENV_INCLUDE_GPS
   EnvironmentSensorManager(LocationProvider &location): _location(&location){};
   LocationProvider* getLocationProvider() { return _location; }
+  bool isGPSDetected() const override { return gps_detected; }
   #else
   EnvironmentSensorManager(){};
   #endif

@@ -16,6 +16,16 @@ void TBeamBoard::begin() {
     
     ESP32Board::begin();
 
+#ifdef TBEAM_SUPREME_SX1262
+    // On the T-Beam S3 Supreme the PMU + RTC sit on Wire1 (GPIO 42/41, brought
+    // up by XPowersLib), while the SH1106 OLED and the BME280/QMC6310 sensors
+    // sit on the primary bus, Wire (GPIO PIN_BOARD_SDA/PIN_BOARD_SCL). Nothing
+    // else initialises Wire on this board, so the display driver would
+    // otherwise talk on the wrong (default) pins and display.begin() fails,
+    // leaving the screen blank. Bring the OLED bus up here.
+    Wire.begin(PIN_BOARD_SDA, PIN_BOARD_SCL);
+#endif
+
     power_init();
 
     //Configure user button
