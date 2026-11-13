@@ -4,8 +4,7 @@
 //
 // A location provider asks the guard before it stores a fix as its last fix and before it
 // writes GPS time to the clock:
-//  - acceptFix(): plausibility checks (satellites, HDOP, 3D fix if the receiver reports the fix
-//    mode, optional build-time region, distance
+//  - acceptFix(): plausibility checks (satellites, HDOP, optional build-time region, distance
 //    from a reference position, jump speed) and N consecutive consistent fixes;
 //  - acceptTime(): GPS time only while a trusted fix is current, not before this firmware
 //    was built, and once the clock is valid only small corrections (clock drift after the
@@ -25,9 +24,6 @@
 #endif
 #ifndef GPS_GUARD_MAX_HDOP10
   #define GPS_GUARD_MAX_HDOP10      40      // HDOP 4.0
-#endif
-#ifndef GPS_GUARD_REQUIRE_3D
-  #define GPS_GUARD_REQUIRE_3D      1       // reject a fix the receiver reports as 2D (GSA); 0 = off
 #endif
 #ifndef GPS_GUARD_FENCE_M
   #define GPS_GUARD_FENCE_M         1000    // max distance from the reference position (0 = off)
@@ -139,10 +135,8 @@ public:
   bool isTimeAlert() const { return _time_alert; }
 
   // Fix as reported by the receiver: lat/lon in micro-degrees, HDOP in tenths (255 = unknown),
-  // gps_time = UTC epoch of the fix, fix_mode = receiver fix mode from GSA (1 = none, 2 = 2D,
-  // 3 = 3D, 0 = unknown: no recent GSA). Returns true if the fix can be stored as trusted.
-  bool acceptFix(long lat_e6, long lon_e6, long sats, uint8_t hdop10, uint32_t gps_time,
-                 uint8_t fix_mode = 0) {
+  // gps_time = UTC epoch of the fix. Returns true if the fix can be stored as trusted.
+  bool acceptFix(long lat_e6, long lon_e6, long sats, uint8_t hdop10, uint32_t gps_time) {
     const double lat = lat_e6 / 1000000.0;
     const double lon = lon_e6 / 1000000.0;
     const unsigned long now = millis();
@@ -155,11 +149,6 @@ public:
     } else if (hdop10 == 255 || hdop10 > GPS_GUARD_MAX_HDOP10) {
       why = "hdop";
     }
-#if GPS_GUARD_REQUIRE_3D
-    else if (fix_mode == 1 || fix_mode == 2) {
-      why = "2d";
-    }
-#endif
 #if defined(GPS_GUARD_LAT_MIN) && defined(GPS_GUARD_LAT_MAX) && defined(GPS_GUARD_LON_MIN) && defined(GPS_GUARD_LON_MAX)
     else if (lat < GPS_GUARD_LAT_MIN || lat > GPS_GUARD_LAT_MAX || lon < GPS_GUARD_LON_MIN || lon > GPS_GUARD_LON_MAX) {
       why = "region";

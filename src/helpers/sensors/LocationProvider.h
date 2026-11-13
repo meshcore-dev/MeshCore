@@ -18,6 +18,7 @@ public:
         long satellites = 0;
         long timestamp = 0;
         unsigned long acquiredAt = 0;   // millis() when the fix was stored
+        uint8_t fixMode = 0;            // from GSA: 2 = 2D, 3 = 3D, 0 = unknown
     };
 
     struct FixStats {
