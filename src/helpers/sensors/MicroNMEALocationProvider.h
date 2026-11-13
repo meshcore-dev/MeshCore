@@ -28,6 +28,11 @@
     #define GPS_FIX_SETTLE_MS 10000UL
 #endif
 
+// a 2D fix does not replace a 3D fix younger than this (it is less precise)
+#ifndef GPS_3D_FIX_PREFERRED_MS
+    #define GPS_3D_FIX_PREFERRED_MS 300000UL
+#endif
+
 class MicroNMEALocationProvider : public LocationProvider {
     // MicroNMEA never writes past the length it is given, but its fixed-width field
     // skips can read a few bytes past the end of a malformed sentence. The zeroed tail
@@ -46,6 +51,7 @@ class MicroNMEALocationProvider : public LocationProvider {
     unsigned long _nextAcquisition = 0;
     unsigned long _acquisitionStarted = 0;
     unsigned long _firstFixInWindow = 0;
+    bool _goodFixInWindow = false;   // a fix that lets the GPS sleep (3D, or fix mode unknown)
     bool _acquiringPeriodically = false;
     unsigned long _onceDeadline = 0;
     static const unsigned long TIME_SYNC_INTERVAL = 1800000;
@@ -59,6 +65,26 @@ class MicroNMEALocationProvider : public LocationProvider {
     unsigned long _last_nmea_ms = 0;
     bool _uart_seen = false;
     bool _nmea_seen = false;
+    uint8_t _gsa_fix_mode = 0;      // fix mode from the last GSA: 1 = none, 2 = 2D, 3 = 3D
+    unsigned long _gsa_ms = 0;
+
+    static bool isGsa(const char* id) {   // GPGSA, GNGSA, BDGSA, ...
+        const size_t n = strlen(id);
+        return n >= 3 && strcmp(id + n - 3, "GSA") == 0;
+    }
+    // $--GSA,<mode A/M>,<fix 1/2/3>,...
+    void parseGsa(const char* s) {
+        s = strchr(s, ',');
+        if (s != NULL) s = strchr(s + 1, ',');
+        if (s != NULL && s[1] >= '1' && s[1] <= '3') {
+            _gsa_fix_mode = s[1] - '0';
+            _gsa_ms = millis();
+        }
+    }
+    // 0 (unknown) if the receiver does not send GSA, or sent none recently
+    uint8_t currentFixMode() const {
+        return (_gsa_fix_mode != 0 && (uint32_t)(millis() - _gsa_ms) <= 2000) ? _gsa_fix_mode : 0;
+    }
 #ifdef GPS_GUARD
     GpsGuard _guard;
 #endif
@@ -83,6 +109,7 @@ class MicroNMEALocationProvider : public LocationProvider {
         _acquiringPeriodically = true;
         _acquisitionStarted = millis();
         _firstFixInWindow = 0;
+        _goodFixInWindow = false;
     }
 
     void finishPeriodicAcquisition() {
@@ -96,13 +123,17 @@ class MicroNMEALocationProvider : public LocationProvider {
 
     bool saveFix() {
         // only store a fix when the snapshot is coherent (sats > 0).
-        // Returns true if the fix was stored.
+        // Returns true if the fix was accepted (stored, or kept out by a recent 3D fix).
         if (nmea.getNumSatellites() == 0) return false;
 #ifdef GPS_GUARD
         // only plausible, stable fixes become the last fix (position, telemetry, time sync)
         if (!_guard.acceptFix(nmea.getLatitude(), nmea.getLongitude(), nmea.getNumSatellites(),
                               nmea.getHDOP(), getTimestamp())) return false;
 #endif
+        const uint8_t mode = currentFixMode();
+        // a 2D fix is valid but less precise: keep a recent 3D fix instead
+        if (mode == 2 && _lastFix.valid && _lastFix.fixMode == 3 &&
+            (uint32_t)(millis() - _lastFix.acquiredAt) < GPS_3D_FIX_PREFERRED_MS) return true;
 
         LastFix fix;
         fix.latitude = nmea.getLatitude();
@@ -114,6 +145,7 @@ class MicroNMEALocationProvider : public LocationProvider {
         fix.satellites = nmea.getNumSatellites();
         fix.timestamp = getTimestamp();
         fix.acquiredAt = millis();
+        fix.fixMode = mode;
         fix.valid = true;
         _lastFix = fix;
         return true;
@@ -157,6 +189,7 @@ public:
         if (!wasActive) {
             _acquisitionStarted = millis();
             _firstFixInWindow = 0;
+            _goodFixInWindow = false;
         }
         if (_gpsPeriodSeconds > 0 && _driver->isActive()) {
             nmea.clear();
@@ -164,6 +197,7 @@ public:
             _acquiringPeriodically = true;
             _acquisitionStarted = millis();
             _firstFixInWindow = 0;
+            _goodFixInWindow = false;
         }
     }
 
@@ -314,7 +348,7 @@ public:
         if (_driver->pollGpsSwitch()) _gpsOn = true;
 
         if (_onceDeadline != 0) {
-            if (_firstFixInWindow != 0 && (long)(_onceDeadline - (millis() + GPS_FIX_SETTLE_MS)) > 0) {
+            if (_goodFixInWindow && (long)(_onceDeadline - (millis() + GPS_FIX_SETTLE_MS)) > 0) {
                 _onceDeadline = millis() + GPS_FIX_SETTLE_MS;
             }
             if ((long)(millis() - _onceDeadline) >= 0) {
@@ -350,6 +384,7 @@ public:
                     _nmea_seen = true;
 
                     const char* messageId = nmea.getMessageID();
+                    if (isGsa(messageId)) parseGsa(nmea.getSentence());
 #ifdef GPS_GUARD
                     if (parsed && !nmea.isValid() &&
                         (strcmp(messageId, "GGA") == 0 || strcmp(messageId, "RMC") == 0)) {
@@ -363,7 +398,11 @@ public:
                             _firstFixInWindow = millis();
                             fixStatsFix((uint32_t)(_firstFixInWindow - _acquisitionStarted));
                         }
-                        if (_acquiringPeriodically) {
+                        // after a 2D fix the GPS stays on (up to the acquisition timeout)
+                        // to give the receiver a chance to get a 3D fix
+                        const uint8_t mode = currentFixMode();
+                        if (mode == 0 || mode == 3) _goodFixInWindow = true;
+                        if (_acquiringPeriodically && _goodFixInWindow) {
                             // stay on until a pending time sync is done (or the settle time is over)
                             const bool synced = _clock == nullptr || !_time_sync_needed;
                             if ((nmea.getNumSatellites() >= GPS_MIN_SATS_FOR_FIX && synced) ||
@@ -413,5 +452,8 @@ public:
             fix_age,
             (unsigned long)_begin_calls,
             (unsigned long)_stop_calls);
+        // fix mode from GSA (1 none, 2 2D, 3 3D, 0 no recent GSA)
+        const size_t len = strlen(out);
+        if (len < out_size) snprintf(out + len, out_size - len, " fm:%u", currentFixMode());
     }
 };
