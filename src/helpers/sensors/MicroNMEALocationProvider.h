@@ -12,6 +12,12 @@
 #ifndef GPS_PERIODIC_ACQUISITION_TIMEOUT_MS
     #define GPS_PERIODIC_ACQUISITION_TIMEOUT_MS 300000UL
 #endif
+// default limit for the periodic window before the first fix since boot (a cold start
+// can take up to ~30 min with a weak sky view); 0 = keep searching until a fix.
+// Can be changed at runtime with `gps firstfix`.
+#ifndef GPS_FIRST_FIX_TIMEOUT_MS
+    #define GPS_FIRST_FIX_TIMEOUT_MS 3600000UL
+#endif
 
 // in periodic mode, keep reading after the first valid fix until enough satellites
 // are used or the settle time has elapsed
@@ -36,6 +42,7 @@ class MicroNMEALocationProvider : public LocationProvider {
     long time_valid = 0;
     unsigned long _last_time_sync = 0;
     uint32_t _gpsPeriodSeconds = 0;
+    uint32_t _firstFixTimeoutSeconds = GPS_FIRST_FIX_TIMEOUT_MS / 1000UL;
     unsigned long _nextAcquisition = 0;
     unsigned long _acquisitionStarted = 0;
     unsigned long _firstFixInWindow = 0;
@@ -197,6 +204,14 @@ public:
 
     uint32_t getGpsPeriod() const override {
         return _gpsPeriodSeconds;
+    }
+
+    void setFirstFixTimeout(uint32_t seconds) override {
+        _firstFixTimeoutSeconds = seconds;
+    }
+
+    uint32_t getFirstFixTimeout() const override {
+        return _firstFixTimeoutSeconds;
     }
 
     uint32_t getAcquisitionAge() const override {
@@ -363,10 +378,13 @@ public:
             }
         }
 
-        // no timeout until a first fix has been obtained (cold start can be long)
-        if (_acquiringPeriodically && _lastFix.valid &&
-            (uint32_t)(millis() - _acquisitionStarted) >= GPS_PERIODIC_ACQUISITION_TIMEOUT_MS) {
-            finishPeriodicAcquisition();
+        // a longer limit until a first fix has been obtained (cold start can be long)
+        if (_acquiringPeriodically) {
+            const uint32_t limit = _lastFix.valid ? GPS_PERIODIC_ACQUISITION_TIMEOUT_MS
+                                                  : _firstFixTimeoutSeconds * 1000UL;
+            if (limit > 0 && (uint32_t)(millis() - _acquisitionStarted) >= limit) {
+                finishPeriodicAcquisition();
+            }
         }
 
         updateTime();

@@ -46,6 +46,8 @@ bool CommonGpsPrefs::apply(SensorManager& sensors) const {
   LocationProvider* location = sensors.getLocationProvider();
   if (location == nullptr) return false;
   applyGuardReference(sensors);
+  uint32_t first_fix;
+  if (getFirstFixTimeout(first_fix)) location->setFirstFixTimeout(first_fix);
   location->setGpsPeriod(getGpsPeriod());
   location->setGpsOn(isGpsEnabled());
   return true;
@@ -60,6 +62,20 @@ static void formatDuration(char* buf, size_t size, uint32_t seconds) {
   } else {
     snprintf(buf, size, "%luh", (unsigned long)(seconds / 3600));
   }
+}
+
+// "<n>[s|m|h|d]", seconds by default
+static bool parseDuration(const char* text, uint32_t& seconds) {
+  char* end;
+  unsigned long value = strtoul(text, &end, 10);
+  unsigned long mult = 1;
+  if (*end == 'm') mult = 60;
+  else if (*end == 'h') mult = 3600;
+  else if (*end == 'd') mult = 86400;
+  if (mult > 1 || *end == 's') end++;   // skip the suffix char
+  if (text[0] == '\0' || *end != '\0') return false;
+  seconds = (uint32_t)(value * mult);
+  return true;
 }
 
 bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, char* reply) {
@@ -180,20 +196,38 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     return true;
   }
   if (memcmp(command, "gps period ", 11) == 0) {
-    char* end;
-    unsigned long period = strtoul(command + 11, &end, 10);
-    unsigned long mult = 1;
-    if (*end == 'm') mult = 60;
-    else if (*end == 'h') mult = 3600;
-    else if (*end == 'd') mult = 86400;
-    if (mult > 1 || *end == 's') end++;   // skip the suffix char
-
-    if (command[11] == '\0' || *end != '\0') {
+    uint32_t period;
+    if (!parseDuration(command + 11, period)) {
       strcpy(reply, "Error, invalid gps period");
-    } else if (!setGpsPeriod(sensors, (uint32_t)(period * mult)) ||
+    } else if (!setGpsPeriod(sensors, period) ||
                !setGpsEnabled(sensors, true)) {
       strcpy(reply, "Error, gps provider not found");
     } else {
+      strcpy(reply, "OK");
+    }
+    return true;
+  }
+  if (strcmp(command, "gps firstfix") == 0) {
+    LocationProvider* location = sensors.getLocationProvider();
+    if (location == nullptr) {
+      strcpy(reply, "Error, gps provider not found");
+    } else if (location->getFirstFixTimeout() == 0) {
+      strcpy(reply, "> 0 (no limit)");
+    } else {
+      sprintf(reply, "> %lu", (unsigned long)location->getFirstFixTimeout());
+    }
+    return true;
+  }
+  if (memcmp(command, "gps firstfix ", 13) == 0) {
+    LocationProvider* location = sensors.getLocationProvider();
+    uint32_t seconds;
+    if (location == nullptr) {
+      strcpy(reply, "Error, gps provider not found");
+    } else if (!parseDuration(command + 13, seconds) || seconds > 86400UL) {  // at most a day
+      strcpy(reply, "Error, invalid first fix timeout");
+    } else {
+      location->setFirstFixTimeout(seconds);
+      setFirstFixTimeout(seconds);  // saved by the caller (isDirty)
       strcpy(reply, "OK");
     }
     return true;
