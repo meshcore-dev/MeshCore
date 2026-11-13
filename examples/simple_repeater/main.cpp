@@ -2,6 +2,9 @@
 #include <Mesh.h>
 
 #include "MyMesh.h"
+#if defined(ESP32)
+  #include <helpers/esp32/SPIFFSMount.h>
+#endif
 
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
@@ -73,7 +76,7 @@ void setup() {
   fs = &InternalFS;
   IdentityStore store(InternalFS, "");
 #elif defined(ESP32)
-  SPIFFS.begin(true);
+  mountSPIFFS();
   fs = &SPIFFS;
   IdentityStore store(SPIFFS, "/identity");
 #elif defined(RP2040_PLATFORM)
