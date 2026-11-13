@@ -299,7 +299,7 @@ void setup() {
     MDNS.addServiceTxt("meshcore", "tcp", "firmware-version", FIRMWARE_VERSION);
     char protocol[12];
     snprintf(protocol, sizeof(protocol), "%d", (int)FIRMWARE_VER_CODE);
-    MDNS.addServiceTxt("meshcore", "tcp", "protocol-version", protocol);
+    MDNS.addServiceTxt("meshcore", "tcp", "protocol-version", (const char*)protocol);
     MDNS.addServiceTxt("meshcore", "tcp", "build-date", __DATE__);
     MDNS.addServiceTxt("meshcore", "tcp", "build-time", __TIME__);
   }

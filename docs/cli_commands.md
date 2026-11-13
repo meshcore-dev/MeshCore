@@ -1026,7 +1026,21 @@ region save
 **Parameters:**
 - `value`: `0` for continuous tracking, or a period. The value can be postfixed with `s`, `m`, `h` or `d` to specify the unit (seconds by default).
 
-**Note:** A periodic acquisition stops after receiving a valid fix, then resumes after the configured period. If the receiver reports the fix mode (GSA) and the fix is 2D, the GPS stays on up to the acquisition timeout to get a 3D fix; a 2D fix is used as the position, but does not replace a 3D fix younger than 5 minutes (`GPS_3D_FIX_PREFERRED_MS`).
+**Note:** A periodic acquisition stops after receiving a valid fix, then resumes after the configured period. Without a fix it stops after 5 minutes (`GPS_PERIODIC_ACQUISITION_TIMEOUT_MS`), or, until the first fix since boot, after the first fix timeout (see `gps firstfix`).
+
+---
+
+#### View or change the first fix timeout
+**Usage:**
+- `gps firstfix`
+- `gps firstfix <value>`
+
+**Parameters:**
+- `value`: `0` for no limit, or a duration up to `1d`. The value can be postfixed with `s`, `m`, `h` or `d` to specify the unit (seconds by default).
+
+**Default:** `1h` (`GPS_FIRST_FIX_TIMEOUT_MS`)
+
+**Note:** In periodic mode, limits an acquisition until the first valid fix since boot. A cold start can take much longer than the usual 5 minutes with a weak sky view; after the limit the GPS sleeps for the period and tries again. Saved with the other GPS settings.
 
 ---
 
