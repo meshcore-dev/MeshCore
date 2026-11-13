@@ -187,8 +187,15 @@ void loop() {
     if (userBtnDownAt == 0) {
       userBtnDownAt = millis();
     } else if ((unsigned long)(millis() - userBtnDownAt) >= USER_BTN_HOLD_OFF_MILLIS) {
-      Serial.println("Powering off...");
-      board.powerOff();  // does not return
+      static bool notified = false;
+      if (!notified) {
+        Serial.println("Powering off...");
+        notified = true;
+      }
+      if (!the_mesh.hasPendingShutdownWork()) {
+        the_mesh.flushPending();
+        board.powerOff();  // does not return
+      }
     }
   } else {
     userBtnDownAt = 0;
@@ -199,6 +206,10 @@ void loop() {
   sensors.loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
+  if (ui_task.wantsPowerOff() && !the_mesh.hasPendingShutdownWork()) {
+    the_mesh.flushPending();
+    board.powerOff();  // does not return
+  }
 #endif
   rtc_clock.tick();
 

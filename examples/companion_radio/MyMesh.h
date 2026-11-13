@@ -201,6 +201,14 @@ public:
     _prefs.clearDirty();
   }
 
+  void onBeforeShutdown() {
+    if (dirty_contacts_expiry) {
+      saveContacts();
+      dirty_contacts_expiry = 0;
+    }
+    savePrefs();
+  }
+
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
     if (_prefs.gps_interval > 0 &&

@@ -368,6 +368,15 @@ void loop() {
 #endif
   }
 
+#ifdef DISPLAY_CLASS
+  if (ui_task.wantsShutdown() && !the_mesh.hasPendingWork()) {
+    display.turnOff();
+    the_mesh.onBeforeShutdown();
+    radio_driver.powerOff();
+    board.powerOff();
+  }
+#endif
+
 #ifdef ENABLE_WIFI_INTERFACE
   if (wifi_enabled) {
     // RP2040 has no WiFi event callbacks, so poll the link state instead

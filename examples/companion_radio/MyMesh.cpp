@@ -2107,11 +2107,13 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
 
   if (strcmp(command, "reboot") == 0) {
+    onBeforeShutdown();
     board.reboot(); // doesn't return
     return true;
   }
 
   if (strcmp(command, "poweroff") == 0 || strcmp(command, "shutdown") == 0) {
+    onBeforeShutdown();
     board.powerOff(); // doesn't return
     return true;
   }
