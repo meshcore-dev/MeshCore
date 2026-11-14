@@ -1092,7 +1092,7 @@ region save
 ---
 
 #### GPS anti-spoofing guard (When built with `GPS_GUARD`)
-With `GPS_GUARD`, a fix becomes the node's last fix (position, telemetry, adverts) only after it passes plausibility checks: at least `GPS_GUARD_MIN_SATS` satellites, HDOP ≤ `GPS_GUARD_MAX_HDOP10`/10, inside the optional build-time region (`GPS_GUARD_LAT_MIN/MAX`, `GPS_GUARD_LON_MIN/MAX`), within the fence around the node's configured `lat`/`lon` (if set), no jump faster than `GPS_GUARD_MAX_SPEED_KMH`, and `GPS_GUARD_STABLE_FIXES` consistent fixes in a row. An unverified position is never reported.
+With `GPS_GUARD`, a fix becomes the node's last fix (position, telemetry, adverts) only after it passes plausibility checks: a position on Earth (latitude within ±90°, longitude within ±180°), at least `GPS_GUARD_MIN_SATS` satellites, HDOP ≤ `GPS_GUARD_MAX_HDOP10`/10, inside the optional build-time region (`GPS_GUARD_LAT_MIN/MAX`, `GPS_GUARD_LON_MIN/MAX`), within the fence around the node's configured `lat`/`lon` (if set), no jump faster than `GPS_GUARD_MAX_SPEED_KMH`, and `GPS_GUARD_STABLE_FIXES` consistent fixes in a row. An unverified position is never reported.
 
 GPS time is written to the clock only while such a fix is current, never earlier than the firmware build date, and, once the clock holds a plausible time (from the build date to 10 years after it), only within `GPS_GUARD_TIME_MAX_STEP` seconds for the first sync and within clock drift (`GPS_GUARD_TIME_DRIFT_BASE` s + `GPS_GUARD_TIME_DRIFT_PPM`) afterwards. Setting the clock manually (`time`, `clock sync`) resets that anchor. A clock outside that window (e.g. a bogus date in 2080) is corrected by the first trusted fix.
 

@@ -144,7 +144,9 @@ public:
 
     const char* why = NULL;
     double dist = 0;
-    if (sats < GPS_GUARD_MIN_SATS) {
+    if (lat_e6 < -90000000L || lat_e6 > 90000000L || lon_e6 < -180000000L || lon_e6 > 180000000L) {
+      why = "coord";   // not a position on Earth (e.g. a garbled sentence that still passes its checksum)
+    } else if (sats < GPS_GUARD_MIN_SATS) {
       why = "sats";
     } else if (hdop10 == 255 || hdop10 > GPS_GUARD_MAX_HDOP10) {
       why = "hdop";
