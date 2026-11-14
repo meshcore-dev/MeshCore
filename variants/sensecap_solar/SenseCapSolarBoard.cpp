@@ -8,7 +8,9 @@
 const PowerMgtConfig power_config = {
   .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
   .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
-  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
+  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK,
+  .voltage_runtime = PWRMGT_VOLTAGE_BOOTLOCK - 200,
+  .wdt_timeout_ms = 60000
 };
 
 void SenseCapSolarBoard::initiateShutdown(uint8_t reason) {
@@ -125,7 +127,7 @@ void SenseCapSolarBoard::updateWhiteStatusLed() {
 }
 
 void SenseCapSolarBoard::loop() {
-  mesh::MainBoard::loop();   // keep base housekeeping (watchdog etc.) if it ever gains any
+  NRF52Board::loop();   // keep base housekeeping (watchdog etc.) if it ever gains any
   updateWhiteStatusLed();
 }
 
