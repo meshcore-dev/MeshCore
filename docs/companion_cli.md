@@ -415,14 +415,13 @@ Radio parameters are common to all roles and handled by `CommonRadioPrefs`.
 
 #### Change BLE name
 **Usage:**
-- `get ble_name`
-- `set ble_name <name>`
-- `set ble_name_default`
+- `get ble.name`
+- `set ble.name <name>`
 
 **Parameters:**
 - `name`: New BLE name
 
-**Note:** By default the node name will be used as the BLE name. These commands require a reboot to take effect.
+**Note:** By default the node name will be used as the BLE name. If `<name>` is empty the BLE name will be reset to the aforementioned default. These commands require a reboot to take effect.
 
 ---
 
