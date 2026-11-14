@@ -26,7 +26,7 @@
 #define ADC_MULTIPLIER                  1.537
 #define ADC_RESOLUTION                  14
 #define PIN_BATTERY_CHARGING              (32+2)  // P1.02 STAT2
-#define PIN_CHARGER_FAULT                 (27)   // P0.27 STAT1 this pin is disabled on meshtastic.
+#define PIN_CHARGER_FAULT                 (27)   // P0.27 STAT1, open-drain: requires INPUT_PULLUP.
 // BQ25185 has 2 status pins: STAT1 and STAT2. Both are high when not charging. STAT1 high, STAT2 low: charging. Recoverable fault: STAT1 low, STAT2 high. Unrecoverable fault: both low.
 // We only need to detect charging vs not charging, but someone else can use the fault pin to log when the battery gets too hot or cold.
 
