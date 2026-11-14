@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #endif
 #include <Mesh.h>
+#include <helpers/UTF8Helpers.h>
 
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
@@ -458,10 +459,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
     memcpy(&out_frame[i], extra, extra_len);
     i += extra_len;
   }
-  int tlen = strlen(text); // TODO: UTF-8 ??
-  if (i + tlen > MAX_FRAME_SIZE) {
-    tlen = MAX_FRAME_SIZE - i;
-  }
+  int tlen = mesh::utf8TruncatedLength(text, strlen(text), MAX_FRAME_SIZE - i);
   memcpy(&out_frame[i], text, tlen);
   i += tlen;
   addToOfflineQueue(out_frame, i);
@@ -574,10 +572,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   out_frame[i++] = TXT_TYPE_PLAIN;
   memcpy(&out_frame[i], &timestamp, 4);
   i += 4;
-  int tlen = strlen(text); // TODO: UTF-8 ??
-  if (i + tlen > MAX_FRAME_SIZE) {
-    tlen = MAX_FRAME_SIZE - i;
-  }
+  int tlen = mesh::utf8TruncatedLength(text, strlen(text), MAX_FRAME_SIZE - i);
   memcpy(&out_frame[i], text, tlen);
   i += tlen;
   addToOfflineQueue(out_frame, i);
