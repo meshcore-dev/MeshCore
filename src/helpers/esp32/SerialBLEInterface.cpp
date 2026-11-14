@@ -1,5 +1,6 @@
 #include "SerialBLEInterface.h"
 #include "esp_mac.h"
+#include "esp_bt.h"
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
@@ -22,6 +23,14 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   }
   char dev_name[32+16];
   sprintf(dev_name, "%s%s", prefix, name);
+
+  // Drop the classic-BT pool before the controller starts. On ESP32-S3 with no
+  // PSRAM that pool is what leaves Wi-Fi unable to allocate its buffers.
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+  if (ESP.getPsramSize() == 0) {
+    esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
+  }
+#endif
 
   // Create the BLE Device
   BLEDevice::init(dev_name);
