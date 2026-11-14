@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "DataStore.h"
+#include <helpers/AtomicFile.h>
 
 #if defined(EXTRAFS) || defined(QSPIFLASH)
   #define MAX_BLOBRECS 100
@@ -31,15 +32,10 @@ DataStore::DataStore(FILESYSTEM& fs, FILESYSTEM& fsExtra, mesh::RTCClock& clock)
 }
 #endif
 
+// Plain remove-and-rewrite, for the copy/migration code, the in-place adv_blobs
+// file and the ESP blob files. Config files go through AtomicFile::write().
 static File openWrite(FILESYSTEM* fs, const char* filename) {
-#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  fs->remove(filename);
-  return fs->open(filename, FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
-  return fs->open(filename, "w");
-#else
-  return fs->open(filename, "w", true);
-#endif
+  return AtomicFile::openPlain(fs, filename);
 }
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -190,6 +186,7 @@ bool DataStore::saveMainIdentity(const mesh::LocalIdentity &identity) {
 }
 
 void DataStore::loadPrefs(NodePrefs& prefs) {
+  AtomicFile::cleanup(_fs, "/prefs.json");
   if (_fs->exists("/prefs.json")) {
     File file = openRead(_fs, "/prefs.json");
     if (file) {
@@ -247,16 +244,13 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs) {
 }
 
 bool DataStore::savePrefs(NodePrefs& _prefs) {
-  File file = openWrite(_fs, "/prefs.json");
-  if (file) {
-    bool success = _prefs.saveSerial(file);
-    file.close();
-    return success;
-  }
-  return false;
+  return AtomicFile::write(_fs, "/prefs.json", [&](File& file) {
+    return _prefs.saveSerial(file);
+  });
 }
 
 void DataStore::loadContacts(DataStoreHost* host) {
+AtomicFile::cleanup(_getContactsChannelsFS(), "/contacts3");
 File file = openRead(_getContactsChannelsFS(), "/contacts3");
     if (file) {
       bool full = false;
@@ -288,8 +282,7 @@ File file = openRead(_getContactsChannelsFS(), "/contacts3");
 }
 
 void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactInfo& c)) {
-  File file = openWrite(_getContactsChannelsFS(), "/contacts3");
-  if (file) {
+  AtomicFile::write(_getContactsChannelsFS(), "/contacts3", [&](File& file) {
     uint32_t idx = 0;
     ContactInfo c;
     uint8_t unused = 0;
@@ -312,15 +305,16 @@ void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactIn
       success = success && (file.write((uint8_t *)&c.gps_lat, 4) == 4);
       success = success && (file.write((uint8_t *)&c.gps_lon, 4) == 4);
 
-      if (!success) break; // write failed
+      if (!success) return false; // write failed
 
       idx++;  // advance to next contact
     }
-    file.close();
-  }
+    return true;
+  });
 }
 
 void DataStore::loadChannels(DataStoreHost* host) {
+    AtomicFile::cleanup(_getContactsChannelsFS(), "/channels2");
     File file = openRead(_getContactsChannelsFS(), "/channels2");
     if (file) {
       bool full = false;
@@ -346,8 +340,7 @@ void DataStore::loadChannels(DataStoreHost* host) {
 }
 
 void DataStore::saveChannels(DataStoreHost* host) {
-  File file = openWrite(_getContactsChannelsFS(), "/channels2");
-  if (file) {
+  AtomicFile::write(_getContactsChannelsFS(), "/channels2", [&](File& file) {
     uint8_t channel_idx = 0;
     ChannelDetails ch;
     uint8_t unused[4];
@@ -358,11 +351,11 @@ void DataStore::saveChannels(DataStoreHost* host) {
       success = success && (file.write((uint8_t *)ch.name, 32) == 32);
       success = success && (file.write((uint8_t *)ch.channel.secret, 32) == 32);
 
-      if (!success) break; // write failed
+      if (!success) return false; // write failed
       channel_idx++;
     }
-    file.close();
-  }
+    return true;
+  });
 }
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)

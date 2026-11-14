@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "CommonCLI.h"
+#include "AtomicFile.h"
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
@@ -28,6 +29,7 @@ static bool isValidName(const char *n) {
 }
 
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
+  AtomicFile::cleanup(fs, "/prefs.json");
   if (fs->exists("/prefs.json")) {
 #if defined(RP2040_PLATFORM)
     File file = fs->open("/prefs.json", "r");
@@ -141,20 +143,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
 }
 
 bool CommonCLI::savePrefs(FILESYSTEM* fs) {
-#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  fs->remove("/prefs.json");
-  File file = fs->open("/prefs.json", FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
-  File file = fs->open("/prefs.json", "w");
-#else
-  File file = fs->open("/prefs.json", "w", true);
-#endif
-  if (file) {
-    bool success = _prefs->saveSerial(file);
-    file.close();
-    return success;
-  }
-  return false;
+  return AtomicFile::write(fs, "/prefs.json", [&](File& file) {
+    return _prefs->saveSerial(file);
+  });
 }
 
 #define MIN_LOCAL_ADVERT_INTERVAL   60
