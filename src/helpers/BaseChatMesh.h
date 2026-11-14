@@ -38,7 +38,9 @@ public:
   #define MAX_CONTACTS  32
 #endif
 
-#define MAX_ANON_CONTACTS  8
+#ifndef MAX_ANON_CONTACTS
+  #define MAX_ANON_CONTACTS  8
+#endif
 
 #ifndef MAX_CONNECTIONS
   #define MAX_CONNECTIONS  16

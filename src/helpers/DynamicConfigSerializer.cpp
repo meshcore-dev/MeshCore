@@ -1,3 +1,4 @@
+#ifndef CONFIG_SERIALIZER_NOOP
 #include "DynamicConfigSerializer.h"
 #include <Utils.h>
 
@@ -95,3 +96,4 @@ void DynamicConfigSerializer::structure() {
     setByKeyPrv(_context->getKey(getDepth()), _context->getToken());
   }
 }
+#endif  // CONFIG_SERIALIZER_NOOP
