@@ -4,7 +4,7 @@
 #include <Mesh.h>
 
 /*------------ Frame Protocol --------------*/
-#define FIRMWARE_VER_CODE 14
+#define FIRMWARE_VER_CODE 15
 
 #ifndef FIRMWARE_BUILD_DATE
 #define FIRMWARE_BUILD_DATE "15 Oct 2026"
@@ -139,6 +139,8 @@ protected:
   uint8_t getExtraAckTransmitCount() const override;
   bool filterRecvFloodPacket(mesh::Packet* packet) override;
   bool allowPacketForward(const mesh::Packet* packet) override;
+
+  mesh::Packet* obtainPacketFor(ContactInfo& contact) override;
 
   void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis);
   void sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis=0) override;

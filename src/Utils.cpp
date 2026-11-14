@@ -1,6 +1,7 @@
 #include "Utils.h"
 #include <AES.h>
 #include <SHA256.h>
+#include <HKDF.h>
 
 #ifdef USE_CC310_HW_CRYPTO
 #include <Adafruit_nRFCrypto.h>
@@ -170,6 +171,75 @@ int Utils::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uin
 #endif
   if (memcmp(hmac, src, CIPHER_MAC_SIZE) == 0) {
     return decrypt(shared_secret, dest, src + CIPHER_MAC_SIZE, enc_len);
+  }
+  return 0; // invalid HMAC
+}
+
+struct CompositeKey {
+  uint8_t cipher_key[CIPHER_KEY_SIZE];
+  uint8_t hmac_key[PUB_KEY_SIZE];
+};
+
+// Derive a key with HKDF-SHA256
+static void derive_key(CompositeKey& out, const uint8_t* key, size_t key_len, const uint8_t* iv, size_t iv_len) {
+  hkdf<SHA256>(&out, sizeof(out),
+               key, key_len,        // IKM
+               nullptr, 0,          // salt
+               iv, iv_len);         // info
+}
+
+int Utils::encryptThenMAC(const uint8_t* shared_secret, const uint8_t* iv, int iv_len, uint8_t* dest, const uint8_t* src, int src_len) {
+  CompositeKey derived;
+  derive_key(derived, shared_secret, PUB_KEY_SIZE, iv, iv_len);
+
+  int enc_len = encrypt(derived.cipher_key, dest + NEW_CIPHER_MAC_SIZE, src, src_len);
+
+#ifdef USE_CC310_HW_CRYPTO
+  static CRYS_HMACUserContext_t hmac_ctx;
+  static CRYS_HASH_Result_t hmac_result;
+  CRYS_HMAC_Init(&hmac_ctx, CRYS_HASH_SHA256_mode, (uint8_t*)derived.hmac_key, PUB_KEY_SIZE);
+  CRYS_HMAC_Update(&hmac_ctx, dest + NEW_CIPHER_MAC_SIZE, enc_len);
+  CRYS_HMAC_Finish(&hmac_ctx, hmac_result);
+  memcpy(dest, hmac_result, NEW_CIPHER_MAC_SIZE);
+#else
+  SHA256 sha;
+  sha.resetHMAC(derived.hmac_key, PUB_KEY_SIZE);
+  sha.update(dest + NEW_CIPHER_MAC_SIZE, enc_len);
+  sha.finalizeHMAC(derived.hmac_key, PUB_KEY_SIZE, dest, NEW_CIPHER_MAC_SIZE);
+#endif
+
+  return NEW_CIPHER_MAC_SIZE + enc_len;
+}
+
+int Utils::MACThenDecrypt(const uint8_t* shared_secret, const uint8_t* iv, int iv_len, uint8_t* dest, const uint8_t* src, int src_len) {
+  CompositeKey derived;
+  derive_key(derived, shared_secret, PUB_KEY_SIZE, iv, iv_len);
+
+  if (src_len <= NEW_CIPHER_MAC_SIZE) return 0;  // invalid src bytes
+
+  int enc_len = src_len - NEW_CIPHER_MAC_SIZE;
+  if (enc_len % CIPHER_BLOCK_SIZE != 0) return 0;  // reject non-block-aligned ciphertext
+
+  uint8_t hmac[NEW_CIPHER_MAC_SIZE];
+#ifdef USE_CC310_HW_CRYPTO
+  {
+    static CRYS_HMACUserContext_t hmac_ctx;
+    static CRYS_HASH_Result_t hmac_result;
+    CRYS_HMAC_Init(&hmac_ctx, CRYS_HASH_SHA256_mode, (uint8_t*)derived.hmac_key, PUB_KEY_SIZE);
+    CRYS_HMAC_Update(&hmac_ctx, (uint8_t*)(src + NEW_CIPHER_MAC_SIZE), src_len - NEW_CIPHER_MAC_SIZE);
+    CRYS_HMAC_Finish(&hmac_ctx, hmac_result);
+    memcpy(hmac, hmac_result, NEW_CIPHER_MAC_SIZE);
+  }
+#else
+  {
+    SHA256 sha;
+    sha.resetHMAC(derived.hmac_key, PUB_KEY_SIZE);
+    sha.update(src + NEW_CIPHER_MAC_SIZE, enc_len);
+    sha.finalizeHMAC(derived.hmac_key, PUB_KEY_SIZE, hmac, NEW_CIPHER_MAC_SIZE);
+  }
+#endif
+  if (memcmp(hmac, src, NEW_CIPHER_MAC_SIZE) == 0) {
+    return decrypt(derived.cipher_key, dest, src + NEW_CIPHER_MAC_SIZE, enc_len);
   }
   return 0; // invalid HMAC
 }
