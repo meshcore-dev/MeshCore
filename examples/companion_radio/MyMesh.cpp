@@ -2157,7 +2157,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   if (strcmp(command, "set ble.name") == 0) {
     _prefs.ble_name[0] = 0;
     savePrefs();
-    sprintf(reply, "> BLE name reset to %s (reboot to apply)", _prefs.node_name);
+    sprintf(reply, "> BLE name reset to %s%s (reboot to apply)", BLE_NAME_PREFIX, _prefs.node_name);
     return true;
   }
   if (memcmp(command, "set ble.name ", 13) == 0) {
@@ -2171,7 +2171,11 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
   if (strcmp(command, "get ble.name") == 0) {
-    sprintf(reply, "> %s", _prefs.ble_name[0] ? _prefs.ble_name : _prefs.node_name);
+    if (_prefs.ble_name[0]) {
+      sprintf(reply, "> %s", _prefs.ble_name);
+    } else {
+      sprintf(reply, "> %s%s", BLE_NAME_PREFIX, _prefs.node_name);
+    }
     return true;
   }
 
