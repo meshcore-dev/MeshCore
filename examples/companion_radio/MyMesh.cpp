@@ -1001,6 +1001,9 @@ void MyMesh::begin() {
   resetContacts();
   _store->loadContacts(this);
   bootstrapRTCfromContacts();
+
+  _store->cleanOrphanBlobs(this);
+
   addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure public channel
   _store->loadChannels(this);
 
