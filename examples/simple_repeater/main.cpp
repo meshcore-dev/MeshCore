@@ -19,6 +19,8 @@ SimpleMeshTables tables;
 MyMesh the_mesh(board, radio_driver, *new ArduinoMillis(), fast_rng, rtc_clock, tables);
 
 void halt() {
+  delay(5000);
+  board.reboot();
   while (1) ;
 }
 
@@ -205,6 +207,26 @@ void loop() {
 #ifdef HAS_EXTERNAL_WATCHDOG
   external_watchdog.loop();
 #endif
+
+  uint16_t reboot_hours = the_mesh.getNodePrefs()->auto_reboot_hours;
+  if (reboot_hours > 0) {
+    unsigned long reboot_interval_ms = (unsigned long)reboot_hours * 3600000UL;
+  #if defined(ESP_PLATFORM)
+    bool ota_active = board.isSleepInhibited();
+  #else
+    bool ota_active = false;
+  #endif
+    if (!ota_active && millis() >= reboot_interval_ms) {
+      if (!the_mesh.hasPendingWork() || millis() >= (reboot_interval_ms + 10000UL)) {
+        if (the_mesh.getNodePrefs()->isDirty()) {
+          the_mesh.savePrefs();
+        }
+        Serial.println("Scheduled auto_reboot: cycling peripheral power and restarting...");
+        board.reboot();
+      }
+    }
+  }
+
   if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
 #if defined(NRF52_PLATFORM)
     board.sleep(0); // nrf ignores seconds param, sleeps whenever possible

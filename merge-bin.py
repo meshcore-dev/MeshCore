@@ -4,7 +4,7 @@
 
 import os
 
-Import("env", "projenv")
+Import("env")
 
 board_config = env.BoardConfig()
 firmware_bin = "${BUILD_DIR}/${PROGNAME}.bin"
@@ -13,9 +13,12 @@ merged_bin = os.environ.get("MERGED_BIN_PATH", "${BUILD_DIR}/${PROGNAME}-merged.
 
 def merge_bin_action(source, target, env):
     flash_images = [
-        *env.Flatten(env.get("FLASH_EXTRA_IMAGES", [])),
-        "$ESP32_APP_OFFSET",
-        source[0].get_abspath(),
+        f'"{env.subst(str(x))}"' if " " in env.subst(str(x)) else env.subst(str(x))
+        for x in [
+            *env.Flatten(env.get("FLASH_EXTRA_IMAGES", [])),
+            "$ESP32_APP_OFFSET",
+            source[0].get_abspath(),
+        ]
     ]
     merge_cmd = " ".join(
         [
@@ -25,7 +28,7 @@ def merge_bin_action(source, target, env):
             board_config.get("build.mcu", "esp32"),
             "merge_bin",
             "-o",
-            merged_bin,
+            f'"{env.subst(merged_bin)}"',
             "--flash_mode",
             board_config.get("build.flash_mode", "dio"),
             "--flash_freq",
