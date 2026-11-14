@@ -144,11 +144,14 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
   return 13;  // reply length
 }
 
-uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
+uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data,
+                                     size_t data_len) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
+    if (data == nullptr || data_len == 0 || !mesh::Packet::isValidPathLen(data[0])) return 0;
+    const size_t path_byte_len = (data[0] & 63) * ((data[0] >> 6) + 1);
+    if (path_byte_len > data_len - 1) return 0;
     reply_path_len = *data++;
-    if (!mesh::Packet::isValidPathLen(reply_path_len)) return 0;  // reject - bad encoding
 
     mesh::Packet::writePath(reply_path, data, reply_path_len);
     // data += (uint8_t)reply_path_len * reply_path_hash_size;
@@ -162,11 +165,14 @@ uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t send
   return 0;
 }
 
-uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
+uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data,
+                                   size_t data_len) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
+    if (data == nullptr || data_len == 0 || !mesh::Packet::isValidPathLen(data[0])) return 0;
+    const size_t path_byte_len = (data[0] & 63) * ((data[0] >> 6) + 1);
+    if (path_byte_len > data_len - 1) return 0;
     reply_path_len = *data++;
-    if (!mesh::Packet::isValidPathLen(reply_path_len)) return 0;  // reject - bad encoding
 
     mesh::Packet::writePath(reply_path, data, reply_path_len);
     // data += (uint8_t)reply_path_len * reply_path_hash_size;
@@ -181,11 +187,14 @@ uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender
   return 0;
 }
 
-uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
+uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data,
+                                   size_t data_len) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
+    if (data == nullptr || data_len == 0 || !mesh::Packet::isValidPathLen(data[0])) return 0;
+    const size_t path_byte_len = (data[0] & 63) * ((data[0] >> 6) + 1);
+    if (path_byte_len > data_len - 1) return 0;
     reply_path_len = *data++;
-    if (!mesh::Packet::isValidPathLen(reply_path_len)) return 0;  // reject - bad encoding
 
     mesh::Packet::writePath(reply_path, data, reply_path_len);
     // data += (uint8_t)reply_path_len * reply_path_hash_size;
@@ -491,8 +500,9 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
                pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
                (int)_radio->getLastSNR(), (int)_radio->getLastRSSI(), (int)(score * 1000));
 
-      if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
-          pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
+      if (pkt->payload_len >= 2 &&
+          (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
+           pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG)) {
         f.printf(" [%02X -> %02X]\n", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
       } else {
         f.printf("\n");
@@ -516,8 +526,9 @@ void MyMesh::logTx(mesh::Packet *pkt, int len) {
       f.printf(": TX, len=%d (type=%d, route=%s, payload_len=%d)", len, pkt->getPayloadType(),
                pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
 
-      if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
-          pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
+      if (pkt->payload_len >= 2 &&
+          (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
+           pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG)) {
         f.printf(" [%02X -> %02X]\n", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
       } else {
         f.printf("\n");
@@ -572,6 +583,8 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
                             uint8_t *data, size_t len) {
   if (packet->getPayloadType() == PAYLOAD_TYPE_ANON_REQ) { // received an initial request by a possible admin
                                                            // client (unknown at this stage)
+    if (len < 5 || len >= MAX_PACKET_PAYLOAD) return;
+
     uint32_t timestamp;
     memcpy(&timestamp, data, 4);
 
@@ -582,11 +595,11 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     if (data[4] == 0 || data[4] >= ' ') {   // is password, ie. a login request
       reply_len = handleLoginReq(sender, secret, timestamp, &data[4], packet->isRouteFlood());
     } else if (data[4] == ANON_REQ_TYPE_REGIONS && packet->isRouteDirect()) {
-      reply_len = handleAnonRegionsReq(sender, timestamp, &data[5]);
+      reply_len = handleAnonRegionsReq(sender, timestamp, &data[5], len - 5);
     } else if (data[4] == ANON_REQ_TYPE_OWNER && packet->isRouteDirect()) {
-      reply_len = handleAnonOwnerReq(sender, timestamp, &data[5]);
+      reply_len = handleAnonOwnerReq(sender, timestamp, &data[5], len - 5);
     } else if (data[4] == ANON_REQ_TYPE_BASIC && packet->isRouteDirect()) {
-      reply_len = handleAnonClockReq(sender, timestamp, &data[5]);
+      reply_len = handleAnonClockReq(sender, timestamp, &data[5], len - 5);
     } else {
       reply_len = 0;  // unknown/invalid request type
     }
