@@ -41,7 +41,7 @@ Shutdown reason codes (stored in GPREGRET2):
 | RAK4631 (`rak4631`)                       | Yes         | Yes         | Yes       |
 | Heltec T114 (`heltec_t114`)               | Yes         | Yes         | Yes       |
 | GAT562 Mesh Watch13                       | Yes         | Yes         | Yes       |
-| Promicro nRF52840                         | No          | No          | No        |
+| Promicro nRF52840                         | Yes         | Yes         | Yes       |
 | RAK WisMesh Tag                           | No          | No          | No        |
 | Heltec Mesh Solar                         | No          | No          | No        |
 | LilyGo T-Echo / T-Echo Lite               | No          | No          | No        |
@@ -57,7 +57,20 @@ Shutdown reason codes (stored in GPREGRET2):
 | Minewsemi ME25LS01                        | No          | No          | No        |
 
 Notes:
-- "Implemented" reflects Phase 1 (boot lockout + shutdown reason capture).
+- Promicro also checks battery voltage every 5 seconds while running. Three
+  consecutive readings below 3100 mV trigger peripheral shutdown and SYSTEMOFF
+  with LPCOMP recovery enabled. USB power bypasses this runtime check.
+- On Promicro, `PWRMGT_VOLTAGE_BOOTLOCK` and `PWRMGT_VOLTAGE_SHUTDOWN` are ADC
+  thresholds, not the LPCOMP wake threshold. The retained empirical setting
+  `PWRMGT_LPCOMP_REFSEL=4` selects 5/8 VDD; measure VDD and the battery divider
+  to determine the actual recovery voltage. SYSTEMOFF does not disconnect the
+  battery from the board's other loads.
+- Promicro releases radio SPI, reset, RF-switch and status pins to inputs
+  without pulls before disabling external VCC, to avoid feeding the unpowered
+  module through GPIO signals. Runtime shutdown also stops SPI first; boot
+  lockout skips SPI uninitialization because SPI has not been started yet.
+- "Implemented" reflects Phase 1 (boot lockout + shutdown reason capture),
+  with the additional runtime cutoff described above for Promicro.
 - User power-off on Heltec T114 does not enable LPCOMP wake.
 - VBUS detection is used to skip boot lockout on external power, and VBUS wake is configured alongside LPCOMP when supported hardware exposes VBUS to the nRF52.
 
@@ -138,7 +151,7 @@ The LPCOMP (Low Power Comparator) is configured to:
 - Monitor the specified AIN channel (0-7 corresponding to P0.02-P0.05, P0.28-P0.31)
 - Compare against VDD fraction reference (REFSEL: 0-6=1/8..7/8, 7=ARef, 8-15=1/16..15/16)
 - Detect UP events (voltage rising above threshold)
-- Use 50mV hysteresis for noise immunity
+- Use no comparator hysteresis (as of firmware 1.18)
 - Wake the device from SYSTEMOFF when triggered
 
 VBUS wake is enabled via the POWER peripheral USBDETECTED event whenever `configureVoltageWake()` is used. This requires USB VBUS to be routed to the nRF52 (typical on nRF52840 boards with native USB).
@@ -199,6 +212,90 @@ does not override them reports `Not available` rather than an error. ESP32
 boards override the reset half with `esp_reset_reason()`, so they return a real
 reset reason and `Not available` for the shutdown reason.
 
+## Promicro / Faketec hardware and configuration
+
+The standard Promicro environments use the bench-tested battery divider below.
+Replace both original `1002` (10 kOhm) resistors before using this configuration:
+
+```text
+BAT+ --- 160 kOhm ---+--- P0.31 / AIN7 (Arduino pin 17)
+                    |
+                  240 kOhm
+                    |
+                   GND
+```
+
+Confirm which resistor connects to BAT+ and which connects to GND before
+replacement. This is a hardware-specific configuration, not a firmware-only
+upgrade for an unchanged 10k/10k board. The divider draws approximately 8.25 uA
+at 3.3 V, versus 165 uA for the original divider. Resistor tolerances and ADC
+errors still require checking the reported voltage against a meter.
+
+| Setting | Default |
+| --- | --- |
+| ADC multiplier | 1.46484375 mV/count = (3600 / 4096) x (160 + 240) / 240 |
+| ADC resolution / acquisition | 12 bits / 40 us |
+| Samples per voltage reading | 8 |
+| Boot lock / runtime shutdown | 3100 mV / 3100 mV |
+| Runtime monitoring | Every 5 s; three consecutive low readings |
+| LPCOMP input / reference | AIN7 / REFSEL=4, 5/8 VDD |
+
+Any saved `adc.multiplier` overrides the compiled default after preferences
+are loaded, while the early boot check uses the compiled default. After the
+hardware/firmware update, run `set adc.multiplier 0` to restore the board default
+and compare the reading with a meter before testing shutdown. Only save a new
+calibration after checking several voltages.
+
+Runtime shutdown first stops peripherals. Before disabling external VCC via
+P0.13, the board stops SPI and releases radio SPI, NSS, RESET, BUSY, DIO1 and
+RXEN pins to inputs without pulls. GPIO state is retained in SYSTEMOFF; leaving
+NSS/RESET driven high was consistent with backfeeding the unpowered radio.
+Boot lockout applies the same pin isolation but skips SPI uninitialization,
+because SPI has not been initialized at that point.
+
+LPCOMP and VBUS recovery are armed for low-voltage and boot-protection shutdowns.
+Manual `powerOff()` remains a user shutdown without LPCOMP recovery. USB power
+bypasses the boot voltage check and runtime low-voltage shutdown.
+
+### Bench validation (2026-11-13)
+
+Results reported on one Promicro/Faketec assembly using a bench supply, with
+battery disconnected. The final divider test used the repeater without debug
+logging and with GPS disabled. Standard environments retain their existing GPS
+configuration; GPS operation and additional peripheral loads were not validated
+by these tests.
+
+| Measurement / test | Observed result |
+| --- | --- |
+| Final 160k/240k divider, REFSEL=4, firmware threshold 3100 mV | Shutdown at 3.08 V actual supply voltage |
+| Recovery with the same configuration | Wake at 3.41 V actual supply voltage |
+| Margin between observed shutdown and recovery | Approximately 330 mV |
+| Battery voltage indication | Approximately 10 mV difference from supply/meter |
+| Radio VCC and RESET after shutdown pin isolation | Fell from approximately 2.56 V to 0.02 V |
+| P0.13 after shutdown pin isolation | 0 V (previously approximately 0.52 V) |
+| Total shutdown current | Supply displayed 0.000 A, below its approximately 1 mA resolution; not a measured zero-current result |
+| Earlier shutdown current before pin isolation | Approximately 7 mA |
+
+Diagnostic logs confirmed `Wake from LPCOMP` (RESETREAS 0x20000), previous
+shutdown `Low Voltage` (0x4C), and successful radio initialization after wake.
+VBUS wake was also reported working during the earlier diagnostic tests. Repeat
+LPCOMP and VBUS tests after flashing the cleaned standard build; no hardware
+validation of that rebuilt artifact is implied by successful compilation.
+
+With the earlier 150k/240k divider, REFSEL=4 recovered at 3.11-3.15 V, leaving
+only 40-60 mV of observed margin. REFSEL=13 (11/16 VDD) raised recovery to
+3.6-3.7 V. The final 160k/240k divider with REFSEL=4 provided the preferred
+observed margin. LPCOMP compares against a fraction of VDD, not an absolute
+battery reference: measure recovery on each hardware revision rather than
+assuming an exact threshold from indirect VDD measurements.
+
+For repeat tests, remove board USB and the UART adapter, lower the supply slowly
+and allow at least 20 s at each step, then raise it slowly without interrupting
+power. Measure actual voltage, current and wake stability under load. When
+checking VBUS wake, ensure USB charging cannot drive reverse current into the
+bench supply. SYSTEMOFF reduces consumption but does not physically disconnect
+the battery or replace hardware battery protection.
+
 ## Debug Output
 
 When `MESH_DEBUG=1` is enabled, the power management module outputs:
@@ -210,7 +307,7 @@ DEBUG: PWRMGT: LPCOMP wake configured (AIN7, ref=3/8 VDD)
 
 ## Phase 2 (Planned)
 
-- Runtime voltage monitoring
+- General runtime voltage monitoring (Promicro already implements the fixed policy above)
 - Voltage state machine (Normal -> Warning -> Critical -> Shutdown)
 - Configurable thresholds
 - Load shedding callbacks for power reduction

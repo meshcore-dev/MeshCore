@@ -192,13 +192,14 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t lpcomp_refsel
   NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Disabled;
 
   // Select analog input (AIN0-7 maps to PSEL 0-7)
-  NRF_LPCOMP->PSEL = ((uint32_t)PWRMGT_LPCOMP_AIN << LPCOMP_PSEL_PSEL_Pos) & LPCOMP_PSEL_PSEL_Msk;
+  NRF_LPCOMP->PSEL = ((uint32_t)ain_channel << LPCOMP_PSEL_PSEL_Pos) & LPCOMP_PSEL_PSEL_Msk;
 
   // Reference: REFSEL (0-6=1/8..7/8, 7=ARef, 8-15=1/16..15/16)
   NRF_LPCOMP->REFSEL = ((uint32_t)lpcomp_refsel << LPCOMP_REFSEL_REFSEL_Pos) & LPCOMP_REFSEL_REFSEL_Msk;
 
   // Detect UP events (voltage rises above threshold for battery recovery)
   NRF_LPCOMP->ANADETECT = LPCOMP_ANADETECT_ANADETECT_Up;
+  NRF_LPCOMP->HYST = LPCOMP_HYST_HYST_NoHyst;
 
   // Clear stale events/interrupts before enabling wake
   NRF_LPCOMP->EVENTS_READY = 0;
@@ -219,12 +220,12 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t lpcomp_refsel
   }
 
   if (lpcomp_refsel == 7) {
-    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake armed (AIN%d, ref=ARef)", PWRMGT_LPCOMP_AIN);
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake armed (AIN%d, ref=ARef)", ain_channel);
   } else if (lpcomp_refsel <= 6) {
-    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake armed (AIN%d, ref=%d/8 VDD)", PWRMGT_LPCOMP_AIN, lpcomp_refsel + 1);
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake armed (AIN%d, ref=%d/8 VDD)", ain_channel, lpcomp_refsel + 1);
   } else {
     uint8_t ref_num = (uint8_t)((lpcomp_refsel - 8) * 2 + 1);
-    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake armed (AIN%d, ref=%d/16 VDD)", PWRMGT_LPCOMP_AIN, ref_num);
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake armed (AIN%d, ref=%d/16 VDD)", ain_channel, ref_num);
   }
 }
 

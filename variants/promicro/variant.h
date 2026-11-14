@@ -25,6 +25,19 @@
 #define BATTERY_PIN          (17)
 #define ADC_RESOLUTION       12
 
+#ifndef PWRMGT_VOLTAGE_BOOTLOCK
+  #define PWRMGT_VOLTAGE_BOOTLOCK 3100   // Won't boot below this voltage (mV)
+#endif
+#ifndef PWRMGT_VOLTAGE_SHUTDOWN
+  #define PWRMGT_VOLTAGE_SHUTDOWN 3100   // Runtime low-battery cutoff (mV)
+#endif
+#define PWRMGT_BATTERY_CHECK_INTERVAL_MS 5000
+#define PWRMGT_LOW_BATTERY_SAMPLES 3
+#define PWRMGT_LPCOMP_AIN          7      // AIN channel for voltage sensing
+#ifndef PWRMGT_LPCOMP_REFSEL
+  #define PWRMGT_LPCOMP_REFSEL 4         // 5/8 VDD; wake depends on VDD and divider
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins
 
