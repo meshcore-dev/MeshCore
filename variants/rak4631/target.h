@@ -9,7 +9,12 @@
 #include <helpers/sensors/EnvironmentSensorManager.h>
 
 #ifdef DISPLAY_CLASS
-  #include <helpers/ui/SSD1306Display.h>
+  #if defined(DISPLAY_CLASS_SH1106)
+    #include <helpers/ui/SH1106Display.h>
+  #else
+    #include <helpers/ui/SSD1306Display.h>
+  #endif
+
   extern DISPLAY_CLASS display;
   #include <helpers/ui/MomentaryButton.h>
   extern MomentaryButton user_btn;
