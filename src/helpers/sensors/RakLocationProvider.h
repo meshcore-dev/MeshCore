@@ -8,6 +8,7 @@ class RakLocationProvider : public LocationProvider {
     RakI2cGpsDriver& _driver;       // RAK12500 (I2C)
     NmeaGpsDriver _nmeaDriver;      // serial NMEA module
     MicroNMEALocationProvider _nmea;
+    mesh::RTCClock* _clock;
     bool _detected = false;
     bool _useI2c = false;
     uint32_t _gpsPeriodSeconds = 0;
@@ -31,7 +32,7 @@ public:
     // serialPower, if given, switches the serial module's supply (WB_IO2 on WisBlock bases).
     RakLocationProvider(RakI2cGpsDriver& driver, mesh::RTCClock* clock = nullptr,
                         UART_TYPE& serial = Serial1, RefCountedDigitalPin* serialPower = nullptr)
-        : _driver(driver), _nmeaDriver(serial, PIN_GPS_TX, PIN_GPS_RX, GPS_RESET, GPS_EN, serialPower),
+        : _driver(driver), _clock(clock), _nmeaDriver(serial, PIN_GPS_TX, PIN_GPS_RX, GPS_RESET, GPS_EN, serialPower),
           _nmea(_nmeaDriver, clock) {}
 
     void syncTime() override {
@@ -177,6 +178,10 @@ public:
                         fixStatsFix((uint32_t)(millis() - _acquisitionStarted));
                     }
                     saveRak12500Fix();
+                    if (_time_sync_needed && _clock != nullptr && _lastFix.timestamp > 0) {
+                        _clock->setCurrentTime(_lastFix.timestamp);
+                        _time_sync_needed = false;
+                    }
                 }
 
                 if (_gpsPeriodSeconds > 0 && _acquiringPeriodically && hasCurrentFix) {
