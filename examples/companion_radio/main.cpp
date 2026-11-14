@@ -27,8 +27,8 @@ MultiSerialInterface interface_manager;
     // include esp32 bluetooth interface
     #include <helpers/esp32/SerialBLEInterface.h>
     SerialBLEInterface bluetooth_interface;
-  #elif defined(NRF52_PLATFORM)
-    // include nrf52 bluetooth interface
+  #elif defined(NRF52_PLATFORM) || defined(NRF54_PLATFORM)
+    // include nrf52/nrf54 bluetooth interface
     #include <helpers/nrf52/SerialBLEInterface.h>
     SerialBLEInterface bluetooth_interface;
   #elif defined(RP2040_PLATFORM)
@@ -89,7 +89,7 @@ MultiSerialInterface interface_manager;
 #endif
 
 // platform file system
-#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(NRF54_PLATFORM)
   #include <InternalFileSystem.h>
   #if defined(QSPIFLASH)
     #include <CustomLFS_QSPIFlash.h>
@@ -166,7 +166,7 @@ void setup() {
 
   fast_rng.begin(radio_driver.getRngSeed());
 
-#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(NRF54_PLATFORM)
   InternalFS.begin();
   #if defined(QSPIFLASH)
     if (!QSPIFlash.begin()) {
