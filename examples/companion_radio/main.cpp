@@ -22,7 +22,18 @@ static uint32_t _atoi(const char* sp) {
 MultiSerialInterface interface_manager;
 
 // include bluetooth interface
-#if defined(BLE_PIN_CODE)
+#if defined(BLE_PIN_CODE) && defined(BLEV2)
+  #ifdef ESP32
+    #include <helpers/blev2/esp32/SerialBLEv2Interface.h>
+  #elif defined(NRF52_PLATFORM)
+    #include <helpers/blev2/nrf52/SerialBLEv2Interface.h>
+  #elif defined(RP2040_PLATFORM)
+    #include <helpers/blev2/rp2040/SerialBLEv2Interface.h>
+  #else
+    #error "SerialBLEv2Interface is not defined for this platform"
+  #endif
+  SerialBLEv2Interface bluetooth_interface;
+#elif defined(BLE_PIN_CODE)
   #ifdef ESP32
     // include esp32 bluetooth interface
     #include <helpers/esp32/SerialBLEInterface.h>
