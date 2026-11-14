@@ -134,8 +134,6 @@ void halt() {
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial.availableForWrite())
-    delay(10);
   board.begin();
 
 #ifdef HAS_EXTERNAL_WATCHDOG
