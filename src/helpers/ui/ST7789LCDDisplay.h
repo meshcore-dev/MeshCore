@@ -7,11 +7,26 @@
 #include <Adafruit_ST7789.h>
 #include <helpers/RefCountedDigitalPin.h>
 
+#ifdef LILKA_BOARD
+// Adafruit_ST77xx::setColRowStart() is protected, so it can't be called on a
+// plain Adafruit_ST7789 instance from outside the class. This exposes it so the
+// Lilka's 280x240 panel column/row offset can be applied.
+class LilkaST7789 : public Adafruit_ST7789 {
+public:
+  using Adafruit_ST7789::Adafruit_ST7789;
+  void setPanelOffset(int8_t col, int8_t row) { setColRowStart(col, row); }
+};
+#endif
+
 class ST7789LCDDisplay : public DisplayDriver {
-  #if defined(LILYGO_TDECK) || defined(HELTEC_LORA_V4_TFT) || defined(HELTEC_V4_R8_TFT)
+  #if defined(LILYGO_TDECK) || defined(HELTEC_LORA_V4_TFT) || defined(HELTEC_V4_R8_TFT) || defined(LILKA_BOARD)
     SPIClass displaySPI;
   #endif
-  Adafruit_ST7789 display;
+  #ifdef LILKA_BOARD
+    LilkaST7789 display;
+  #else
+    Adafruit_ST7789 display;
+  #endif
   bool _isOn;
   uint16_t _color;
   RefCountedDigitalPin* _peripher_power;
@@ -25,9 +40,13 @@ public:
   {
     _isOn = false;
   }
-#elif defined(LILYGO_TDECK) || defined(HELTEC_LORA_V4_TFT) || defined(HELTEC_V4_R8_TFT)
+#elif defined(LILYGO_TDECK) || defined(HELTEC_LORA_V4_TFT) || defined(HELTEC_V4_R8_TFT) || defined(LILKA_BOARD)
   ST7789LCDDisplay(RefCountedDigitalPin* peripher_power=NULL) : DisplayDriver(128, 64),
+    #ifdef LILKA_BOARD
+      displaySPI(FSPI),   // HSPI is used by the LoRa radio on Lilka, so the display uses FSPI
+    #else
       displaySPI(HSPI),
+    #endif
       display(&displaySPI, PIN_TFT_CS, PIN_TFT_DC, PIN_TFT_RST),
       _peripher_power(peripher_power)
   {
