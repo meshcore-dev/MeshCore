@@ -68,6 +68,10 @@ public:
 
   virtual void powerOff() override;
   void enterDeepSleep(uint32_t secs);
+  // Called at the end of enterDeepSleep(), right before esp_deep_sleep_start().
+  // Boards override this for final deep-sleep preparation (e.g. cutting
+  // external power rails). Default: no-op.
+  virtual void preDeepSleep() { }
 
 #ifdef P_LORA_DIO_1
   uint32_t getIRQGpio() override {
