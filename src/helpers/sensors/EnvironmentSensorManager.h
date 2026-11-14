@@ -4,6 +4,29 @@
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
 
+#if ENV_INCLUDE_INA3221 && defined(TELEM_INA3221_BAT_CH)
+  #if TELEM_INA3221_BAT_CH < 1 || TELEM_INA3221_BAT_CH > 3
+    #error "TELEM_INA3221_BAT_CH must be 1, 2 or 3"
+  #endif
+  #ifndef TELEM_INA3221_CHARGE_THRESHOLD_A
+    #define TELEM_INA3221_CHARGE_THRESHOLD_A 0.005f  // ignore current noise below 5 mA
+  #endif
+  // Battery monitored on INA3221 channel TELEM_INA3221_BAT_CH (1..3), for boards that take
+  // their battery voltage / charging state from it. Returns false until the INA3221 is found.
+  bool ina3221ReadBattery(uint16_t* millivolts, float* amps);
+
+  // Positive battery-channel current means charging, unless the shunt is wired the other
+  // way round (TELEM_INA3221_CHARGING_INVERT).
+  inline bool ina3221BatteryCharging() {
+    float amps;
+    if (!ina3221ReadBattery(NULL, &amps)) return false;
+  #ifdef TELEM_INA3221_CHARGING_INVERT
+    amps = -amps;
+  #endif
+    return amps > TELEM_INA3221_CHARGE_THRESHOLD_A;
+  }
+#endif
+
 class EnvironmentSensorManager : public SensorManager {
 protected:
   static const int MAX_ACTIVE_SENSORS = 16;

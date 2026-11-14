@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/sensors/EnvironmentSensorManager.h>
 
 #define  PIN_VBAT_READ 17
 #define  ADC_MULTIPLIER   (1.815f) // dependent on voltage divider resistors. TODO: more accurate battery tracking
@@ -18,6 +19,10 @@ public:
   #define BATTERY_SAMPLES 8
 
   uint16_t getBattMilliVolts() override {
+  #if ENV_INCLUDE_INA3221 && defined(TELEM_INA3221_BAT_CH)
+    uint16_t mv;
+    if (ina3221ReadBattery(&mv, NULL)) return mv;   // falls back to the ADC until the INA3221 is up
+  #endif
     analogReadResolution(12);
 
     uint32_t raw = 0;
@@ -43,6 +48,10 @@ public:
       return adc_mult;
     }
   }
+
+#if ENV_INCLUDE_INA3221 && defined(TELEM_INA3221_BAT_CH)
+  bool isChargerActive() override { return ina3221BatteryCharging(); }
+#endif
 
   const char* getManufacturerName() const override {
     return "ProMicro DIY";
