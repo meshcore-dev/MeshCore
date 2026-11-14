@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "DataStore.h"
+#include <helpers/ConfigSerializer.h>
 
 #if defined(EXTRAFS) || defined(QSPIFLASH)
   #define MAX_BLOBRECS 100
@@ -31,7 +32,8 @@ DataStore::DataStore(FILESYSTEM& fs, FILESYSTEM& fsExtra, mesh::RTCClock& clock)
 }
 #endif
 
-static File openWrite(FILESYSTEM* fs, const char* filename) {
+// One-time migration into an empty destination FS only.
+static File migrateOpenWrite(FILESYSTEM* fs, const char* filename) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   fs->remove(filename);
   return fs->open(filename, FILE_O_WRITE);
@@ -247,13 +249,7 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs) {
 }
 
 bool DataStore::savePrefs(NodePrefs& _prefs) {
-  File file = openWrite(_fs, "/prefs.json");
-  if (file) {
-    bool success = _prefs.saveSerial(file);
-    file.close();
-    return success;
-  }
-  return false;
+  return saveConfigJsonAtomic(_fs, _prefs, "/prefs.json", "/.prefs.json.new");
 }
 
 void DataStore::loadContacts(DataStoreHost* host) {
@@ -287,37 +283,43 @@ File file = openRead(_getContactsChannelsFS(), "/contacts3");
     }
 }
 
-void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactInfo& c)) {
-  File file = openWrite(_getContactsChannelsFS(), "/contacts3");
-  if (file) {
-    uint32_t idx = 0;
-    ContactInfo c;
-    uint8_t unused = 0;
+struct SaveContactsCtx {
+  DataStoreHost* host;
+  bool (*filter)(const ContactInfo& c);
+};
 
-    while (host->getContactForSave(idx, c)) {
-      if (filter && !filter(c)) {
-        idx++;  // advance to next contact
-        continue;
-      }
-      bool success = (file.write(c.id.pub_key, 32) == 32);
-      success = success && (file.write((uint8_t *)&c.name, 32) == 32);
-      success = success && (file.write(&c.type, 1) == 1);
-      success = success && (file.write(&c.flags, 1) == 1);
-      success = success && (file.write(&unused, 1) == 1);
-      success = success && (file.write((uint8_t *)&c.sync_since, 4) == 4);
-      success = success && (file.write((uint8_t *)&c.out_path_len, 1) == 1);
-      success = success && (file.write((uint8_t *)&c.last_advert_timestamp, 4) == 4);
-      success = success && (file.write(c.out_path, 64) == 64);
-      success = success && (file.write((uint8_t *)&c.lastmod, 4) == 4);
-      success = success && (file.write((uint8_t *)&c.gps_lat, 4) == 4);
-      success = success && (file.write((uint8_t *)&c.gps_lon, 4) == 4);
+static bool writeContactsBody(File& file, void* ctx) {
+  SaveContactsCtx* c = (SaveContactsCtx*) ctx;
+  uint32_t idx = 0;
+  ContactInfo contact;
+  uint8_t unused = 0;
 
-      if (!success) break; // write failed
-
-      idx++;  // advance to next contact
+  while (c->host->getContactForSave(idx, contact)) {
+    if (c->filter && !c->filter(contact)) {
+      idx++;
+      continue;
     }
-    file.close();
+    bool success = (file.write(contact.id.pub_key, 32) == 32);
+    success = success && (file.write((uint8_t*) &contact.name, 32) == 32);
+    success = success && (file.write(&contact.type, 1) == 1);
+    success = success && (file.write(&contact.flags, 1) == 1);
+    success = success && (file.write(&unused, 1) == 1);
+    success = success && (file.write((uint8_t*) &contact.sync_since, 4) == 4);
+    success = success && (file.write((uint8_t*) &contact.out_path_len, 1) == 1);
+    success = success && (file.write((uint8_t*) &contact.last_advert_timestamp, 4) == 4);
+    success = success && (file.write(contact.out_path, 64) == 64);
+    success = success && (file.write((uint8_t*) &contact.lastmod, 4) == 4);
+    success = success && (file.write((uint8_t*) &contact.gps_lat, 4) == 4);
+    success = success && (file.write((uint8_t*) &contact.gps_lon, 4) == 4);
+    if (!success) return false;
+    idx++;
   }
+  return true;
+}
+
+void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactInfo& c)) {
+  SaveContactsCtx ctx = {host, filter};
+  writeFileAtomic(_getContactsChannelsFS(), "/contacts3", "/.contacts3.new", writeContactsBody, &ctx);
 }
 
 void DataStore::loadChannels(DataStoreHost* host) {
@@ -345,24 +347,30 @@ void DataStore::loadChannels(DataStoreHost* host) {
     }
 }
 
-void DataStore::saveChannels(DataStoreHost* host) {
-  File file = openWrite(_getContactsChannelsFS(), "/channels2");
-  if (file) {
-    uint8_t channel_idx = 0;
-    ChannelDetails ch;
-    uint8_t unused[4];
-    memset(unused, 0, 4);
+struct SaveChannelsCtx {
+  DataStoreHost* host;
+};
 
-    while (host->getChannelForSave(channel_idx, ch)) {
-      bool success = (file.write(unused, 4) == 4);
-      success = success && (file.write((uint8_t *)ch.name, 32) == 32);
-      success = success && (file.write((uint8_t *)ch.channel.secret, 32) == 32);
+static bool writeChannelsBody(File& file, void* ctx) {
+  SaveChannelsCtx* c = (SaveChannelsCtx*) ctx;
+  uint8_t channel_idx = 0;
+  ChannelDetails ch;
+  uint8_t unused[4];
+  memset(unused, 0, 4);
 
-      if (!success) break; // write failed
-      channel_idx++;
-    }
-    file.close();
+  while (c->host->getChannelForSave(channel_idx, ch)) {
+    bool success = (file.write(unused, 4) == 4);
+    success = success && (file.write((uint8_t*) ch.name, 32) == 32);
+    success = success && (file.write((uint8_t*) ch.channel.secret, 32) == 32);
+    if (!success) return false;
+    channel_idx++;
   }
+  return true;
+}
+
+void DataStore::saveChannels(DataStoreHost* host) {
+  SaveChannelsCtx ctx = {host};
+  writeFileAtomic(_getContactsChannelsFS(), "/channels2", "/.channels2.new", writeChannelsBody, &ctx);
 }
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -376,17 +384,24 @@ struct BlobRec {
   uint8_t  data[MAX_ADVERT_PKT_LEN];
 };
 
+struct InitAdvBlobsCtx {
+  int max_recs;
+};
+
+static bool writeAdvBlobsInitBody(File& file, void* ctx) {
+  InitAdvBlobsCtx* c = (InitAdvBlobsCtx*) ctx;
+  BlobRec zeroes;
+  memset(&zeroes, 0, sizeof(zeroes));
+  for (int i = 0; i < c->max_recs; i++) {
+    if (file.write((uint8_t*) &zeroes, sizeof(zeroes)) != sizeof(zeroes)) return false;
+  }
+  return true;
+}
+
 void DataStore::checkAdvBlobFile() {
   if (!_getContactsChannelsFS()->exists("/adv_blobs")) {
-    File file = openWrite(_getContactsChannelsFS(), "/adv_blobs");
-    if (file) {
-      BlobRec zeroes;
-      memset(&zeroes, 0, sizeof(zeroes));
-      for (int i = 0; i < MAX_BLOBRECS; i++) {     // pre-allocate to fixed size
-        file.write((uint8_t *) &zeroes, sizeof(zeroes));
-      }
-      file.close();
-    }
+    InitAdvBlobsCtx ctx = {MAX_BLOBRECS};
+    writeFileAtomic(_getContactsChannelsFS(), "/adv_blobs", "/.adv_blobs.new", writeAdvBlobsInitBody, &ctx);
   }
 }
 
@@ -395,7 +410,7 @@ void DataStore::migrateToSecondaryFS() {
   if (!_fsExtra->exists("/adv_blobs")) {
     if (_fs->exists("/adv_blobs")) {
     File oldAdvBlobs = openRead(_fs, "/adv_blobs");
-    File newAdvBlobs = openWrite(_fsExtra, "/adv_blobs");
+    File newAdvBlobs = migrateOpenWrite(_fsExtra, "/adv_blobs");
 
     if (oldAdvBlobs && newAdvBlobs) {
       BlobRec rec;
@@ -416,7 +431,7 @@ void DataStore::migrateToSecondaryFS() {
   if (!_fsExtra->exists("/contacts3")) {
     if (_fs->exists("/contacts3")) {
       File oldFile = openRead(_fs, "/contacts3");
-      File newFile = openWrite(_fsExtra, "/contacts3");
+      File newFile = migrateOpenWrite(_fsExtra, "/contacts3");
 
       if (oldFile && newFile) {
         uint8_t buf[64];
@@ -433,7 +448,7 @@ void DataStore::migrateToSecondaryFS() {
   if (!_fsExtra->exists("/channels2")) {
     if (_fs->exists("/channels2")) {
       File oldFile = openRead(_fs, "/channels2");
-      File newFile = openWrite(_fsExtra, "/channels2");
+      File newFile = migrateOpenWrite(_fsExtra, "/channels2");
 
       if (oldFile && newFile) {
         uint8_t buf[64];
@@ -451,7 +466,7 @@ void DataStore::migrateToSecondaryFS() {
   if (_fsExtra->exists("/_main.id")) {
       if (_fs->exists("/_main.id")) {_fs->remove("/_main.id");}
       File oldFile = openRead(_fsExtra, "/_main.id");
-      File newFile = openWrite(_fs, "/_main.id");
+      File newFile = migrateOpenWrite(_fs, "/_main.id");
 
       if (oldFile && newFile) {
         uint8_t buf[64];
@@ -467,7 +482,7 @@ void DataStore::migrateToSecondaryFS() {
   if (_fsExtra->exists("/new_prefs")) {
     if (_fs->exists("/new_prefs")) {_fs->remove("/new_prefs");}
       File oldFile = openRead(_fsExtra, "/new_prefs");
-      File newFile = openWrite(_fs, "/new_prefs");
+      File newFile = migrateOpenWrite(_fs, "/new_prefs");
 
       if (oldFile && newFile) {
         uint8_t buf[64];
@@ -578,19 +593,24 @@ uint8_t DataStore::getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_b
   return 0; // not found
 }
 
+struct BlobWriteCtx {
+  const uint8_t* buf;
+  uint8_t len;
+};
+
+static bool writeBlobBody(File& file, void* ctx) {
+  BlobWriteCtx* c = (BlobWriteCtx*) ctx;
+  return file.write(c->buf, c->len) == c->len;
+}
+
 bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src_buf[], uint8_t len) {
   char path[64];
   makeBlobPath(key, key_len, path, sizeof(path));
 
-  File f = openWrite(_fs, path);
-  if (f) {
-    int n = f.write(src_buf, len);
-    f.close();
-    if (n == len) return true; // success!
-
-    _fs->remove(path); // blob was only partially written!
-  }
-  return false; // error
+  char tmp_path[72];
+  snprintf(tmp_path, sizeof(tmp_path), "%s.new", path);
+  BlobWriteCtx ctx = {src_buf, len};
+  return writeFileAtomic(_fs, path, tmp_path, writeBlobBody, &ctx);
 }
 
 bool DataStore::deleteBlobByKey(const uint8_t key[], int key_len) {
