@@ -181,6 +181,14 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
 }
 
 void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* reply) {
+    if (strcmp(command, "get cad") == 0) {   // enrich with live CAD calibration state
+      uint8_t peak_offset, hits, count;
+      mesh::Radio* radio = _callbacks->getRadio();
+      if (_prefs->getRadioPrefs()->isCadEnabled() && radio != NULL && radio->getCADCalibState(peak_offset, hits, count)) {
+        sprintf(reply, "> on (detPeak +%d, ambient %d/%d)", (int)peak_offset, (int)hits, (int)count);
+        return;
+      }
+    }
     if (_prefs->getRadioPrefs()->handleCommand(command, sender_timestamp, reply)) {   // is a radio CLI command?
       if (_prefs->getRadioPrefs()->isDirty()) { savePrefs(); }
       return;

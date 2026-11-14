@@ -223,6 +223,7 @@ public:
   }
   void formatStatsReply(char *reply) override;
   void formatRadioStatsReply(char *reply) override;
+  mesh::Radio* getRadio() override { return _radio; }
   void formatPacketStatsReply(char *reply) override;
   void startRegionsLoad() override;
   bool saveRegions() override;
