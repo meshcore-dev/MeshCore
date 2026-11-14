@@ -197,8 +197,9 @@ public:
   void savePrefs() {
     _prefs.node_lat = sensors.node_lat;
     _prefs.node_lon = sensors.node_lon;
-    _store->savePrefs(_prefs);
-    _prefs.clearDirty();
+    if (_store->savePrefs(_prefs)) {
+      _prefs.clearDirty();
+    }
   }
 
 #if ENV_INCLUDE_GPS == 1
