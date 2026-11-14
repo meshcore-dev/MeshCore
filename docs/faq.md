@@ -74,6 +74,7 @@ A list of frequently-asked questions and answers for MeshCore
     - [6.6. Q: My Heltec V3 keeps disconnecting from my smartphone. It can't hold a solid Bluetooth connection.](#66-q-my-heltec-v3-keeps-disconnecting-from-my-smartphone-it-cant-hold-a-solid-bluetooth-connection)
     - [6.7. Q: My RAK/T1000-E/xiao\_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?](#67-q-my-rakt1000-exiao_nrf52-device-seems-to-be-corrupted-how-do-i-wipe-it-clean-to-start-fresh)
     - [6.8. Q: WebFlasher fails on Linux with failed to open](#68-q-webflasher-fails-on-linux-with-failed-to-open)
+    - [6.9. Q: My contact list shows dates far in the future and syncing time from the app doesn't fix it](#69-q-my-contact-list-shows-dates-far-in-the-future-and-syncing-time-from-the-app-doesnt-fix-it)
 - [7. Other Questions:](#7-other-questions)
     - [7.1. Q: How to update nRF (RAK, T114, Seeed XIAO) companion, repeater and room server firmware over the air using the new simpler DFU app?](#71-q-how-to-update-nrf-rak-t114-seeed-xiao-companion-repeater-and-room-server-firmware-over-the-air-using-the-new-simpler-dfu-app)
         - [7.1.1 Q: Can I update Seeed Studio Wio Tracker L1 Pro using OTA?](#711-q-can-i-update-seeed-studio-wio-tracker-l1-pro-using-ota)
@@ -676,6 +677,7 @@ Both the Windows and Mac versions of the client app are fully unlocked and are f
 
 - If your client is a T-Deck, it may not have its time set (no GPS installed, no GPS lock, or wrong GPS baud rate).
 - If you are using the Android or iOS client, the other client, repeater, or room server may have the wrong time.
+- If the dates are in the future and syncing time from the app doesn't fix it, see [6.9](#69-q-my-contact-list-shows-dates-far-in-the-future-and-syncing-time-from-the-app-doesnt-fix-it).
 
 You can get the epoch time on <https://www.epochconverter.com> and use it to set your T-Deck clock. For a repeater and room server, the admin can use a T-Deck to remotely set their clock (clock sync), or use the `time` command in the USB serial console with the server device connected.
 
@@ -719,6 +721,20 @@ Separately, starting in firmware version 1.7.0, there is a CLI Rescue mode. If y
 Allow the browser user on it:
 
 `# setfacl -m u:YOUR_USER_HERE:rw /dev/ttyUSB0`
+
+### 6.9. Q: My contact list shows dates far in the future and syncing time from the app doesn't fix it
+**A:** Your companion's clock was set to a wrong future date at some point (for example, the Heltec T1 on firmware v1.17.1 and earlier could misread its clock). Contacts heard during that time saved the wrong date, and on every boot the companion sets its clock from the newest contact date. The app can only move the clock forward, so it cannot correct it.
+
+To recover:
+
+1. Update the firmware so the clock problem doesn't come back.
+2. In the app, delete every contact that shows a future "last heard" date. If even one is left, the clock goes back to the future on the next boot.
+3. Reboot the companion.
+4. Connect the app so it syncs the time.
+
+Deleted contacts come back when their next advert is heard.
+
+If your node sent adverts while its clock was wrong, other users may stop seeing updates from it. Ask them to delete your contact, then send a new advert.
 
 ---
 
