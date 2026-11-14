@@ -317,3 +317,27 @@ int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
+
+// ── a key the file does not carry keeps the value the struct had ─────────────
+// This is what a node upgraded onto a new pref sees: its old prefs.json has no
+// entry for it, so the default the constructor wrote stays in place.
+
+TEST(ConfigSerializer, LoadSerial_MissingStringKeyKeepsDefault) {
+    TestStruct t;
+    t.age = 0; t.flags = 0;
+    strcpy(t.name, "0:5,1:5");
+    MockInputStream s("{age:" TEST_INT_S ",flags:3}");
+    EXPECT_TRUE(t.loadSerial(s));
+    EXPECT_EQ(TEST_INT, t.age);
+    EXPECT_EQ(3, t.flags);
+    EXPECT_STREQ("0:5,1:5", t.name);
+}
+
+TEST(ConfigSerializer, LoadSerial_EmptyStringKeyOverridesDefault) {
+    TestStruct t;
+    t.age = 0; t.flags = 0;
+    strcpy(t.name, "0:5,1:5");
+    MockInputStream s("{age:" TEST_INT_S ",flags:3,name:\"\"}");
+    EXPECT_TRUE(t.loadSerial(s));
+    EXPECT_STREQ("", t.name) << "an operator who cleared the list keeps it cleared";
+}
