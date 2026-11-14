@@ -619,11 +619,8 @@ uint16_t OLEDDisplay::drawStringInternal(int16_t xMove, int16_t yMove, const cha
 
 uint16_t OLEDDisplay::drawString(int16_t xMove, int16_t yMove, const String &strUser) {
   uint16_t lineHeight = pgm_read_byte(fontData + HEIGHT_POS);
-
-  // char* text must be freed!
-  char* text = strdup(strUser.c_str());
-  if (!text) {
-    DEBUG_OLEDDISPLAY("[OLEDDISPLAY][drawString] Can't allocate char array.\n");
+  const char* text = strUser.c_str();
+  if (text == nullptr) {
     return 0;
   }
 
@@ -642,13 +639,27 @@ uint16_t OLEDDisplay::drawString(int16_t xMove, int16_t yMove, const String &str
 
   uint16_t charDrawn = 0;
   uint16_t line = 0;
-  char* textPart = strtok(text,"\n");
-  while (textPart != NULL) {
-    uint16_t length = strlen(textPart);
-    charDrawn += drawStringInternal(xMove, yMove - yOffset + (line++) * lineHeight, textPart, length, getStringWidth(textPart, length, true), true);
-    textPart = strtok(NULL, "\n");
+  const char* lineStart = text;
+  while (true) {
+    const char* lineEnd = lineStart;
+    while (*lineEnd != 0 && *lineEnd != '\n') {
+      lineEnd++;
+    }
+
+    if (lineEnd == lineStart && *lineEnd == '\n') {
+      lineStart = lineEnd + 1;
+      continue;
+    }
+
+    uint16_t length = lineEnd - lineStart;
+    charDrawn += drawStringInternal(xMove, yMove - yOffset + (line++) * lineHeight, lineStart, length,
+                                    getStringWidth(lineStart, length, true), true);
+
+    if (*lineEnd == 0) {
+      break;
+    }
+    lineStart = lineEnd + 1;
   }
-  free(text);
   return charDrawn;
 }
 
