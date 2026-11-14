@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(TBEAM_SUPREME_SX1262) || defined(TBEAM_SX1262) || defined(TBEAM_SX1276)
+#if defined(TBEAM_SUPREME_SX1262) || defined(TBEAM_SX1262) || defined(TBEAM_SX1276) || defined(TBEAM_V07_20180711)
 
 // Define pin mappings BEFORE including ESP32Board.h so sleep() can use P_LORA_DIO_1
 #ifdef TBEAM_SUPREME_SX1262
@@ -124,10 +124,18 @@ public:
 
   #ifndef TBEAM_SUPREME_SX1262
   void onBeforeTransmit() override{
+    #ifdef TBEAM_V07_20180711
+    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on - normal logic for v07 boards
+    #else
     digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED on - invert pin for SX1276
+    #endif
   }
   void onAfterTransmit() override{
+    #ifdef TBEAM_V07_20180711
+    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off - normal logic for v07 boards
+    #else
     digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED off - invert pin for SX1276
+    #endif
   }
   #endif
 
@@ -138,7 +146,11 @@ public:
   rtc_gpio_set_direction((gpio_num_t)P_LORA_DIO_1, RTC_GPIO_MODE_INPUT_ONLY);
   rtc_gpio_pulldown_en((gpio_num_t)P_LORA_DIO_1);
 
+  #ifdef TBEAM_V07_20180711
+  gpio_hold_en((gpio_num_t)P_LORA_NSS);
+  #else
   rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
+  #endif
 
   if (pin_wake_btn < 0) {
     esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet
@@ -155,7 +167,20 @@ public:
 }
 
   uint16_t getBattMilliVolts(){
+    #ifdef PIN_VBAT_READ
+    //at least tbeam V07 boards do not have a PMU but a 50/50 voltage divider on ADC, so add support for PIN_VBAT_READ
+    analogReadResolution(12);
+
+    uint32_t raw = 0;
+    for (int i = 0; i < 4; i++) {
+      raw += analogReadMilliVolts(PIN_VBAT_READ);
+    }
+    raw = raw / 4;
+
+    return (2 * raw);
+    #else
     return PMU->getBattVoltage();
+    #endif
   }
 
   const char* getManufacturerName() const{

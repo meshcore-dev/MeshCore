@@ -1,4 +1,4 @@
-#if defined(TBEAM_SUPREME_SX1262) || defined(TBEAM_SX1262) || defined(TBEAM_SX1276)
+#if defined(TBEAM_SUPREME_SX1262) || defined(TBEAM_SX1262) || defined(TBEAM_SX1276) || defined(TBEAM_V07_20180711)
 
 #include <Arduino.h>
 #include "TBeamBoard.h"
@@ -29,10 +29,16 @@ void TBeamBoard::begin() {
     power_init();
 
     //Configure user button
+    #ifdef PIN_USER_BTN
     pinMode(PIN_USER_BTN, INPUT);
+    #endif
 
     #ifndef TBEAM_SUPREME_SX1262
+      #ifdef TBEAM_V07_20180711
+      digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off - normal logic for v07 boards
+      #else
       digitalWrite(P_LORA_TX_LED, HIGH); //inverted pin for SX1276 - HIGH for off
+      #endif
     #endif
 
     //radiotype_detect();
@@ -135,6 +141,7 @@ void TBeamBoard::printPMU()
 
 bool TBeamBoard::power_init()
 {
+#ifndef TBEAM_V07_20180711
   if (!PMU) {
     #ifdef TBEAM_SUPREME_SX1262
       PMU = new XPowersAXP2101(PMU_WIRE_PORT, PIN_BOARD_SDA1, PIN_BOARD_SCL1, I2C_PMU_ADD);
@@ -292,6 +299,7 @@ bool TBeamBoard::power_init()
 
   // Set the power key off press time
   PMU->setPowerKeyPressOffTime(XPOWERS_POWEROFF_4S);
+#endif
   return true;
 }
 
