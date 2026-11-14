@@ -142,6 +142,13 @@ static const uint8_t A5  = PIN_A5;
 #define PIN_PDM_CLK	            (20)
 #define PIN_PDM_DIN	            (21)
 
+// GPS L76KB
+#define GPS_BAUDRATE            9600
+#define PIN_GPS_TX              PIN_SERIAL1_RX
+#define PIN_GPS_RX              PIN_SERIAL1_TX
+#define PIN_GPS_STANDBY         (0)
+#define PIN_GPS_EN              (PIN_GPS_STANDBY)
+
 // QSPI Pins
 #define PIN_QSPI_SCK            (24)
 #define PIN_QSPI_CS             (25)

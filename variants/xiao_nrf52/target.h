@@ -16,6 +16,10 @@
   extern MomentaryButton user_btn;
 #endif
 
+#ifdef ENV_INCLUDE_GPS
+    #include <helpers/sensors/MicroNMEALocationProvider.h>
+#endif
+
 extern XiaoNrf52Board board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
