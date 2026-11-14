@@ -34,10 +34,6 @@ public:
   float getLastRSSI() const override { return ((CustomSTM32WLx *)_radio)->getRSSI(); }
   float getLastSNR() const override { return ((CustomSTM32WLx *)_radio)->getSNR(); }
 
-  float packetScore(float snr, int packet_len) override {
-    int sf = ((CustomSTM32WLx *)_radio)->spreadingFactor;
-    return packetScoreInt(snr, sf, packet_len);
-  }
   uint8_t getSpreadingFactor() const override { return ((CustomSTM32WLx *)_radio)->spreadingFactor; }
 
   void doResetAGC() override { sx126xResetAGC((SX126x *)_radio, getRxBoostedGainMode()); }
