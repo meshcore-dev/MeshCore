@@ -1,5 +1,7 @@
 #include "SerialBLEInterface.h"
 #include "esp_mac.h"
+#include <helpers/UTF8Helpers.h>
+#include <sdkconfig.h>
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
@@ -21,7 +23,9 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
           addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
   }
   char dev_name[32+16];
-  sprintf(dev_name, "%s%s", prefix, name);
+  // Bluedroid's byte limit includes the prefix, not only the configured node name.
+  mesh::formatUtf8Prefixed(dev_name, sizeof(dev_name), prefix, name,
+                          CONFIG_BT_MAX_DEVICE_NAME_LEN);
 
   // Create the BLE Device
   BLEDevice::init(dev_name);
