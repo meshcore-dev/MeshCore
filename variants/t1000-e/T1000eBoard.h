@@ -5,9 +5,6 @@
 #include <helpers/NRF52Board.h>
 
 class T1000eBoard : public NRF52BoardDCDC {
-protected:
-  uint8_t btn_prev_state;
-
 public:
   T1000eBoard() : NRF52Board("T1000E_OTA") {}
   void begin();
@@ -38,17 +35,6 @@ public:
     return "Seeed Tracker T1000-E";
   }
 
-  int buttonStateChanged() {
-  #ifdef BUTTON_PIN
-    uint8_t v = digitalRead(BUTTON_PIN);
-    if (v != btn_prev_state) {
-      btn_prev_state = v;
-      return (v == USER_BTN_PRESSED) ? 1 : -1;
-    }
-  #endif
-    return 0;
-  }
-
   void powerOff() override {
     #ifdef HAS_GPS
         digitalWrite(GPS_VRTC_EN, LOW);
@@ -69,10 +55,6 @@ public:
     #ifdef PIN_3V3_ACC_EN
         digitalWrite(PIN_3V3_ACC_EN, LOW);
     #endif
-    #ifdef SENSOR_EN
-        digitalWrite(SENSOR_EN, LOW);
-    #endif
-
     // set led on and wait for button release before poweroff
     #ifdef LED_PIN
     digitalWrite(LED_PIN, HIGH);

@@ -67,11 +67,11 @@ struct NeighbourInfo {
 };
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "14 Aug 2026"
+  #define FIRMWARE_BUILD_DATE   "15 Oct 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.17.1"
+  #define FIRMWARE_VERSION   "v1.18.0"
 #endif
 
 #define FIRMWARE_ROLE "repeater"
@@ -159,7 +159,14 @@ protected:
 
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
-    sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
+    if (sensors.getSettingByKey("gps_interval") != nullptr) {
+      // gps_interval was introduced only for EnvironmentSensorManager
+      // and has little interest ... kept only as a legacy
+      char interval[11];
+      snprintf(interval, sizeof(interval), "%lu", (unsigned long)_prefs.gps_interval);
+      sensors.setSettingValue("gps_interval", interval);
+    }
+    _prefs.getGpsPrefs()->apply(sensors);
   }
 #endif
 
@@ -186,6 +193,9 @@ public:
   const char* getNodeName() { return _prefs.node_name; }
   NodePrefs* getNodePrefs() {
     return &_prefs;
+  }
+  bool isHiddenNode() const {
+    return _prefs.advert_interval == 0 && _prefs.flood_advert_interval == 0;
   }
 
   void savePrefs() override {

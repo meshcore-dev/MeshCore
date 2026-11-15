@@ -13,7 +13,8 @@ VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 #if ENV_INCLUDE_GPS
   #include <helpers/sensors/MicroNMEALocationProvider.h>
-  MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
+  NmeaGpsDriver gps_driver(Serial1);
+  MicroNMEALocationProvider nmea(gps_driver, &rtc_clock);
   MuziBaseSensorManager sensors = MuziBaseSensorManager(nmea);
 #else
   MuziBaseSensorManager sensors;
@@ -38,13 +39,7 @@ static void muziPowerOff() {
 
 bool MuziBaseSensorManager::begin() {
   pwr_btn.begin();
-  bool ok = EnvironmentSensorManager::begin();
-#if ENV_INCLUDE_GPS
-  pinMode(PIN_GPS_SWITCH, INPUT);
-  _last_gps_sw = digitalRead(PIN_GPS_SWITCH);   // initial gps state from the switch
-  if (_last_gps_sw == HIGH) start_gps(); else stop_gps();
-#endif
-  return ok;
+  return EnvironmentSensorManager::begin();
 }
 
 void MuziBaseSensorManager::loop() {
@@ -56,14 +51,15 @@ void MuziBaseSensorManager::loop() {
     if (++_pwr_clicks >= USER_BTN_POWER_OFF_CLICKS) muziPowerOff();
   }
 #if ENV_INCLUDE_GPS
-  unsigned long now = millis();
-  if (now > _next_sw_check) {   // check the mode switch ~once a sec
-    _next_sw_check = now + 1000;
-    int sw = digitalRead(PIN_GPS_SWITCH);
-    if (sw != _last_gps_sw) {
-      _last_gps_sw = sw;
-      if (sw == HIGH) start_gps(); else stop_gps();
-    }
+  // the ATGM336H keeps its nmea output config across power cycles (backup
+  // supply), and other firmware may have turned every sentence off. re-enable
+  // GGA + RMC after each power-up, once the module has booted.
+  bool gps_on = _location->isActive();
+  if (gps_on && !_gps_was_active) _gps_cfg_at = millis() + 1000;
+  _gps_was_active = gps_on;
+  if (_gps_cfg_at && gps_on && (long)(millis() - _gps_cfg_at) > 0) {
+    _gps_cfg_at = 0;
+    _location->sendSentence("$PCAS03,1,0,0,0,1,0,0,0,0,0,,,0,0");
   }
 #endif
   EnvironmentSensorManager::loop();

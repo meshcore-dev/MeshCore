@@ -2,6 +2,22 @@
 #include "TxtDataHelpers.h"
 #include "Utils.h"
 #include "target.h"
+#include <ctype.h>
+
+namespace {
+
+// strtof() and atof() also read "nan" and "inf". A NaN cannot be refused by a
+// range check: no ordered comparison is true for it, and under -ffast-math,
+// which nRF52 builds use, the compiler may assume it never occurs and fold any
+// test on the parsed value away. So the text is checked before it is parsed:
+// after optional white space and sign, a number starts with a digit or a '.'.
+bool looksLikeANumber(const char* s) {
+  while (isspace((unsigned char)*s)) s++;
+  if (*s == '+' || *s == '-') s++;
+  return isdigit((unsigned char)*s) || *s == '.';
+}
+
+}  // namespace
 
 bool CommonRadioPrefs::getByKey(const char* key, char* value, size_t max_len) {
   if (strcmp(key, "fem_rxgain") == 0) {
@@ -69,7 +85,7 @@ bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timest
   if (memcmp(command, "set af ", 7) == 0) {
     char* end;
     float af = strtof(&command[7], &end);
-    if (end == &command[7] || af < 0 || af > 9) {
+    if (end == &command[7] || !looksLikeANumber(&command[7]) || af < 0 || af > 9) {
       strcpy(reply, "ERROR: af must be 0-9");
     } else {
       setAirtimeFactor(af);
@@ -87,7 +103,7 @@ bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timest
   }
   if (memcmp(command, "set dutycycle ", 14) == 0) {
     float dc = atof(&command[14]);
-    if (dc < 1 || dc > 100) {
+    if (!looksLikeANumber(&command[14]) || dc < 1 || dc > 100) {
       strcpy(reply, "ERROR: dutycycle must be 1-100");
     } else {
       setAirtimeFactor((100.0f / dc) - 1.0f);

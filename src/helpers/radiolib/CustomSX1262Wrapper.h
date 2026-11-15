@@ -23,6 +23,11 @@ public:
     ((CustomSX1262 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
   }
 
+  bool lastRxHadCRC() override {
+    bool crc = true;
+    ((CustomSX1262 *)_radio)->getLoRaRxHeaderInfo(NULL, &crc);
+    return crc;
+  }
   bool isReceivingPacket() override { 
     return ((CustomSX1262 *)_radio)->isReceiving();
   }
@@ -41,6 +46,7 @@ public:
     ((CustomSX1262 *)_radio)->sleep(false);
   }
 
+  bool supportsRxBoostedGain() const override { return true; }
   bool setRxBoostedGainMode(bool en) override {
     return ((CustomSX1262 *)_radio)->setRxBoostedGainMode(en) == RADIOLIB_ERR_NONE;
   }

@@ -20,7 +20,9 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #if ENV_INCLUDE_GPS
   #include <helpers/sensors/MicroNMEALocationProvider.h>
-  MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock, PIN_GPS_RESET, PIN_GPS_EN);
+  NmeaGpsDriver gps_driver(Serial1, PIN_GPS_TX, PIN_GPS_RX, PIN_GPS_RESET,
+                            PIN_GPS_EN);
+  MicroNMEALocationProvider nmea(gps_driver, &rtc_clock);
   EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
 #else
   EnvironmentSensorManager sensors;

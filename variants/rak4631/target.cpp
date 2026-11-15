@@ -25,9 +25,19 @@ VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #if ENV_INCLUDE_GPS
-  #include <helpers/sensors/MicroNMEALocationProvider.h>
-  MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
-  EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
+  #include <helpers/sensors/RakLocationProvider.h>
+  RakI2cGpsDriver gps_driver;
+  #ifdef GPS_RAIL_POWER_CONTROL
+  #ifdef ETHERNET_ENABLED
+    #error "GPS_RAIL_POWER_CONTROL would cut the RAK13800's power, which also comes from WB_IO2"
+  #endif
+  // WB_IO2 switches 3V3_S, which powers the serial GPS and every other slot module.
+  RefCountedDigitalPin gps_rail(WB_IO2);
+  RakLocationProvider location(gps_driver, &rtc_clock, Serial1, &gps_rail);
+  #else
+  RakLocationProvider location(gps_driver, &rtc_clock);
+  #endif
+  EnvironmentSensorManager sensors(location);
 #else
   EnvironmentSensorManager sensors;
 #endif

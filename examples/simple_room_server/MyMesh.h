@@ -3,7 +3,7 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
 
-#if defined(NRF52_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   #include <InternalFileSystem.h>
 #elif defined(RP2040_PLATFORM)
   #include <LittleFS.h>
@@ -28,11 +28,11 @@
 /* ------------------------------ Config -------------------------------- */
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "14 Aug 2026"
+  #define FIRMWARE_BUILD_DATE   "15 Oct 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.17.1"
+  #define FIRMWARE_VERSION   "v1.18.0"
 #endif
 
 #ifndef LORA_FREQ
@@ -168,7 +168,14 @@ protected:
 
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
-    sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
+    if (sensors.getSettingByKey("gps_interval") != nullptr) {
+      // gps_interval was introduced only for EnvironmentSensorManager
+      // and has little interest ... kept only as a legacy
+      char interval[11];
+      snprintf(interval, sizeof(interval), "%lu", (unsigned long)_prefs.gps_interval);
+      sensors.setSettingValue("gps_interval", interval);
+    }
+    _prefs.getGpsPrefs()->apply(sensors);
   }
 #endif
 

@@ -24,6 +24,7 @@ extern PCA9557 expander;
 #ifdef DISPLAY_CLASS
   extern DISPLAY_CLASS display;
   extern MomentaryButton user_btn;
+  extern MomentaryButton backlight_btn;
 #endif
 
 bool radio_init();

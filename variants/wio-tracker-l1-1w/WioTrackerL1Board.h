@@ -14,7 +14,7 @@ protected:
   bool isLoRaFemPaGainEnabled() const { return _is_pa_enabled; }
 
 public:
-  WioTrackerL1Board() : NRF52Board("WioTrackerL1 OTA") {}
+  WioTrackerL1Board() : NRF52Board("WioTrackerL1_OTA") {}
   void begin();
   void attachDynamicPrefs(KeyValueStore* prefs);
   bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) override;

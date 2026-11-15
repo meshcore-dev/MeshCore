@@ -11,7 +11,8 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
+NmeaGpsDriver gps_driver(Serial1);
+MicroNMEALocationProvider nmea(gps_driver, &rtc_clock);
 SolarSensorManager sensors = SolarSensorManager(nmea);
 SolarExternalWatchdog external_watchdog;
 
@@ -30,17 +31,11 @@ mesh::LocalIdentity radio_new_identity() {
 }
 
 void SolarSensorManager::start_gps() {
-  if (!gps_active) {
-    gps_active = true;
-    _location->begin();
-  }
+  _location->setGpsOn(true);
 }
 
 void SolarSensorManager::stop_gps() {
-  if (gps_active) {
-    gps_active = false;
-    _location->stop();
-  }
+  _location->setGpsOn(false);
 }
 
 bool SolarSensorManager::begin() {
@@ -71,7 +66,7 @@ void SolarSensorManager::loop() {
   _location->loop();
 
   if (millis() > next_gps_update) {
-    if (_location->isValid()) {
+    if (_location->isGpsOn() && _location->hasValidFix()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
@@ -91,7 +86,7 @@ const char* SolarSensorManager::getSettingName(int i) const {
 
 const char* SolarSensorManager::getSettingValue(int i) const {
   if (gps_detected && i == 0) {
-    return gps_active ? "1" : "0";
+    return _location->isGpsOn() ? "1" : "0";
   }
   return NULL;
 }

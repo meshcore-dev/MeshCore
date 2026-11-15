@@ -14,7 +14,8 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 ESP32RTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
-MicroNMEALocationProvider gps(Serial1, &rtc_clock);
+NmeaGpsDriver gps_driver(Serial1);
+MicroNMEALocationProvider gps(gps_driver, &rtc_clock);
 EnvironmentSensorManager sensors(gps);
 
 #ifdef DISPLAY_CLASS

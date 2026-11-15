@@ -14,13 +14,11 @@
 #endif
 
 class MeshTrackerX1SensorManager: public SensorManager {
-  bool gps_active = false;
   bool baro_ok = false;
   Adafruit_SPA06_003 spa06;
   LocationProvider * _nmea;
 
   void start_gps();
-  void sleep_gps();
   void stop_gps();
 public:
   MeshTrackerX1SensorManager(LocationProvider &nmea): _nmea(&nmea) { }

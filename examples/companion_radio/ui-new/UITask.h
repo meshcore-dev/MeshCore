@@ -61,7 +61,8 @@ class UITask : public AbstractUITask {
   unsigned long _alert_expiry;
   int _msgcount;
   unsigned long ui_started_at, next_batt_chck;
-  int next_backlight_btn_check = 0;
+  unsigned long next_backlight_btn_check = 0;
+  unsigned long _backlight_off = 0;
 #ifdef PIN_STATUS_LED
   int led_state = 0;
   int next_led_change = 0;
@@ -113,6 +114,7 @@ public:
   void toggleBuzzer();
   bool getGPSState();
   void toggleGPS();
+  void triggerGPS();
 
   // MyMesh::Listener
   void onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, const char* text) override;
