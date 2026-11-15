@@ -409,8 +409,7 @@ public:
       memcpy(temp, &timestamp, 4);   // mostly an extra blob to help make packet_hash unique
       temp[4] = 0;  // attempt and flags
 
-      sprintf((char *) &temp[5], "%s: %s", _prefs.node_name, &command[7]);  // <sender>: <msg>
-      temp[5 + MAX_TEXT_LEN] = 0;  // truncate if too long
+      snprintf((char *) &temp[5], MAX_TEXT_LEN + 1, "%s: %s", _prefs.node_name, &command[7]);  // <sender>: <msg>
 
       int len = strlen((char *) &temp[5]);
       auto pkt = createGroupDatagram(PAYLOAD_TYPE_GRP_TXT, _public->channel, temp, 5 + len);

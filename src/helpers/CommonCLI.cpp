@@ -252,7 +252,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         strcpy(reply, "ERR: bad pubkey");
       }
     } else if (memcmp(command, "tempradio ", 10) == 0) {
-      strcpy(tmp, &command[10]);
+      StrHelper::strncpy(tmp, &command[10], sizeof(tmp));
       const char *parts[5];
       int num = mesh::Utils::parseTextParts(tmp, parts, 5);
       float freq  = num > 0 ? strtof(parts[0], nullptr) : 0.0f;
@@ -308,7 +308,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         strcpy(reply, "null");
       }
     } else if (memcmp(command, "sensor set ", 11) == 0) {
-      strcpy(tmp, &command[11]);
+      StrHelper::strncpy(tmp, &command[11], sizeof(tmp));
       const char *parts[2];
       int num = mesh::Utils::parseTextParts(tmp, parts, 2, ' ');
       const char *key = (num > 0) ? parts[0] : "";
@@ -647,7 +647,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     };
   #if defined(USE_LR2021)
   } else if (memcmp(config, "extra.sf ", 9) == 0) {
-    strcpy(tmp, &config[9]);
+    StrHelper::strncpy(tmp, &config[9], sizeof(tmp));
     const char *parts[4];
     uint8_t sideDetSFs[4];
     int num = mesh::Utils::parseTextParts(tmp, parts, 4);
@@ -819,7 +819,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
       sprintf(reply, "No extra SF configured");
     }
   } else {
-    sprintf(reply, "??: %s", config);
+    snprintf(reply, 160, "??: %s", config);
   }
 }
 
