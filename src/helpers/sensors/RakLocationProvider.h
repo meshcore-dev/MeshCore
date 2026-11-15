@@ -211,6 +211,20 @@ public:
         return _gpsPeriodSeconds;
     }
 
+    // the first-fix limit is only implemented on the serial NMEA path
+    void setFirstFixTimeout(uint32_t seconds) override {
+        _nmea.setFirstFixTimeout(seconds);
+    }
+
+    uint32_t getFirstFixTimeout() const override {
+        return _useI2c ? 0 : _nmea.getFirstFixTimeout();
+    }
+
+    void formatDiagnostics(char* out, size_t out_size) override {
+        if (_useI2c) LocationProvider::formatDiagnostics(out, out_size);
+        else _nmea.formatDiagnostics(out, out_size);
+    }
+
     bool isGpsOn() const override {
         return _useI2c ? _gpsOn : _nmea.isGpsOn();
     }
