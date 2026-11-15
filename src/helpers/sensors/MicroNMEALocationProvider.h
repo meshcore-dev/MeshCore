@@ -169,6 +169,12 @@ class MicroNMEALocationProvider : public LocationProvider {
         if (isValid()) time_valid++;
     }
 
+    // the time sync has had its chance: done, not needed, or refused by GPS_GUARD.
+    // updateTime() tries it on the tick where time_valid goes from 3 to 4.
+    bool timeSyncSettled() const {
+        return _clock == nullptr || !_time_sync_needed || time_valid > 3;
+    }
+
     bool timeSyncAllowed() {
 #ifdef GPS_GUARD
         return _guard.acceptTime(getTimestamp(), _clock->getCurrentTime());
@@ -403,10 +409,13 @@ public:
                         const uint8_t mode = currentFixMode();
                         if (mode == 0 || mode == 3) _goodFixInWindow = true;
                         if (_acquiringPeriodically && _goodFixInWindow) {
-                            // stay on until a pending time sync is done (or the settle time is over)
-                            const bool synced = _clock == nullptr || !_time_sync_needed;
-                            if ((nmea.getNumSatellites() >= GPS_MIN_SATS_FOR_FIX && synced) ||
-                                (uint32_t)(millis() - _firstFixInWindow) >= GPS_FIX_SETTLE_MS) {
+                            // stay on until a pending time sync has been tried, even past the settle
+                            // time: after a hot start the fix can come before the time is steady, and
+                            // the window would close unsynced until the next period. The acquisition
+                            // timeout below still bounds it.
+                            if (timeSyncSettled() &&
+                                (nmea.getNumSatellites() >= GPS_MIN_SATS_FOR_FIX ||
+                                 (uint32_t)(millis() - _firstFixInWindow) >= GPS_FIX_SETTLE_MS)) {
                                 finishPeriodicAcquisition();
                             }
                         }
