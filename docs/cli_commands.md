@@ -357,9 +357,10 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Usage:**
 - `get prv.key`
 - `set prv.key <private_key>`
+- `set prv.key random`
 
 **Parameters:**
-- `private_key`: Private key in hex format (64 hex characters)
+- `private_key`: Private key in hex format (64 hex characters), or `random` to generate a new random key
 
 **Serial Only:**
 - `get prv.key`: Yes
