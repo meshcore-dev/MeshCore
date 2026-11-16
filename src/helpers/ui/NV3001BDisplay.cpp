@@ -262,7 +262,7 @@ void NV3001BDisplay::writeColor(uint16_t rgb, uint32_t count) {
   digitalWrite(PIN_TFT_DC, HIGH);
   digitalWrite(PIN_TFT_CS, LOW);
 #ifdef NRF52_PLATFORM
-  // EasyDMA needs a RAM buffer. Send repeated pixels in bursts at 4 MHz.
+  // EasyDMA needs a RAM buffer. Send repeated pixels in bursts.
   uint8_t pixels[64];
   size_t bytes = sizeof(pixels);
   if (count < bytes / 2) bytes = count * 2;
