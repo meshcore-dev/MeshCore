@@ -5,9 +5,9 @@
 #include <helpers/sensors/EnvironmentSensorManager.h>
 #include <helpers/ui/MomentaryButton.h>
 #include <helpers/ui/NV3001BDisplay.h>
-#include "MeshPocketV2.h"
+#include "HeltecMeshPocketV2Board.h"
 
-extern MeshPocketV2 board;
+extern HeltecMeshPocketV2Board board;
 extern WRAPPER_CLASS radio_driver;
 extern VolatileRTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;

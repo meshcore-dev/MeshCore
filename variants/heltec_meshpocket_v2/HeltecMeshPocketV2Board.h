@@ -3,9 +3,9 @@
 #include <helpers/NRF52Board.h>
 #include "PowerBank.h"
 
-class MeshPocketV2 : public NRF52Board {
+class HeltecMeshPocketV2Board : public NRF52Board {
 public:
-  MeshPocketV2() : NRF52Board("MeshPocket_V2_OTA") {}
+  HeltecMeshPocketV2Board() : NRF52Board("MeshPocket_V2_OTA") {}
   PowerBank powerBank;
   void begin() override;
   void loop() override { powerBank.poll(); }

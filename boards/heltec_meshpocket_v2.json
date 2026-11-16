@@ -15,7 +15,7 @@
     ],
     "usb_product": "pocket-v2",
     "mcu": "nrf52840",
-    "variant": "meshpocket_v2",
+    "variant": "heltec_meshpocket_v2",
     "bsp": {
       "name": "adafruit"
     },

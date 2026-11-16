@@ -1,16 +1,16 @@
-#include "MeshPocketV2.h"
+#include "HeltecMeshPocketV2Board.h"
 #include "PowerBankPage.h"
 #include <helpers/ui/BoardUiExtension.h>
 #include <helpers/ui/MomentaryButton.h>
 #include <nrf_gpio.h>
 
-class MeshPocketV2::UiExtension : public mesh::BoardUiExtension {
-  MeshPocketV2& board;
+class HeltecMeshPocketV2Board::UiExtension : public mesh::BoardUiExtension {
+  HeltecMeshPocketV2Board& board;
   PowerBankPage page;
   MomentaryButton secondaryButton;
 
 public:
-  explicit UiExtension(MeshPocketV2& board) :
+  explicit UiExtension(HeltecMeshPocketV2Board& board) :
       board(board), secondaryButton(PIN_BUTTON2, 1000, true, true, false) {}
 
   void begin() {
@@ -47,43 +47,43 @@ public:
   }
 };
 
-void MeshPocketV2::begin() {
+void HeltecMeshPocketV2Board::begin() {
   NRF52Board::begin();
   powerBank.begin();
   pinMode(PIN_USER_BTN, INPUT_PULLUP);
   uiExtension().begin();
 }
 
-MeshPocketV2::UiExtension& MeshPocketV2::uiExtension() {
+HeltecMeshPocketV2Board::UiExtension& HeltecMeshPocketV2Board::uiExtension() {
   static UiExtension extension(*this);
   return extension;
 }
 
-mesh::BoardUiExtension* MeshPocketV2::getUiExtension() {
+mesh::BoardUiExtension* HeltecMeshPocketV2Board::getUiExtension() {
   return &uiExtension();
 }
 
-uint16_t MeshPocketV2::getBattMilliVolts() {
+uint16_t HeltecMeshPocketV2Board::getBattMilliVolts() {
   const auto& status = powerBank.snapshot();
   if (status.cw.ready) return status.cw.voltageMv;
   return status.hltLive() ? status.hlt.batteryMv : 0;
 }
 
-void MeshPocketV2::setUsbDataEnabled(bool enabled) {
+void HeltecMeshPocketV2Board::setUsbDataEnabled(bool enabled) {
   digitalWrite(PIN_IO_CSA, enabled ? HIGH : LOW);
 }
 
-bool MeshPocketV2::toggleUsbData() {
+bool HeltecMeshPocketV2Board::toggleUsbData() {
   const bool enabled = !isUsbDataEnabled();
   setUsbDataEnabled(enabled);
   return enabled;
 }
 
-bool MeshPocketV2::isUsbDataEnabled() const {
+bool HeltecMeshPocketV2Board::isUsbDataEnabled() const {
   return digitalRead(PIN_IO_CSA) == HIGH;
 }
 
-void MeshPocketV2::shutdownPeripherals() {
+void HeltecMeshPocketV2Board::shutdownPeripherals() {
   NRF52Board::shutdownPeripherals();
   powerBank.end();
   nrf_gpio_cfg_sense_input(PIN_USER_BTN, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);

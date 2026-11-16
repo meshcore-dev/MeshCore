@@ -1,7 +1,7 @@
 #include "target.h"
 #include <helpers/sensors/MicroNMEALocationProvider.h>
 
-MeshPocketV2 board;
+HeltecMeshPocketV2Board board;
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
 WRAPPER_CLASS radio_driver(radio, board);
 VolatileRTCClock rtc_clock;
