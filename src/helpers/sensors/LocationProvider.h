@@ -18,6 +18,7 @@ public:
         long satellites = 0;
         long timestamp = 0;
         unsigned long acquiredAt = 0;   // millis() when the fix was stored
+        uint8_t fixMode = 0;            // from GSA: 2 = 2D, 3 = 3D, 0 = unknown
     };
 
     struct FixStats {
@@ -81,6 +82,9 @@ public:
     }
     virtual void setGpsPeriod(uint32_t seconds) { }
     virtual uint32_t getGpsPeriod() const { return 0; }
+    // periodic mode: limit of an acquisition before the first fix since boot, 0 = no limit
+    virtual void setFirstFixTimeout(uint32_t seconds) { }
+    virtual uint32_t getFirstFixTimeout() const { return 0; }
     virtual uint32_t getLastFixAge() const { // in seconds, UINT32_MAX if never
         const LastFix f = getLastFix();
         return f.valid ? (uint32_t)(millis() - f.acquiredAt) / 1000UL : UINT32_MAX;

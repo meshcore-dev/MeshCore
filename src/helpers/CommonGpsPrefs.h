@@ -18,6 +18,9 @@ public:
   virtual void setGpsEnabled(bool enabled) = 0;
   virtual uint32_t getGpsPeriod() const = 0;
   virtual void setGpsPeriod(uint32_t seconds) = 0;
+  // Saved first-fix timeout in seconds; false = not set, use the build default.
+  virtual bool getFirstFixTimeout(uint32_t& seconds) const { return false; }
+  virtual void setFirstFixTimeout(uint32_t seconds) { }
 
   // Reference position for the anti-spoofing guard (GPS_GUARD), e.g. the configured node position.
   virtual bool getGuardReference(double& lat, double& lon) const { return false; }

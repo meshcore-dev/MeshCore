@@ -1026,7 +1026,21 @@ region save
 **Parameters:**
 - `value`: `0` for continuous tracking, or a period. The value can be postfixed with `s`, `m`, `h` or `d` to specify the unit (seconds by default).
 
-**Note:** A periodic acquisition stops after receiving a valid fix, then resumes after the configured period.
+**Note:** A periodic acquisition stops after receiving a valid fix, then resumes after the configured period. Without a fix it stops after 5 minutes (`GPS_PERIODIC_ACQUISITION_TIMEOUT_MS`), or, until the first fix since boot, after the first fix timeout (see `gps firstfix`).
+
+---
+
+#### View or change the first fix timeout
+**Usage:**
+- `gps firstfix`
+- `gps firstfix <value>`
+
+**Parameters:**
+- `value`: `0` for no limit, or a duration up to `1d`. The value can be postfixed with `s`, `m`, `h` or `d` to specify the unit (seconds by default).
+
+**Default:** `1h` (`GPS_FIRST_FIX_TIMEOUT_MS`)
+
+**Note:** In periodic mode, limits an acquisition until the first valid fix since boot. A cold start can take much longer than the usual 5 minutes with a weak sky view; after the limit the GPS sleeps for the period and tries again. Saved with the other GPS settings.
 
 ---
 
@@ -1085,7 +1099,7 @@ GPS time is written to the clock only while such a fix is current, never earlier
 Covers serial NMEA receivers (`MicroNMEALocationProvider`).
 
 **Usage:**
-- `gps guard`: status, e.g. `> ok 7sat time ok +1s`, `> rej region time rej nofix`, or `... ALERT gps-clk +3600s 75m` when a trusted fix has disagreed with the clock by the same offset for `GPS_GUARD_ALERT_MIN` minutes. While the alert is active, the offset in hours is also reported in telemetry on the next free channel.
+- `gps guard`: status, e.g. `> ok 7sat time ok +1s`, `> rej region time rej nofix`, `> ok 7sat time wait` (last check passed, no current trusted fix to check again, e.g. GPS asleep between periodic fixes), or `... ALERT gps-clk +3600s 75m` when a trusted fix has disagreed with the clock by the same offset for `GPS_GUARD_ALERT_MIN` minutes.
 - `gps guard on`, `gps guard off`: turn the guard on or off (saved, default on). While off, every fix and GPS time is accepted and `gps guard` shows `off`.
 - `gps guard accept`: while an alert is active, confirm that the GPS time is right and apply it to the clock.
 - `gps fence`, `gps fence <metres>`: fence radius around the configured `lat`/`lon` (`0` = off). Default `GPS_GUARD_FENCE_M` (1000); a value set here is saved.
@@ -1101,6 +1115,8 @@ Covers serial NMEA receivers (`MicroNMEALocationProvider`).
 
 #### View or change the GPS advert policy
 **Usage:**
+- `get advert.loc`
+- `set advert.loc <policy>`
 - `gps advert`
 - `gps advert <policy>`
 
@@ -1108,9 +1124,11 @@ Covers serial NMEA receivers (`MicroNMEALocationProvider`).
 - `policy`: `none`|`share`|`prefs` 
   - `none`: don't include location in adverts
   - `share`: share gps location (from SensorManager)
-  - `prefs`: location stored in node's lat and lon settings
+  - `prefs`: location stored in node's lat and lon settings (can be different from gps value)
 
 **Default:** `prefs`
+
+**Note:** `gps advert` command is the old format but is only accessible when a gps is attached to the unit. It has been kept for compatibility but one should prefer using `get/set` commands instead.
 
 ---
 
@@ -1246,13 +1264,6 @@ Covers serial NMEA receivers (`MicroNMEALocationProvider`).
 **Note:** Returns an error on boards without power management support.
 
 ---
-
-### Repeater health history
-
-History is queried over the mesh using the sensor-compatible `0x04` min/max/average
-request; there is no history CLI command. Retention and recording interval are controlled
-by `REPEATER_HISTORY_SLOTS` and `REPEATER_HISTORY_INTERVAL_SECS` at build time.
-See [Repeater health history](repeater_history.md) for the channel mapping and flags.
 
 ### Ethernet (when Ethernet support is compiled in)
 

@@ -133,7 +133,6 @@ public:
     strcpy(_time_status, "-");
   }
   bool isTimeAlert() const { return _time_alert; }
-  long getAlertOffset() const { return _time_disagree_offset; }
 
   // Fix as reported by the receiver: lat/lon in micro-degrees, HDOP in tenths (255 = unknown),
   // gps_time = UTC epoch of the fix. Returns true if the fix can be stored as trusted.
@@ -280,16 +279,17 @@ public:
     return true;
   }
 
-  // e.g. "ok 7sat time ok +1s", "rej region time rej nofix",
+  // e.g. "ok 7sat time ok +1s", "ok 7sat time wait", "rej region time rej nofix",
   // "ok 9sat time rej step 3600s ALERT gps-clk +3600s 75m"
   void formatStatus(char* out, size_t out_size) const {
     if (!_enabled) {
       snprintf(out, out_size, "off");
       return;
     }
-    // The time status is only refreshed when a sync is due: without a current trusted fix,
-    // do not keep showing an old "ok" as if GPS time were usable now.
-    const char* time_status = (_time_status[0] == 'o' && !trustedFixIsCurrent()) ? "rej nofix" : _time_status;
+    // The time status is only refreshed when a sync is due. Without a current trusted fix
+    // (e.g. GPS asleep between periodic fixes) an old "ok" is not shown as current: the last
+    // check passed and the next one waits for a trusted fix.
+    const char* time_status = (_time_status[0] == 'o' && !trustedFixIsCurrent()) ? "wait" : _time_status;
     if (_time_alert) {
       snprintf(out, out_size, "%s time %s ALERT gps-clk %+lds %lum", _fix_status, time_status,
                _time_disagree_offset, (unsigned long)((uint32_t)(millis() - _time_disagree_since_ms) / 60000));

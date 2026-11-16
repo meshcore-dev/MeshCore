@@ -41,7 +41,15 @@ class RakI2cGpsDriver : public GpsDriver {
         }
 
 #ifndef RAK_3401
-        pinMode(powerPin, INPUT);
+        if (powerPin == WB_IO2) {
+            // WB_IO2 switches the 3V3_S slot rail, which also powers a serial GPS and the other
+            // slot modules. Left as an input, the rail follows whatever the base board pulls it
+            // to: some keep it on, others switch it off, and the serial GPS loses power (#3830).
+            // Keep it driven HIGH, as before the probe; a GPS power pin re-claims it later.
+            digitalWrite(powerPin, HIGH);
+        } else {
+            pinMode(powerPin, INPUT);
+        }
 #endif
         return false;
     }

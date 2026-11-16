@@ -8,7 +8,7 @@ VolatileRTCClock rtc_clock;
 NmeaGpsDriver gps_driver(Serial1);
 MicroNMEALocationProvider gps(gps_driver, &rtc_clock);
 EnvironmentSensorManager sensors(gps);
-DISPLAY_CLASS display(SPI1);
+DISPLAY_CLASS display(&SPI1);
 MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
 
 bool radio_init() {

@@ -2154,6 +2154,30 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     sprintf(reply, "> pin is now %06d", _prefs.ble_pin);
     return true;
   }
+  if (strcmp(command, "set ble.name") == 0) {
+    _prefs.ble_name[0] = 0;
+    savePrefs();
+    sprintf(reply, "> BLE name reset to %s%s (reboot to apply)", BLE_NAME_PREFIX, _prefs.node_name);
+    return true;
+  }
+  if (memcmp(command, "set ble.name ", 13) == 0) {
+    if (AdvertDataParser::isValidName(&command[13])) {
+      StrHelper::strncpy(_prefs.ble_name, &command[13], sizeof(_prefs.ble_name));
+      savePrefs();
+      sprintf(reply, "> BLE name is now %s (reboot to apply)", _prefs.ble_name);
+    } else {
+      strcpy(reply, "Error, bad chars");
+    }
+    return true;
+  }
+  if (strcmp(command, "get ble.name") == 0) {
+    if (_prefs.ble_name[0]) {
+      sprintf(reply, "> %s", _prefs.ble_name);
+    } else {
+      sprintf(reply, "> %s%s", BLE_NAME_PREFIX, _prefs.node_name);
+    }
+    return true;
+  }
 
 #ifdef ENABLE_WIFI_INTERFACE
   if (memcmp(command, "set wifi.ssid ", 14) == 0) {

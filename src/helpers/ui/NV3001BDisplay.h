@@ -20,16 +20,14 @@
   #define NV3001B_PANEL_HEIGHT 220
 #endif
 
+class NV3001BDisplay : public DisplayDriver {
+#if defined(ESP_PLATFORM) || defined(ESP32_PLATFORM)
 #ifndef NV3001B_SPI_HOST
   #define NV3001B_SPI_HOST HSPI
 #endif
-
-class NV3001BDisplay : public DisplayDriver {
-#ifdef NRF52_PLATFORM
-  SPIClass& spi;
-#else
-  SPIClass spi;
+  SPIClass owned_spi;
 #endif
+  SPIClass& spi;
   RefCountedDigitalPin* periph_power;
   bool is_on = false;
   uint16_t color = 0xffff;
@@ -54,12 +52,17 @@ class NV3001BDisplay : public DisplayDriver {
   void drawChar(int x, int y, char ch);
 
 public:
-#ifdef NRF52_PLATFORM
-  explicit NV3001BDisplay(SPIClass& bus) :
-      DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT), spi(bus), periph_power(nullptr) { }
-#else
+#if defined(ESP_PLATFORM) || defined(ESP32_PLATFORM)
   NV3001BDisplay(RefCountedDigitalPin* power = nullptr) :
-      DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT), spi(NV3001B_SPI_HOST), periph_power(power) { }
+      DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT),
+      owned_spi(NV3001B_SPI_HOST), spi(owned_spi), periph_power(power) { }
+
+  NV3001BDisplay(SPIClass* displaySpi, RefCountedDigitalPin* power = nullptr) :
+      DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT),
+      owned_spi(NV3001B_SPI_HOST), spi(displaySpi ? *displaySpi : owned_spi), periph_power(power) { }
+#else
+  NV3001BDisplay(SPIClass* displaySpi = &SPI, RefCountedDigitalPin* power = nullptr) :
+      DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT), spi(displaySpi ? *displaySpi : SPI), periph_power(power) { }
 #endif
 
   bool begin();

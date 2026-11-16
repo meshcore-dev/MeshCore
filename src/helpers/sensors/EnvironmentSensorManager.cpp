@@ -1,9 +1,6 @@
 #include "EnvironmentSensorManager.h"
 
 #include <Wire.h>
-#if ENV_INCLUDE_GPS && defined(GPS_GUARD)
-#include <helpers/sensors/GpsGuard.h>
-#endif
 
 #if ENV_PIN_SDA && ENV_PIN_SCL
 #define TELEM_WIRE &Wire1  // Use Wire1 as the I2C bus for Environment Sensors
@@ -650,13 +647,6 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
       _active_sensors[i].query(next_available_channel, _active_sensors[i].sub_channel, telemetry);
       next_available_channel++;
     }
-    #if ENV_INCLUDE_GPS && defined(GPS_GUARD)
-    // GPS-vs-clock offset in hours on its own channel while the guard's time alert is active
-    GpsGuard* guard = _location->getGuard();
-    if (guard != nullptr && guard->isTimeAlert()) {
-      telemetry.addAnalogInput(next_available_channel++, guard->getAlertOffset() / 3600.0f);
-    }
-    #endif
   }
 
   return true;

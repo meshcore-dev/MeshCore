@@ -31,6 +31,7 @@ public:
   float tx_delay_factor = 0;
   float direct_tx_delay_factor = 0;
   uint32_t ble_pin = 0;
+  char ble_name[32] = {0};
   uint8_t  advert_loc_policy = 0;
   uint8_t  buzzer_quiet = 0;
   uint8_t  vibe_quiet = 0;
@@ -38,6 +39,7 @@ public:
   uint32_t gps_interval = 0;     // GPS read interval in seconds
   uint32_t gps_period = 0;       // periodic acquisition interval in seconds
   int32_t gps_fence = -1;        // GPS_GUARD fence in metres, 0 = off, -1 = build default
+  int32_t gps_first_fix = -1;    // first-fix timeout in seconds, 0 = no limit, -1 = build default
   uint8_t gps_guard = 1;         // GPS_GUARD on/off
   uint8_t autoadd_config = 0;    // bitmask for auto-add contacts config
   uint8_t rx_boosted_gain = 0; // SX126x RX boosted gain mode (0=power saving, 1=boosted)
@@ -169,6 +171,7 @@ private:
       def("int", _parent->gps_interval);   // interval in seconds
       def("period", _parent->gps_period);  // periodic acquisition interval in seconds
       def("adv_loc", _parent->advert_loc_policy);
+      def("ffix", _parent->gps_first_fix);
 #ifdef GPS_GUARD
       def("fence", _parent->gps_fence);
       def("guard", _parent->gps_guard);
@@ -180,6 +183,12 @@ private:
     void setGpsEnabled(bool enabled) override { _parent->gps_enabled = enabled; markDirty(); }
     uint32_t getGpsPeriod() const override { return _parent->gps_period; }
     void setGpsPeriod(uint32_t seconds) override { _parent->gps_period = seconds; markDirty(); }
+    bool getFirstFixTimeout(uint32_t& seconds) const override {
+      if (_parent->gps_first_fix < 0) return false;
+      seconds = (uint32_t)_parent->gps_first_fix;
+      return true;
+    }
+    void setFirstFixTimeout(uint32_t seconds) override { _parent->gps_first_fix = (int32_t)seconds; markDirty(); }
     bool getGuardFence(uint32_t& metres) const override {
       if (_parent->gps_fence < 0) return false;
       metres = (uint32_t)_parent->gps_fence;
@@ -216,6 +225,7 @@ private:
       def("defs_nm", _parent->default_scope_name, sizeof(_parent->default_scope_name));
       def("defs_key", (void *) _parent->default_scope_key, sizeof(_parent->default_scope_key));
       def("pin", _parent->ble_pin);
+      def("ble_name", _parent->ble_name, sizeof(_parent->ble_name));
       def("buzz_q", _parent->buzzer_quiet);
       def("vibe_q", _parent->vibe_quiet);
       def("auto_add", _parent->autoadd_config);    // bitmask for auto-add contacts config

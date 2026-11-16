@@ -448,10 +448,12 @@ bool NV3001BDisplay::begin() {
   digitalWrite(PIN_TFT_DC, HIGH);
   delay(20);
 
-#ifdef NRF52_PLATFORM
-  spi.begin();  // Pins are set by the nRF52 variant.
-#else
+#if defined(NRF52_PLATFORM)
+  spi.begin();
+#elif defined(ESP_PLATFORM) || defined(ESP32_PLATFORM)
   spi.begin(PIN_TFT_SCL, PIN_TFT_MISO, PIN_TFT_SDA, PIN_TFT_CS);
+#else
+  spi.begin();
 #endif
   if (PIN_TFT_RST >= 0) {
     pinMode(PIN_TFT_RST, OUTPUT);

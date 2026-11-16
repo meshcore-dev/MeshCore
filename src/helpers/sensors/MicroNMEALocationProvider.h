@@ -12,6 +12,12 @@
 #ifndef GPS_PERIODIC_ACQUISITION_TIMEOUT_MS
     #define GPS_PERIODIC_ACQUISITION_TIMEOUT_MS 300000UL
 #endif
+// default limit for the periodic window before the first fix since boot (a cold start
+// can take up to ~30 min with a weak sky view); 0 = keep searching until a fix.
+// Can be changed at runtime with `gps firstfix`.
+#ifndef GPS_FIRST_FIX_TIMEOUT_MS
+    #define GPS_FIRST_FIX_TIMEOUT_MS 3600000UL
+#endif
 
 // in periodic mode, keep reading after the first valid fix until enough satellites
 // are used or the settle time has elapsed
@@ -22,8 +28,18 @@
     #define GPS_FIX_SETTLE_MS 10000UL
 #endif
 
+// a 2D fix does not replace a 3D fix younger than this (it is less precise)
+#ifndef GPS_3D_FIX_PREFERRED_MS
+    #define GPS_3D_FIX_PREFERRED_MS 300000UL
+#endif
+
 class MicroNMEALocationProvider : public LocationProvider {
-    char _nmeaBuffer[100];
+    // MicroNMEA never writes past the length it is given, but its fixed-width field
+    // skips can read a few bytes past the end of a malformed sentence. The zeroed tail
+    // lets those reads stop on NUL bytes instead of reading the members that follow.
+    static constexpr size_t NMEA_BUFFER_LEN = 100;
+    static constexpr size_t NMEA_BUFFER_TAIL = 16;
+    char _nmeaBuffer[NMEA_BUFFER_LEN + NMEA_BUFFER_TAIL] = {};
     MicroNMEA nmea;
     mesh::RTCClock* _clock;
     NmeaGpsDriver* _driver;
@@ -31,9 +47,11 @@ class MicroNMEALocationProvider : public LocationProvider {
     long time_valid = 0;
     unsigned long _last_time_sync = 0;
     uint32_t _gpsPeriodSeconds = 0;
+    uint32_t _firstFixTimeoutSeconds = GPS_FIRST_FIX_TIMEOUT_MS / 1000UL;
     unsigned long _nextAcquisition = 0;
     unsigned long _acquisitionStarted = 0;
     unsigned long _firstFixInWindow = 0;
+    bool _goodFixInWindow = false;   // a fix that lets the GPS sleep (3D, or fix mode unknown)
     bool _acquiringPeriodically = false;
     unsigned long _onceDeadline = 0;
     static const unsigned long TIME_SYNC_INTERVAL = 1800000;
@@ -47,6 +65,26 @@ class MicroNMEALocationProvider : public LocationProvider {
     unsigned long _last_nmea_ms = 0;
     bool _uart_seen = false;
     bool _nmea_seen = false;
+    uint8_t _gsa_fix_mode = 0;      // fix mode from the last GSA: 1 = none, 2 = 2D, 3 = 3D
+    unsigned long _gsa_ms = 0;
+
+    static bool isGsa(const char* id) {   // GPGSA, GNGSA, BDGSA, ...
+        const size_t n = strlen(id);
+        return n >= 3 && strcmp(id + n - 3, "GSA") == 0;
+    }
+    // $--GSA,<mode A/M>,<fix 1/2/3>,...
+    void parseGsa(const char* s) {
+        s = strchr(s, ',');
+        if (s != NULL) s = strchr(s + 1, ',');
+        if (s != NULL && s[1] >= '1' && s[1] <= '3') {
+            _gsa_fix_mode = s[1] - '0';
+            _gsa_ms = millis();
+        }
+    }
+    // 0 (unknown) if the receiver does not send GSA, or sent none recently
+    uint8_t currentFixMode() const {
+        return (_gsa_fix_mode != 0 && (uint32_t)(millis() - _gsa_ms) <= 2000) ? _gsa_fix_mode : 0;
+    }
 #ifdef GPS_GUARD
     GpsGuard _guard;
 #endif
@@ -71,6 +109,7 @@ class MicroNMEALocationProvider : public LocationProvider {
         _acquiringPeriodically = true;
         _acquisitionStarted = millis();
         _firstFixInWindow = 0;
+        _goodFixInWindow = false;
     }
 
     void finishPeriodicAcquisition() {
@@ -84,13 +123,17 @@ class MicroNMEALocationProvider : public LocationProvider {
 
     bool saveFix() {
         // only store a fix when the snapshot is coherent (sats > 0).
-        // Returns true if the fix was stored.
+        // Returns true if the fix was accepted (stored, or kept out by a recent 3D fix).
         if (nmea.getNumSatellites() == 0) return false;
 #ifdef GPS_GUARD
         // only plausible, stable fixes become the last fix (position, telemetry, time sync)
         if (!_guard.acceptFix(nmea.getLatitude(), nmea.getLongitude(), nmea.getNumSatellites(),
                               nmea.getHDOP(), getTimestamp())) return false;
 #endif
+        const uint8_t mode = currentFixMode();
+        // a 2D fix is valid but less precise: keep a recent 3D fix instead
+        if (mode == 2 && _lastFix.valid && _lastFix.fixMode == 3 &&
+            (uint32_t)(millis() - _lastFix.acquiredAt) < GPS_3D_FIX_PREFERRED_MS) return true;
 
         LastFix fix;
         fix.latitude = nmea.getLatitude();
@@ -102,6 +145,7 @@ class MicroNMEALocationProvider : public LocationProvider {
         fix.satellites = nmea.getNumSatellites();
         fix.timestamp = getTimestamp();
         fix.acquiredAt = millis();
+        fix.fixMode = mode;
         fix.valid = true;
         _lastFix = fix;
         return true;
@@ -125,6 +169,12 @@ class MicroNMEALocationProvider : public LocationProvider {
         if (isValid()) time_valid++;
     }
 
+    // the time sync has had its chance: done, not needed, or refused by GPS_GUARD.
+    // updateTime() tries it on the tick where time_valid goes from 3 to 4.
+    bool timeSyncSettled() const {
+        return _clock == nullptr || !_time_sync_needed || time_valid > 3;
+    }
+
     bool timeSyncAllowed() {
 #ifdef GPS_GUARD
         return _guard.acceptTime(getTimestamp(), _clock->getCurrentTime());
@@ -135,7 +185,7 @@ class MicroNMEALocationProvider : public LocationProvider {
 
 public:
     MicroNMEALocationProvider(NmeaGpsDriver& driver, mesh::RTCClock* clock = nullptr)
-        : nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock), _driver(&driver) {}
+        : nmea(_nmeaBuffer, NMEA_BUFFER_LEN), _clock(clock), _driver(&driver) {}
 
     void begin() override {
         _begin_calls++;
@@ -145,6 +195,7 @@ public:
         if (!wasActive) {
             _acquisitionStarted = millis();
             _firstFixInWindow = 0;
+            _goodFixInWindow = false;
         }
         if (_gpsPeriodSeconds > 0 && _driver->isActive()) {
             nmea.clear();
@@ -152,6 +203,7 @@ public:
             _acquiringPeriodically = true;
             _acquisitionStarted = millis();
             _firstFixInWindow = 0;
+            _goodFixInWindow = false;
         }
     }
 
@@ -192,6 +244,14 @@ public:
 
     uint32_t getGpsPeriod() const override {
         return _gpsPeriodSeconds;
+    }
+
+    void setFirstFixTimeout(uint32_t seconds) override {
+        _firstFixTimeoutSeconds = seconds;
+    }
+
+    uint32_t getFirstFixTimeout() const override {
+        return _firstFixTimeoutSeconds;
     }
 
     uint32_t getAcquisitionAge() const override {
@@ -294,7 +354,7 @@ public:
         if (_driver->pollGpsSwitch()) _gpsOn = true;
 
         if (_onceDeadline != 0) {
-            if (_firstFixInWindow != 0 && (long)(_onceDeadline - (millis() + GPS_FIX_SETTLE_MS)) > 0) {
+            if (_goodFixInWindow && (long)(_onceDeadline - (millis() + GPS_FIX_SETTLE_MS)) > 0) {
                 _onceDeadline = millis() + GPS_FIX_SETTLE_MS;
             }
             if ((long)(millis() - _onceDeadline) >= 0) {
@@ -330,6 +390,7 @@ public:
                     _nmea_seen = true;
 
                     const char* messageId = nmea.getMessageID();
+                    if (isGsa(messageId)) parseGsa(nmea.getSentence());
 #ifdef GPS_GUARD
                     if (parsed && !nmea.isValid() &&
                         (strcmp(messageId, "GGA") == 0 || strcmp(messageId, "RMC") == 0)) {
@@ -343,11 +404,18 @@ public:
                             _firstFixInWindow = millis();
                             fixStatsFix((uint32_t)(_firstFixInWindow - _acquisitionStarted));
                         }
-                        if (_acquiringPeriodically) {
-                            // stay on until a pending time sync is done (or the settle time is over)
-                            const bool synced = _clock == nullptr || !_time_sync_needed;
-                            if ((nmea.getNumSatellites() >= GPS_MIN_SATS_FOR_FIX && synced) ||
-                                (uint32_t)(millis() - _firstFixInWindow) >= GPS_FIX_SETTLE_MS) {
+                        // after a 2D fix the GPS stays on (up to the acquisition timeout)
+                        // to give the receiver a chance to get a 3D fix
+                        const uint8_t mode = currentFixMode();
+                        if (mode == 0 || mode == 3) _goodFixInWindow = true;
+                        if (_acquiringPeriodically && _goodFixInWindow) {
+                            // stay on until a pending time sync has been tried, even past the settle
+                            // time: after a hot start the fix can come before the time is steady, and
+                            // the window would close unsynced until the next period. The acquisition
+                            // timeout below still bounds it.
+                            if (timeSyncSettled() &&
+                                (nmea.getNumSatellites() >= GPS_MIN_SATS_FOR_FIX ||
+                                 (uint32_t)(millis() - _firstFixInWindow) >= GPS_FIX_SETTLE_MS)) {
                                 finishPeriodicAcquisition();
                             }
                         }
@@ -358,10 +426,13 @@ public:
             }
         }
 
-        // no timeout until a first fix has been obtained (cold start can be long)
-        if (_acquiringPeriodically && _lastFix.valid &&
-            (uint32_t)(millis() - _acquisitionStarted) >= GPS_PERIODIC_ACQUISITION_TIMEOUT_MS) {
-            finishPeriodicAcquisition();
+        // a longer limit until a first fix has been obtained (cold start can be long)
+        if (_acquiringPeriodically) {
+            const uint32_t limit = _lastFix.valid ? GPS_PERIODIC_ACQUISITION_TIMEOUT_MS
+                                                  : _firstFixTimeoutSeconds * 1000UL;
+            if (limit > 0 && (uint32_t)(millis() - _acquisitionStarted) >= limit) {
+                finishPeriodicAcquisition();
+            }
         }
 
         updateTime();
@@ -390,5 +461,8 @@ public:
             fix_age,
             (unsigned long)_begin_calls,
             (unsigned long)_stop_calls);
+        // fix mode from GSA (1 none, 2 2D, 3 3D, 0 no recent GSA)
+        const size_t len = strlen(out);
+        if (len < out_size) snprintf(out + len, out_size - len, " fm:%u", currentFixMode());
     }
 };

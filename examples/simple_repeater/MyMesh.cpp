@@ -1,8 +1,5 @@
 #include "MyMesh.h"
 #include <algorithm>
-#if REPEATER_HISTORY_SLOTS > 0
-#include <helpers/sensors/LPPDataHelpers.h>
-#endif
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -49,9 +46,6 @@
 #define REQ_TYPE_GET_STATUS         0x01 // same as _GET_STATS
 #define REQ_TYPE_KEEP_ALIVE         0x02
 #define REQ_TYPE_GET_TELEMETRY_DATA 0x03
-#if REPEATER_HISTORY_SLOTS > 0
-#define REQ_TYPE_GET_AVG_MIN_MAX 0x04
-#endif
 #define REQ_TYPE_GET_ACCESS_LIST    0x05
 #define REQ_TYPE_GET_NEIGHBOURS     0x06
 #define REQ_TYPE_GET_OWNER_INFO     0x07     // FIRMWARE_VER_LEVEL >= 2
@@ -215,7 +209,6 @@ uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender
 }
 
 int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t *payload, size_t payload_len) {
-  if (payload_len == 0) return 0;
   // uint32_t now = getRTCClock()->getCurrentTimeUnique();
   // memcpy(reply_data, &now, 4);   // response packets always prefixed with timestamp
   memcpy(reply_data, &sender_timestamp, 4); // reflect sender_timestamp back in response packet (kind of like a 'tag')
@@ -266,48 +259,6 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
     memcpy(&reply_data[4], telemetry.getBuffer(), tlen);
     return 4 + tlen; // reply_len
   }
-#if REPEATER_HISTORY_SLOTS > 0
-  if (payload[0] == REQ_TYPE_GET_AVG_MIN_MAX && payload_len >= 11 &&
-      (sender->permissions & PERM_ACL_ROLE_MASK) >= PERM_ACL_READ_ONLY) {
-    uint32_t start_secs_ago, end_secs_ago;
-    memcpy(&start_secs_ago, &payload[1], 4);
-    memcpy(&end_secs_ago, &payload[5], 4);
-    MinMaxAvg data[8];
-    int n = 0;
-    if (payload[9] == 0 && payload[10] == 0) {
-      uint32_t now_secs = uptime_millis / 1000;
-      battery_history.calcMinMaxAvg(now_secs, start_secs_ago, end_secs_ago, &data[n++], HISTORY_BATTERY,
-                                    LPP_VOLTAGE);
-      noise_history.calcMinMaxAvg(now_secs, start_secs_ago, end_secs_ago, &data[n++], HISTORY_NOISE,
-                                  LPP_ANALOG_INPUT);
-      tx_history.calcMinMaxAvg(now_secs, start_secs_ago, end_secs_ago, &data[n++], HISTORY_TX,
-                               LPP_PERCENTAGE);
-      rx_history.calcMinMaxAvg(now_secs, start_secs_ago, end_secs_ago, &data[n++], HISTORY_RX,
-                               LPP_PERCENTAGE);
-      temperature_history.calcMinMaxAvg(now_secs, start_secs_ago, end_secs_ago, &data[n], HISTORY_TEMPERATURE,
-                                        LPP_TEMPERATURE);
-      // Unsupported temperature sensors and empty ranges have no encodable LPP value.
-      if (!isnan(data[n]._avg)) n++;
-    }
-    uint8_t ofs = 4;
-    uint32_t now = getRTCClock()->getCurrentTime();
-    memcpy(&reply_data[ofs], &now, 4);
-    ofs += 4;
-    for (int i = 0; i < n; i++) {
-      auto d = &data[i];
-      if (isnan(d->_avg)) continue;
-      reply_data[ofs++] = d->_channel;
-      reply_data[ofs++] = d->_lpp_type;
-      uint8_t sz = LPPData::getDataSize(d->_lpp_type);
-      uint32_t mult = LPPData::getMultiplier(d->_lpp_type);
-      bool is_signed = LPPData::isSigned(d->_lpp_type);
-      ofs += LPPData::putFloat(&reply_data[ofs], d->_min, sz, mult, is_signed);
-      ofs += LPPData::putFloat(&reply_data[ofs], d->_max, sz, mult, is_signed);
-      ofs += LPPData::putFloat(&reply_data[ofs], d->_avg, sz, mult, is_signed);
-    }
-    return ofs;
-  }
-#endif
   if (payload[0] == REQ_TYPE_GET_ACCESS_LIST && sender->isAdmin()) {
     uint8_t res1 = payload[1];   // reserved for future  (extra query params)
     uint8_t res2 = payload[2];
@@ -779,7 +730,8 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         }
       }
 
-      uint8_t temp[166];
+      // 5-byte datagram header + 3-byte reflected CLI prefix + 160-byte reply text + NUL
+      uint8_t temp[169];
       char *command = (char *)&data[5];
       char *reply = (char *)&temp[5];
       if (is_retry) {
@@ -911,13 +863,6 @@ void MyMesh::sendNodeDiscoverReq() {
 MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondClock &ms, mesh::RNG &rng,
                mesh::RTCClock &rtc, mesh::MeshTables &tables)
     : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
-#if REPEATER_HISTORY_SLOTS > 0
-      battery_history(REPEATER_HISTORY_SLOTS, REPEATER_HISTORY_INTERVAL_SECS),
-      noise_history(REPEATER_HISTORY_SLOTS, REPEATER_HISTORY_INTERVAL_SECS),
-      tx_history(REPEATER_HISTORY_SLOTS, REPEATER_HISTORY_INTERVAL_SECS),
-      rx_history(REPEATER_HISTORY_SLOTS, REPEATER_HISTORY_INTERVAL_SECS),
-      temperature_history(REPEATER_HISTORY_SLOTS, REPEATER_HISTORY_INTERVAL_SECS),
-#endif
       region_map(key_store), temp_map(key_store),
       _cli(board, rtc, sensors, region_map, acl, &_prefs, this),
       telemetry(MAX_PACKET_PAYLOAD - 4),
@@ -932,12 +877,6 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 {
   last_millis = 0;
   uptime_millis = 0;
-#if REPEATER_HISTORY_SLOTS > 0
-  history_last_secs = history_battery_secs = history_airtime_secs = 0;
-  history_tx_millis = history_rx_millis = 0;
-  history_battery_total = 0;
-  history_battery_count = 0;
-#endif
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
   set_radio_at = revert_radio_at = 0;
@@ -1348,48 +1287,7 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
   }
 }
 
-#if REPEATER_HISTORY_SLOTS > 0
-void MyMesh::recordHistory() {
-  uint32_t now_secs = uptime_millis / 1000;
-  // Average periodic reads without repeatedly enabling the battery divider.
-  if (uint32_t(now_secs - history_battery_secs) >= 15) {
-    history_battery_total += board.getBattMilliVolts();
-    history_battery_count++;
-    history_battery_secs = now_secs;
-  }
-  uint32_t elapsed_secs = now_secs - history_last_secs;
-  if (elapsed_secs < REPEATER_HISTORY_INTERVAL_SECS) return;
-  // Advance the sampling grid without accumulating loop delays or replaying missed slots.
-  history_last_secs += (elapsed_secs / REPEATER_HISTORY_INTERVAL_SECS) * REPEATER_HISTORY_INTERVAL_SECS;
-  uint32_t airtime_elapsed_secs = now_secs - history_airtime_secs;
-
-  if (history_battery_count > 0) {
-    battery_history.recordData(history_last_secs, history_battery_total / history_battery_count / 1000.0f);
-  }
-  int noise_floor = _radio->getNoiseFloor();
-  if (noise_floor != 0) noise_history.recordData(history_last_secs, noise_floor);  // zero means uncalibrated
-  uint32_t tx_millis = getTotalAirTime();
-  uint32_t rx_millis = getReceiveAirTime();
-  // Counters are milliseconds; unsigned subtraction also handles their wrap.
-  tx_history.recordData(history_last_secs, uint32_t(tx_millis - history_tx_millis) / (airtime_elapsed_secs * 10.0f));
-  rx_history.recordData(history_last_secs, uint32_t(rx_millis - history_rx_millis) / (airtime_elapsed_secs * 10.0f));
-  temperature_history.recordData(history_last_secs, board.getMCUTemperature()); // ignores NaN
-  history_airtime_secs = now_secs;
-  history_tx_millis = tx_millis;
-  history_rx_millis = rx_millis;
-  history_battery_total = 0;
-  history_battery_count = 0;
-}
-#endif
-
 void MyMesh::loop() {
-  // Update before dispatching requests, including across millis() wrap.
-  uint32_t now = millis();
-  uptime_millis += uint32_t(now - last_millis);
-  last_millis = now;
-#if REPEATER_HISTORY_SLOTS > 0
-  recordHistory();
-#endif
 #ifdef WITH_BRIDGE
   bridge.loop();
 #endif
@@ -1427,6 +1325,11 @@ void MyMesh::loop() {
     acl.save(_fs);
     dirty_contacts_expiry = 0;
   }
+
+  // update uptime
+  uint32_t now = millis();
+  uptime_millis += now - last_millis;
+  last_millis = now;
 }
 
 // To check if there is pending work
