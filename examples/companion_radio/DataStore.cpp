@@ -240,7 +240,11 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs) {
     file.read((uint8_t *)_prefs.default_scope_key, sizeof(_prefs.default_scope_key));     // 121
 
     // migrate old fields
-    _prefs.setRepeatEn(_prefs._client_repeat != 0);
+    // NOTE: stock firmware only ever stored 0 or 1 here, so '== 1' behaves the same as '!= 0' for it.
+    //   The difference only matters when upgrading from an earlier CSRA (selective repeat) test build,
+    //   which stored 2 for 'selective': that must not be migrated to full repeat. This can be reverted
+    //   to '!= 0' if those test builds are of no concern.
+    _prefs.setRepeatEn(_prefs._client_repeat == 1);
 
     file.close();
   }
