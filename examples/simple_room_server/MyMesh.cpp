@@ -682,6 +682,10 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #else
   _prefs.rx_boosted_gain = 1; // enabled by default;
 #endif
+#elif defined(RX_BOOSTED_GAIN)
+  _prefs.rx_boosted_gain = RX_BOOSTED_GAIN ? 1 : 0; // other radios: keep the variant default
+#elif defined(LR2021_RX_BOOSTED_GAIN)
+  _prefs.rx_boosted_gain = LR2021_RX_BOOSTED_GAIN ? 1 : 0;
 #endif
   _prefs.radio_fem_rxgain = 1;
   _prefs.radio_fem_txgain = 0;
