@@ -506,9 +506,10 @@ bool MyMesh::shouldSelectivelyRelay(const mesh::Packet* packet) {
   // and the message is never ACKed.
   bool chat = (pt == PAYLOAD_TYPE_TXT_MSG || pt == PAYLOAD_TYPE_REQ ||
                pt == PAYLOAD_TYPE_RESPONSE || pt == PAYLOAD_TYPE_PATH);
-  // ANON_REQ (eg. room login) is dest_hash then the sender's full pubkey, so dest-match only.
+  // ANON_REQ (eg. room/repeater login) is dest_hash then the sender's full pubkey; a node's
+  // hash is the first byte of its pubkey, so payload[1] works as the src_hash there too.
   if (chat || pt == PAYLOAD_TYPE_ANON_REQ) {
-    if (packet->payload_len < (chat ? 2 : 1)) return false;
+    if (packet->payload_len < 2) return false;
     ContactsIterator iter = startContactsIterator();
     ContactInfo ci;
     while (iter.hasNext(this, ci)) {
@@ -516,7 +517,7 @@ bool MyMesh::shouldSelectivelyRelay(const mesh::Packet* packet) {
       // only conversational peers; favourited repeaters/sensors don't join the allowlist
       if (ci.type != ADV_TYPE_CHAT && ci.type != ADV_TYPE_ROOM) continue;
       if (ci.id.isHashMatch(&packet->payload[0], 1)) return true;
-      if (chat && ci.id.isHashMatch(&packet->payload[1], 1)) return true;
+      if (ci.id.isHashMatch(&packet->payload[1], 1)) return true;
     }
     return false;
   }
