@@ -135,6 +135,19 @@ void TBeamBoard::printPMU()
 
 bool TBeamBoard::power_init()
 {
+#ifndef TBEAM_SUPREME_SX1262
+  // ESP32Board::begin() has already brought up Wire. Only construct an
+  // XPowersLib object if something actually answers at the PMU address:
+  // a failed init() followed by delete runs the destructor, which calls
+  // Wire.end() (XPowersLib 0.2.7, ESP_IDF_VERSION > 4.4.0) and would take the
+  // display, RTC and sensors down with it.
+  PMU_WIRE_PORT.beginTransmission(I2C_PMU_ADD);
+  if (PMU_WIRE_PORT.endTransmission() != 0) {
+    MESH_DEBUG_PRINTLN("No PMU at 0x%02X, running without power management", I2C_PMU_ADD);
+    return false;
+  }
+#endif
+
   if (!PMU) {
     #ifdef TBEAM_SUPREME_SX1262
       PMU = new XPowersAXP2101(PMU_WIRE_PORT, PIN_BOARD_SDA1, PIN_BOARD_SCL1, I2C_PMU_ADD);
