@@ -400,6 +400,20 @@ Radio parameters are common to all roles and handled by `CommonRadioPrefs`.
 
 ---
 
+#### Enable or disable selective repeat
+**Usage:**
+- `get repeat.selective`
+- `set repeat.selective <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `on` (test builds only; the intended default once merged is `off`)
+
+**Note:** When on (and full repeat is off), the companion relays flood traffic only to or from favourite chat/room contacts, and on channels it is subscribed to.
+
+---
+
 ### BLE
 
 #### Change BLE PIN
