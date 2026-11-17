@@ -485,7 +485,58 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
-  return _prefs.isRepeatEn();
+  if (_prefs.isRepeatEn()) return true;        // full repeat
+  if (!_prefs.selective_repeat) return false;
+
+  // A DIRECT-routed packet only gets here after the core has confirmed this node is the
+  // next hop on its path, ie. ACK / PATH-return / response legs of a conversation this node
+  // was inserted into while relaying the outbound flood. Filtering these by source would
+  // black-hole the route, since the return's source is the far contact.
+  if (packet->isRouteDirect()) return true;
+
+  return shouldSelectivelyRelay(packet);
+}
+
+bool MyMesh::shouldSelectivelyRelay(const mesh::Packet* packet) {
+  uint8_t pt = packet->getPayloadType();
+
+  // Chat-type flood layout: payload[0]=dest_hash, payload[1]=src_hash.
+  // Match a favourite at either end so both directions of its conversation relay. Before a
+  // path exists the returns come back as floods, so without the dest match they are dropped
+  // and the message is never ACKed.
+  bool chat = (pt == PAYLOAD_TYPE_TXT_MSG || pt == PAYLOAD_TYPE_REQ ||
+               pt == PAYLOAD_TYPE_RESPONSE || pt == PAYLOAD_TYPE_PATH);
+  // ANON_REQ (eg. room/repeater login) is dest_hash then the sender's full pubkey; a node's
+  // hash is the first byte of its pubkey, so payload[1] works as the src_hash there too.
+  if (chat || pt == PAYLOAD_TYPE_ANON_REQ) {
+    if (packet->payload_len < 2) return false;
+    ContactsIterator iter = startContactsIterator();
+    ContactInfo ci;
+    while (iter.hasNext(this, ci)) {
+      if (!ci.isFav()) continue;
+      // only conversational peers; favourited repeaters/sensors don't join the allowlist
+      if (ci.type != ADV_TYPE_CHAT && ci.type != ADV_TYPE_ROOM) continue;
+      if (ci.id.isHashMatch(&packet->payload[0], 1)) return true;
+      if (ci.id.isHashMatch(&packet->payload[1], 1)) return true;
+    }
+    return false;
+  }
+
+#ifdef MAX_GROUP_CHANNELS
+  // Group packets carry the channel_hash at payload[0].
+  if (pt == PAYLOAD_TYPE_GRP_TXT || pt == PAYLOAD_TYPE_GRP_DATA) {
+    if (packet->payload_len < 1) return false;
+    for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
+      ChannelDetails cd;
+      if (!getChannel(i, cd)) continue;
+      if (cd.name[0] == '\0') continue;   // removed slot: hash of zeros would false-match
+      if (cd.channel.hash[0] == packet->payload[0]) return true;
+    }
+    return false;
+  }
+#endif
+
+  return false;
 }
 
 void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis) {
@@ -2128,6 +2179,20 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
   if (strcmp(command, "get name") == 0) {
     sprintf(reply, "> %s", _prefs.node_name);
+    return true;
+  }
+  if (strcmp(command, "get repeat.selective") == 0) {
+    sprintf(reply, "> %s", _prefs.selective_repeat ? "on" : "off");
+    return true;
+  }
+  if (memcmp(command, "set repeat.selective ", 21) == 0) {
+    if (strcmp(&command[21], "on") == 0 || strcmp(&command[21], "off") == 0) {
+      _prefs.selective_repeat = strcmp(&command[21], "on") == 0;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: state must be on or off");
+    }
     return true;
   }
 
