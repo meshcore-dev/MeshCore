@@ -276,8 +276,8 @@ public:
   uint32_t getNumRecvFlood() const { return n_recv_flood; }
   uint32_t getNumRecvDirect() const { return n_recv_direct; }
   // resend TXs (subset of n_sent_direct): direct-route transmissions with sending_attempts>0, i.e.
-  // re-sends rather than first/forward sends. Reported as n_resends / n_sent_direct. NOTE: TRACE
-  // last-hop forwards pre-set sending_attempts (Mesh.cpp) and therefore also tally here, by design.
+  // re-sends rather than first/forward sends. Reported as n_resends / n_sent_direct. Last-hop TRACE
+  // forwards are flagged no_retry (Mesh.cpp) and count as first sends.
   uint32_t getNumResentDirect() const { return n_resent_direct; }
   void resetStats() {
     n_sent_flood = n_sent_direct = n_recv_flood = n_recv_direct = n_resent_direct = 0;

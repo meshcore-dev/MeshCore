@@ -14,6 +14,7 @@ Packet::Packet() {
   memcpy(hash, ZERO_HASH, MAX_HASH_SIZE);
   memset(hash_hex, 0, sizeof(hash_hex));
   sending_attempts = 0;
+  no_retry = false;
   final_hop_ack_resend = false;
 }
 

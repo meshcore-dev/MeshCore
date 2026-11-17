@@ -426,6 +426,7 @@ unsigned long Dispatcher::futureMillis(int millis_from_now) const {
 }
 
 bool Dispatcher::resendPacket(mesh::Packet *packet) {
+  if (packet->no_retry) return false;   // e.g. last-hop TRACE: no retransmission from this hop
 
   // Pool-shedding: under low free-pool pressure, do NOT queue a resend. A resend consumes a
   // pool slot shared with RX (allocNew in checkRecv); under sustained load it would exhaust

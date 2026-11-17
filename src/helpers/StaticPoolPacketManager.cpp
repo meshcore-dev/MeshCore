@@ -103,6 +103,7 @@ void StaticPoolPacketManager::free(mesh::Packet* packet) {
   // direct packet routed through that slot — resends degrade to zero once the pool has turned over
   // (~pool_size direct sends), even though forwards (which don't check sending_attempts) keep working.
   packet->sending_attempts = 0;
+  packet->no_retry = false;
   packet->final_hop_ack_resend = false;
   if (!unused.add(packet, 0, 0)) {
     MESH_DEBUG_PRINTLN("free: unused queue full, possible double-free detected");
