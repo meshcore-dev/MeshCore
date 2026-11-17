@@ -18,6 +18,10 @@ struct PacketMillis {
 #define NOISE_FLOOR_SAMPLE_INTERVAL_MS  50   // min spacing between RSSI samples so a 64-sample block spans a real
                                              // ~3.2 s window, giving the median temporal interference rejection
                                              // instead of collapsing to a few ms of near-simultaneous readings
+#define NOISE_FLOOR_RX_START_SETTLE_MS  20   // after every RX (re)start the RSSI readout ramps up for a few ms
+                                             // while the AGC re-converges (measured -127 -> -116 -> -106 -> -86 ->
+                                             // real level over ~8 ms on SX1268, and <= -125 dBm for <5 ms after
+                                             // restart on SX1262); no floor sample is taken before this has passed
 #define NOISE_FLOOR_MAX_HELD_BLOCKS  3   // after this many consecutive held blocks the median is accepted, so a
                                          // permanent floor rise can't keep it stuck low. Count-based: rides out load
                                          // bursts, a true rise releases in a few blocks.
@@ -45,6 +49,7 @@ protected:
   int16_t _floor_samples[NUM_NOISE_FLOOR_SAMPLES];
   bool _floor_block_ready;   // true once a full block has been reduced to a median (waits for trigger to restart)
   uint32_t _last_floor_sample_at;   // millis() of the last accepted RSSI sample (rate-limits block sampling)
+  uint32_t _last_rx_start_ms;       // millis() of the last successful startReceive() (settle-gates floor sampling)
   uint8_t _held_block_count;   // consecutive held blocks since the last published noise-floor value
   bool _floor_hold_bypass;     // publish the next completed block unconditionally (floor known-stale after a
                                // resolved RX-desync episode; see loop())

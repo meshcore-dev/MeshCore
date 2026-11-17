@@ -53,6 +53,7 @@ void RadioLibWrapper::begin() {
   _num_floor_samples = 0;
   _floor_block_ready = false;
   _last_floor_sample_at = 0;
+  _last_rx_start_ms = 0;
   _held_block_count = 0;
   _floor_hold_bypass = false;
 
@@ -113,7 +114,8 @@ void RadioLibWrapper::loop() {
   // 10 s verification polls publish garbage (a block spans only ~3.2 s).
   if (state == STATE_RX && _rx_desync_streak == 0 && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
     uint32_t now = millis();
-    if (!isReceivingPacket() && now - _last_floor_sample_at >= NOISE_FLOOR_SAMPLE_INTERVAL_MS) {
+    if (!isReceivingPacket() && now - _last_floor_sample_at >= NOISE_FLOOR_SAMPLE_INTERVAL_MS
+        && now - _last_rx_start_ms >= NOISE_FLOOR_RX_START_SETTLE_MS) {
       // Accept every idle sample, spaced NOISE_FLOOR_SAMPLE_INTERVAL_MS apart so the block spans a real
       // ~3.2 s window and the median rejects transient transmissions (not a few-ms snapshot). The old
       // "rssi < floor + threshold" filter was a one-way ratchet: it only accepted samples below the
@@ -257,6 +259,7 @@ void RadioLibWrapper::startRecv() {
   int err = _radio->startReceive();
   if (err == RADIOLIB_ERR_NONE) {
     state = STATE_RX;
+    _last_rx_start_ms = millis();   // floor sampling settles before the AGC has re-converged after a restart
   } else {
     MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startReceive(%d)", err);
   }
