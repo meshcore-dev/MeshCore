@@ -6,6 +6,8 @@
 
 #ifdef HELTEC_MESH_SOLAR
 #include "meshSolarApp.h"
+// meshsolar's logger.h defines NONE as a macro, which clashes with InterfaceType::NONE
+#undef NONE
 #endif
 
 // LoRa radio module pins for Heltec T114
