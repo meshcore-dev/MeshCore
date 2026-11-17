@@ -68,7 +68,9 @@ void ESP32Board::enterDeepSleep(uint32_t secs) {
 #if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32C6)
   gpio_hold_en((gpio_num_t)P_LORA_NSS);
 #else
-  rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
+  if (rtc_gpio_is_valid_gpio((gpio_num_t)P_LORA_NSS)) {
+    rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
+  }
 #endif
 #endif
 
