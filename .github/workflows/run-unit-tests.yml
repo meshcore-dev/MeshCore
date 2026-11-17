@@ -22,6 +22,10 @@ jobs:
       - name: Run Unit Tests
         run: pio test -e native -e native_kiss_modem -vv
 
+      - name: Run MCOtxt Queue Tests (ASan)
+        # The native tests above prepare Google Test in .pio/libdeps/native.
+        run: python tools/test_mcotxt_queue.py --asan
+
       - name: Upload Test Results
         # Upload test results even if the test step failed.
         if: always()

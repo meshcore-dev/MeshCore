@@ -1,0 +1,140 @@
+// Filled by test_mcotxt_queue.py. Only hardware-independent doubles live here;
+// Queue and SYNC placeholders are replaced with current production method bodies.
+#include "@FIXTURES@"
+
+class MyMesh {
+ public:
+  enum { OFFLINE_QUEUE_SIZE = 16, RESP_CODE_CHANNEL_MSG_RECV = 8,
+         RESP_CODE_CHANNEL_MSG_RECV_V3 = 17, RESP_CODE_CHANNEL_DATA_RECV = 27,
+         RESP_CODE_NO_MORE_MESSAGES = 3 };
+  struct Frame {
+    uint8_t len;
+    uint8_t buf[MAX_FRAME_SIZE];
+    bool isChannelMsg() const;
+  };
+  Frame offline_queue[OFFLINE_QUEUE_SIZE];
+  int offline_queue_len = 0;
+  MCOtxtDelivery mcotxt_delivery;
+  uint8_t app_target_ver = 4;
+  uint8_t out_frame[MAX_FRAME_SIZE + 1];
+  struct Clock { uint32_t getCurrentTime() { return 100; } } clock;
+  Clock* getRTCClock() { return &clock; }
+  struct Serial {
+    std::vector<Bytes> frames;
+    void writeFrame(uint8_t* frame, int length) { frames.emplace_back(frame, frame + length); }
+  } serial;
+  Serial* _serial = &serial;
+  struct Listener {
+    int count = 0;
+    void onQueueSizeChanged(int value) { count = value; }
+  } listener;
+  Listener* _listener = &listener;
+  void addToOfflineQueue(const uint8_t frame[], int len);
+  int getFromOfflineQueue(uint8_t frame[]);
+  void sync() { @SYNC@ }
+};
+
+@QUEUE@
+
+void enqueue(MyMesh& mesh, const Bytes& frame) {
+  ASSERT_LE(frame.size(), (size_t)MAX_FRAME_SIZE);
+  mesh.addToOfflineQueue(frame.data(), (int)frame.size());
+}
+
+void fillDirect(MyMesh& mesh) {
+  const Bytes filler = direct("ordinary");
+  while (mesh.offline_queue_len < MyMesh::OFFLINE_QUEUE_SIZE) enqueue(mesh, filler);
+}
+
+TEST(MCOtxtQueue, EvictingPartialChannelHeadRestartsNextSource) {
+  MyMesh mesh;
+  enqueue(mesh, channel("Bob: " + textToken(container(kReply))));
+  enqueue(mesh, channel("Ann: " + textToken(container(kReply))));
+  fillDirect(mesh);
+  mesh.sync();
+  EXPECT_NE(bodyText(mesh.serial.frames.back()).find(" [1/"), std::string::npos);
+  enqueue(mesh, channel("New: ordinary"));
+  EXPECT_EQ(mesh.offline_queue_len, MyMesh::OFFLINE_QUEUE_SIZE);
+  mesh.sync();
+  EXPECT_EQ(bodyText(mesh.serial.frames.back()).find("Ann: "), 0u);
+  EXPECT_NE(bodyText(mesh.serial.frames.back()).find(" [1/"), std::string::npos);
+}
+
+TEST(MCOtxtQueue, EvictingLaterChannelDoesNotRestartDirectHead) {
+  MyMesh mesh;
+  const Bytes first = direct(textToken(container(kReply)));
+  enqueue(mesh, first);
+  enqueue(mesh, channel("Bob: ordinary"));
+  fillDirect(mesh);
+  mesh.sync();
+  enqueue(mesh, direct("new"));
+  EXPECT_EQ(mesh.offline_queue_len, MyMesh::OFFLINE_QUEUE_SIZE);
+  mesh.sync();
+  EXPECT_NE(bodyText(mesh.serial.frames.back()).find(" [2/"), std::string::npos);
+  EXPECT_EQ(Bytes(mesh.offline_queue[0].buf,
+                  mesh.offline_queue[0].buf + mesh.offline_queue[0].len), first);
+}
+
+TEST(MCOtxtQueue, FullDirectQueueDropsIncomingWithoutLosingCursor) {
+  MyMesh mesh;
+  enqueue(mesh, direct(textToken(container(kReply))));
+  fillDirect(mesh);
+  mesh.sync();
+  enqueue(mesh, channel("New: dropped"));
+  mesh.sync();
+  EXPECT_NE(bodyText(mesh.serial.frames.back()).find(" [2/"), std::string::npos);
+  const auto& last = mesh.offline_queue[MyMesh::OFFLINE_QUEUE_SIZE - 1];
+  EXPECT_EQ(Bytes(last.buf, last.buf + last.len), direct("ordinary"));
+}
+
+TEST(MCOtxtQueue, ExhaustedBinaryDoesNotHideNextEntry) {
+  MyMesh mesh;
+  const Bytes bad = binary(Bytes{0x31, 0xff});
+  const Bytes good = channel("Bob: next");
+  enqueue(mesh, bad);
+  enqueue(mesh, good);
+  mesh.sync();
+  EXPECT_EQ(mesh.serial.frames.back(), bad);
+  mesh.sync();
+  EXPECT_EQ(mesh.serial.frames.back(), good);
+  EXPECT_EQ(mesh.offline_queue_len, 0);
+  EXPECT_EQ(mesh.listener.count, 0);
+}
+
+TEST(MCOtxtQueue, RemovingLastMalformedBinaryClearsListenerCount) {
+  MyMesh mesh;
+  enqueue(mesh, binary(Bytes{0x31, 0xff}));
+  mesh.sync();
+  ASSERT_EQ(mesh.listener.count, 1);
+  mesh.sync();
+  EXPECT_EQ(mesh.offline_queue_len, 0);
+  EXPECT_EQ(mesh.listener.count, 0);
+  ASSERT_EQ(mesh.serial.frames.back().size(), 1u);
+  EXPECT_EQ(mesh.serial.frames.back()[0], MyMesh::RESP_CODE_NO_MORE_MESSAGES);
+}
+
+TEST(MCOtxtQueue, NewAppReceivesRetainedHeadAsOriginalFrame) {
+  MyMesh mesh;
+  const Bytes raw = channel("Bob: " + textToken(container(kReply)));
+  enqueue(mesh, raw);
+  mesh.sync();
+  EXPECT_EQ(mesh.offline_queue_len, 1);
+  start(mesh.mcotxt_delivery, "Capable;cap=mctxt");
+  mesh.sync();
+  EXPECT_EQ(mesh.serial.frames.back(), raw);
+  EXPECT_EQ(mesh.offline_queue_len, 0);
+}
+
+TEST(MCOtxtQueue, PollingAnAlreadyEmptyQueueDoesNotResetUiState) {
+  MyMesh mesh;
+  mesh.listener.count = -1;  // sentinel: no queue callback has been requested
+  mesh.sync();
+  EXPECT_EQ(mesh.listener.count, -1);
+  ASSERT_EQ(mesh.serial.frames.back().size(), 1u);
+  EXPECT_EQ(mesh.serial.frames.back()[0], MyMesh::RESP_CODE_NO_MORE_MESSAGES);
+}
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}

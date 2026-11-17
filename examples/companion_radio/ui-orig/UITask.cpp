@@ -1,6 +1,7 @@
 #include "UITask.h"
 #include <Arduino.h>
 #include <helpers/TxtDataHelpers.h>
+#include <helpers/mcotxt/MCOtxtDisplay.h>
 #include "../MyMesh.h"
 
 #define AUTO_OFF_MILLIS     15000   // 15 seconds
@@ -153,7 +154,7 @@ void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t t
   } else {
     sprintf(_origin, "(%d) %s", (uint32_t) path_len, from.name);
   }
-  StrHelper::strncpy(_msg, text, sizeof(_msg));
+  mcotxt::copyDisplayPreview(_msg, sizeof(_msg), text);
 
   if (_display != NULL) {
     if (!_display->isOn() && !hasConnection()) {
@@ -180,7 +181,7 @@ void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_det
   } else {
     sprintf(_origin, "(%d) %s", (uint32_t) path_len, channel_details.name);
   }
-  StrHelper::strncpy(_msg, text, sizeof(_msg));
+  mcotxt::copyDisplayPreview(_msg, sizeof(_msg), text);
 
   if (_display != NULL) {
     if (!_display->isOn() && !hasConnection()) {
