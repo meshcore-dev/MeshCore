@@ -23,14 +23,22 @@ public:
                               mesh::Radio* radio,
                               RadioDriverType& driver,
                               uint32_t total_air_time_ms,
-                              uint32_t total_rx_air_time_ms) {
+                              uint32_t total_rx_air_time_ms,
+                              uint32_t fwd_air_time_ms = 0,
+                              uint32_t fwd_window_used_ms = 0,
+                              uint32_t fwd_window_limit_ms = 0,
+                              uint32_t n_fwd_dropped = 0) {
     sprintf(reply, 
-      "{\"noise_floor\":%d,\"last_rssi\":%d,\"last_snr\":%.2f,\"tx_air_secs\":%u,\"rx_air_secs\":%u}",
+      "{\"noise_floor\":%d,\"last_rssi\":%d,\"last_snr\":%.2f,\"tx_air_secs\":%u,\"rx_air_secs\":%u,\"fwd_air_secs\":%u,\"fwd_window_secs\":%u,\"fwd_limit_secs\":%u,\"fwd_dropped\":%u}",
       (int16_t)radio->getNoiseFloor(),
       (int16_t)driver.getLastRSSI(),
       driver.getLastSNR(),
       total_air_time_ms / 1000,
-      total_rx_air_time_ms / 1000
+      total_rx_air_time_ms / 1000,
+      fwd_air_time_ms / 1000,
+      fwd_window_used_ms / 1000,
+      fwd_window_limit_ms / 1000,
+      n_fwd_dropped
     );
   }
 
