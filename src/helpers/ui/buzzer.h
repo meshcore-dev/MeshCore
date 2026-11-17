@@ -16,11 +16,17 @@
 
 */
 
+struct BotSegment;
+
+#define BOT_QUEUE_SIZE  4
+
 class genericBuzzer
 {
     public:
         void begin();  // set up buzzer port
         void play(const char *melody); // Generic play function
+        void playBot(const BotSegment *segs, uint8_t count);  // play a bot speak sound (see botspeak_sounds.h)
+        int playWords(const char *text);  // queue bot speak sounds for words found in text, returns number queued
         void loop();  // loop driven-nonblocking
         void startup();  // play startup sound
         void shutdown();  // play shutdown sound
@@ -34,4 +40,17 @@ class genericBuzzer
         const char *shutdown_song = "Shutdown:d=4,o=5,b=100:8g5,16e5,16c5";
 
         bool _is_quiet = true;
+
+        // bot speak player: sweeps tone() frequency every few millis
+        struct BotSound { const BotSegment *segs; uint8_t count; };
+        BotSound _bot_queue[BOT_QUEUE_SIZE];
+        uint8_t _bot_queued = 0;     // sounds in queue, [0] is playing
+        uint8_t _bot_seg = 0;        // current segment in _bot_queue[0]
+        unsigned long _bot_seg_start = 0;
+        unsigned long _bot_last_tick = 0;
+        bool _bot_tone_on = false;
+
+        void botStart(const BotSound *sounds, int count);
+        void botStop();
+        void botLoop();
 };

@@ -95,6 +95,8 @@ public:
   }
 
   void toggleBuzzer();
+  bool isBotWithPhone() const { return _node_prefs->bot_with_phone; }
+  void toggleBotWithPhone();
   bool getGPSState();
   void toggleGPS();
 
