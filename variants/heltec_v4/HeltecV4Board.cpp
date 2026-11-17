@@ -1,4 +1,5 @@
 #include "HeltecV4Board.h"
+#include "target.h"
 
 void HeltecV4Board::begin() {
     ESP32Board::begin();
@@ -30,6 +31,11 @@ void HeltecV4Board::begin() {
   void HeltecV4Board::onAfterTransmit(void) {
     digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
     loRaFEMControl.setRxModeEnable();
+  }
+
+  void HeltecV4Board::reboot() {
+    loRaFEMControl.setSleepModeEnable();
+    ESP32Board::reboot();
   }
 
   void HeltecV4Board::powerOff() {
