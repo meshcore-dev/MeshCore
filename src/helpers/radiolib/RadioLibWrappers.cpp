@@ -54,6 +54,7 @@ void RadioLibWrapper::begin() {
   _floor_block_ready = false;
   _last_floor_sample_at = 0;
   _held_block_count = 0;
+  _floor_hold_bypass = false;
 
   _last_rx_sync_check = millis();
   _rx_desync_streak = 0;
@@ -106,7 +107,11 @@ void RadioLibWrapper::resetAGC() {
 }
 
 void RadioLibWrapper::loop() {
-  if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
+  // _rx_desync_streak == 0: while a desync is unresolved the RSSI register reads a
+  // wedged/frozen receiver, so sampling is paused entirely (the block in flight at
+  // detection was already discarded). Without this gate, blocks completed between the
+  // 10 s verification polls publish garbage (a block spans only ~3.2 s).
+  if (state == STATE_RX && _rx_desync_streak == 0 && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
     uint32_t now = millis();
     if (!isReceivingPacket() && now - _last_floor_sample_at >= NOISE_FLOOR_SAMPLE_INTERVAL_MS) {
       // Accept every idle sample, spaced NOISE_FLOOR_SAMPLE_INTERVAL_MS apart so the block spans a real
@@ -118,6 +123,23 @@ void RadioLibWrapper::loop() {
       _last_floor_sample_at = now;
     }
   } else if (_num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES && !_floor_block_ready) {
+    // Publish nothing sampled while the chip was out of RX: verify the chip mode at
+    // block completion (one extra status read per block). A wedge is then caught at
+    // the FIRST completing block instead of at the next verification poll — samples
+    // taken while wedged read a frozen/clamped RSSI register and must not reach the
+    // LBT reference. On veto the block is discarded and the desync streak starts, so
+    // the poll path re-arms the receiver on its next tick.
+    if (!verifyRxChipMode()) {
+      if (_rx_desync_streak == 0) {
+        n_rx_desync_events++;
+        MESH_DEBUG_PRINTLN("RadioLibWrapper: RX desync - block publish vetoed (chip reports mode != RX)");
+      }
+      _rx_desync_streak++;
+      _num_floor_samples = 0;
+      _floor_block_ready = false;
+      _held_block_count = 0;
+      return;
+    }
     // Block complete: reduce to the median. The median rejects transient interference
     // spikes (high and low outliers) and recovers in BOTH directions, unlike the ratcheted
     // mean. _noise_floor is written only here, so the previous value stays valid while the
@@ -133,7 +155,22 @@ void RadioLibWrapper::loop() {
     // Bounded: after NOISE_FLOOR_MAX_HELD_BLOCKS consecutive held blocks accept the median, else a real
     // permanent rise is held forever (stuck-floor bug from the other direction). Count-based so the hold
     // rides out load bursts (slow blocks) while a quiet rise releases in a few blocks.
-    if (median > _noise_floor + NOISE_FLOOR_MAX_RISE_DB) {
+    if (_floor_hold_bypass) {
+      // First block after a resolved RX-desync episode: publish unconditionally.
+      // The published floor survived the episode and is known-stale, so the
+      // contamination hold must not gate the recovery measurement — otherwise the
+      // correct value is rejected as a "contaminated rise" and the node keeps an
+      // LBT reference that is off by tens of dB for several more blocks.
+      _floor_hold_bypass = false;
+      _held_block_count = 0;
+      _noise_floor = median;
+      if (_noise_floor < -120) {
+        _noise_floor = -120;    // clamp to lower bound of -120dBi
+      }
+      #ifdef MESH_DEBUG_NOISE_FLOOR
+      MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d (post-desync recovery)", (int)_noise_floor);
+      #endif
+    } else if (median > _noise_floor + NOISE_FLOOR_MAX_RISE_DB) {
       _held_block_count++;
       if (_held_block_count >= NOISE_FLOOR_MAX_HELD_BLOCKS) {
         _noise_floor = median;
@@ -205,6 +242,9 @@ void RadioLibWrapper::loop() {
       } else if (_rx_desync_streak > 0) {
         MESH_DEBUG_PRINTLN("RadioLibWrapper: RX desync resolved after %u ticks", _rx_desync_streak);
         _rx_desync_streak = 0;
+        // sampling resumes with the next pass; the first completed block publishes
+        // unconditionally (floor known-stale)
+        _floor_hold_bypass = true;
       }
     }
   }

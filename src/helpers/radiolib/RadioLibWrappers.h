@@ -46,6 +46,8 @@ protected:
   bool _floor_block_ready;   // true once a full block has been reduced to a median (waits for trigger to restart)
   uint32_t _last_floor_sample_at;   // millis() of the last accepted RSSI sample (rate-limits block sampling)
   uint8_t _held_block_count;   // consecutive held blocks since the last published noise-floor value
+  bool _floor_hold_bypass;     // publish the next completed block unconditionally (floor known-stale after a
+                               // resolved RX-desync episode; see loop())
   uint8_t _preamble_sf;
   uint32_t _last_rx_sync_check;   // millis() of the last chip-mode verification (RX-desync watchdog)
   uint8_t _rx_desync_streak;      // consecutive verifications that found the chip out of RX (0 = healthy)
