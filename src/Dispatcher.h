@@ -67,6 +67,8 @@ public:
 
   virtual void setCADEnabled(bool enable) { }
 
+  virtual void setRssiLbtParams(bool enabled, int8_t thr_dbm, uint16_t sense_ms, uint16_t pause_ms) { }
+
   virtual void resetAGC() { }
 
   virtual bool isInRecvMode() const = 0;
@@ -169,6 +171,12 @@ protected:
   virtual uint32_t getCADFailMaxDuration() const;
   virtual int getInterferenceThreshold() const { return 0; }    // disabled by default
   virtual bool getCADEnabled() const { return false; }    // hardware CAD disabled by default
+  virtual bool getRssiLbtEnabled() const { return false; }   // RSSI listen-before-talk disabled by default
+  virtual int8_t getRssiLbtThrDbm() const { return 0; }
+  virtual uint16_t getRssiLbtSenseMs() const { return 0; }
+  virtual uint16_t getRssiLbtMaxwaitMs() const { return 0; }
+  virtual uint16_t getRssiLbtTxmaxMs() const { return 0; }
+  virtual uint16_t getRssiLbtPauseMs() const { return 0; }
   virtual int getAGCResetInterval() const { return 0; }    // disabled by default
   virtual unsigned long getDutyCycleWindowMs() const { return 3600000; }
 
