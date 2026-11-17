@@ -435,6 +435,16 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### Sign data with this node's identity
+**Usage:** `identity sign <data_hex>`
+
+**Parameters:**
+- `data_hex`: 1-64 bytes encoded as hex
+
+**Returns:** Ed25519 signature encoded as hex
+
+---
+
 #### View this node's firmware version
 **Usage:** `ver`
 
