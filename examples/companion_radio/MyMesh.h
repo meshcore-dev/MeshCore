@@ -235,6 +235,7 @@ private:
   bool handleCommand(const char* text, uint32_t sender_timestamp, char* reply);
   void checkSerialInterface();
   bool isValidClientRepeatFreq(uint32_t f) const;
+  bool isClientRepeatActive() const;
 
   // helpers, short-cuts
   void saveChannels() { _store->saveChannels(this); }
@@ -254,6 +255,7 @@ private:
   uint32_t _most_recent_lastmod;
   uint32_t _active_ble_pin;
   bool _iter_started;
+  uint32_t _active_freq_khz = 0;  // frequency last applied to the radio
   bool _cli_rescue;
   bool send_unscoped;   // force un-scoped flood (instead of using send_scope)
   char cli_command[80];
