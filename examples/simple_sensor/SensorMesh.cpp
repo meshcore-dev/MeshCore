@@ -374,6 +374,11 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
     #endif
       return 0;
     }
+    if (sender_timestamp <= client->last_timestamp) {
+      MESH_DEBUG_PRINTLN("Possible login replay attack!");
+      return 0;
+    }
+    MESH_DEBUG_PRINTLN("Login success!");
   } else {
     if (strcmp((char *) data, _prefs.password) != 0) {  // check for valid admin password
     #if MESH_DEBUG
@@ -389,13 +394,14 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
     }
 
     MESH_DEBUG_PRINTLN("Login success!");
-    client->last_timestamp = sender_timestamp;
-    client->last_activity = getRTCClock()->getCurrentTime();
     client->permissions |= PERM_ACL_ADMIN;
     memcpy(client->shared_secret, secret, PUB_KEY_SIZE);
 
     dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
   }
+
+  client->last_timestamp = sender_timestamp;
+  client->last_activity = getRTCClock()->getCurrentTime();
 
   if (is_flood) {
     client->out_path_len = OUT_PATH_UNKNOWN;  // need to rediscover out_path
