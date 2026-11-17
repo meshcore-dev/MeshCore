@@ -209,7 +209,15 @@ uint16_t E213Display::getTextWidth(const char *str) {
 void E213Display::endFrame() {
   uint32_t crc = display_crc.finalize();
   if (crc != last_display_crc_value) {
-    display->update();
+    if (++_updatesSinceFullRefresh >= FULL_REFRESH_INTERVAL) {
+      // Full refresh clears the ghosting that repeated partial (fast mode) updates accumulate over time
+      display->fastmodeOff();
+      display->update();
+      display->fastmodeOn();
+      _updatesSinceFullRefresh = 0;
+    } else {
+      display->update();
+    }
     last_display_crc_value = crc;
   }
 }
