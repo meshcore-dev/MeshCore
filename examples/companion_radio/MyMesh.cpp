@@ -102,6 +102,8 @@
 #define RESP_CODE_CHANNEL_DATA_RECV   27
 #define RESP_CODE_DEFAULT_FLOOD_SCOPE 28
 #define RESP_CODE_CLI_REPLY           29  // v14+, a reply to CMD_RUN_CLI_COMMAND
+#define RESP_CODE_CONTACT_MSG_SENT_V3 30 // a reply to CMD_SYNC_NEXT_MESSAGE -- device-originated msg, see queueSentMessage()
+#define RESP_CODE_CHANNEL_MSG_SENT_V3 31 // a reply to CMD_SYNC_NEXT_MESSAGE -- device-originated msg, see queueSentChannelMessage()
 
 #define MAX_CHANNEL_DATA_LENGTH       (MAX_FRAME_SIZE - 9)
 
@@ -218,7 +220,7 @@ void MyMesh::updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, co
 
 bool MyMesh::Frame::isChannelMsg() const {
   return buf[0] == RESP_CODE_CHANNEL_MSG_RECV || buf[0] == RESP_CODE_CHANNEL_MSG_RECV_V3 ||
-         buf[0] == RESP_CODE_CHANNEL_DATA_RECV;
+         buf[0] == RESP_CODE_CHANNEL_DATA_RECV || buf[0] == RESP_CODE_CHANNEL_MSG_SENT_V3;
 }
 
 void MyMesh::addToOfflineQueue(const uint8_t frame[], int len) {
@@ -475,6 +477,68 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   if (_listener) {
     _listener->onMessageRecv(pkt, from, txt_type, sender_timestamp, text);
     _listener->onQueueSizeChanged(offline_queue_len);
+  }
+}
+
+// Tells the connected app this device sent `text` to `to` on its own (bot
+// reply, on-device keyboard, etc.) -- mainline never calls this. No pre-V3
+// fallback, so a non-V3 app just doesn't get it.
+void MyMesh::queueSentMessage(const ContactInfo &to, uint8_t txt_type, uint32_t timestamp, const char *text) {
+  if (app_target_ver < 3) return;
+  if (txt_type == TXT_TYPE_SIGNED_PLAIN) return; // has no sender prefix field, and we ARE the sender
+
+  int i = 0;
+  out_frame[i++] = RESP_CODE_CONTACT_MSG_SENT_V3;
+  out_frame[i++] = 0; // reserved1 (RECV_V3's SNR byte)
+  out_frame[i++] = 0; // reserved2
+  out_frame[i++] = 0; // reserved3
+  memcpy(&out_frame[i], to.id.pub_key, 6); // recipient, not sender
+  i += 6;
+  out_frame[i++] = 0xFF; // path_len n/a
+  out_frame[i++] = txt_type;
+  memcpy(&out_frame[i], &timestamp, 4);
+  i += 4;
+  int tlen = strlen(text); // TODO: UTF-8 ??
+  if (i + tlen > MAX_FRAME_SIZE) {
+    tlen = MAX_FRAME_SIZE - i;
+  }
+  memcpy(&out_frame[i], text, tlen);
+  i += tlen;
+  addToOfflineQueue(out_frame, i);
+
+  if (_serial->isConnected()) {
+    uint8_t frame[1];
+    frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
+    _serial->writeFrame(frame, 1);
+  }
+}
+
+// Channel counterpart to queueSentMessage().
+void MyMesh::queueSentChannelMessage(uint8_t channel_idx, uint32_t timestamp, const char *text) {
+  if (app_target_ver < 3) return;
+
+  int i = 0;
+  out_frame[i++] = RESP_CODE_CHANNEL_MSG_SENT_V3;
+  out_frame[i++] = 0; // reserved1
+  out_frame[i++] = 0; // reserved2
+  out_frame[i++] = 0; // reserved3
+  out_frame[i++] = channel_idx;
+  out_frame[i++] = 0xFF; // path_len n/a
+  out_frame[i++] = TXT_TYPE_PLAIN;
+  memcpy(&out_frame[i], &timestamp, 4);
+  i += 4;
+  int tlen = strlen(text); // TODO: UTF-8 ??
+  if (i + tlen > MAX_FRAME_SIZE) {
+    tlen = MAX_FRAME_SIZE - i;
+  }
+  memcpy(&out_frame[i], text, tlen);
+  i += tlen;
+  addToOfflineQueue(out_frame, i);
+
+  if (_serial->isConnected()) {
+    uint8_t frame[1];
+    frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
+    _serial->writeFrame(frame, 1);
   }
 }
 
