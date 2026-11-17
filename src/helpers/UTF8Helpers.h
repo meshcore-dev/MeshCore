@@ -9,6 +9,23 @@ inline bool isUtf8Continuation(uint8_t byte) {
   return (byte & 0xC0) == 0x80;
 }
 
+// Returns how many bytes of `text` (length `len`) to keep so the result fits in `max_bytes` without
+// splitting UTF-8 code point. Text that already fits is returned unchanged, so malformed input isn't
+// altered
+inline size_t utf8TruncatedLength(const char* text, size_t len, size_t max_bytes) {
+  if (text == nullptr) return 0;
+  if (len <= max_bytes) return len;
+  size_t n = max_bytes;
+
+  // text[n] is the first excluded byte; if it's a continuation byte, the cut is
+  // mid-character, so back up to the character's lead byte (max 3 steps).
+
+  for(int k = 0; k < 3 && n > 0 && isUtf8Continuation((uint8_t)text[n]); k++){
+    n--;
+  };
+  return n;
+}
+
 inline size_t validUtf8PrefixLength(const char* text, size_t max_bytes) {
   if (text == nullptr) return 0;
 
