@@ -202,6 +202,20 @@ public:
     _cli.savePrefs(_fs);
   }
 
+  // Unlike hasPendingWork(), ignores a running bridge: the bridge only blocks sleep, and
+  // waiting on it here would stall power-off for as long as the bridge stays up.
+  bool hasPendingShutdownWork() const {
+    return _mgr->getOutboundTotal() > 0 || dirty_contacts_expiry != 0;
+  }
+
+  void flushPending() {
+    if (dirty_contacts_expiry) {
+      acl.save(_fs);
+      dirty_contacts_expiry = 0;
+    }
+    savePrefs();
+  }
+
   void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size);
 
   // CommonCLICallbacks

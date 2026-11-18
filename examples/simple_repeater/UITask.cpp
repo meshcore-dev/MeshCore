@@ -145,8 +145,6 @@ void UITask::loop() {
     delay(1000);
     digitalWrite(LED_PIN, !LED_STATE_ON); // off LED
 #endif
-    if (millis() > _powering_off_at) {
-      _board->powerOff();  // should not return
-    }
+    // actual powerOff() deferred to main loop, which waits for pending mesh work
   }
 }

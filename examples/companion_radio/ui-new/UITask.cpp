@@ -948,8 +948,8 @@ void UITask::shutdown(bool restart){
     if (_display->isEink()) {
       _display->turnOff(true);
     }
-    // Power off board including radio, display, GPS and components
-    _board->powerOff();
+    // Make sure pending work is done before we power off board including radio, display, GPS and components
+    _wants_shutdown = true;
   }
 }
 
