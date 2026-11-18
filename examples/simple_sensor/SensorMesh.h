@@ -41,8 +41,6 @@
   #define FIRMWARE_VERSION   "v1.18.0"
 #endif
 
-#define FIRMWARE_ROLE "sensor"
-
 #define MAX_SEARCH_RESULTS     24
 #define MAX_CONCURRENT_ALERTS   4
 
@@ -56,7 +54,7 @@ public:
   // CommonCLI callbacks
   const char* getFirmwareVer() override { return FIRMWARE_VERSION; }
   const char* getBuildDate() override { return FIRMWARE_BUILD_DATE; }
-  const char* getRole() override { return FIRMWARE_ROLE; }
+  const char* getRole() override { return "sensor"; }
   const char* getNodeName() { return _prefs.node_name; }
   NodePrefs* getNodePrefs() { return &_prefs; }
   void savePrefs() override { _cli.savePrefs(_fs); }

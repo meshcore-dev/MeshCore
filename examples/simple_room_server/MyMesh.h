@@ -77,8 +77,6 @@
   #define TXT_ACK_DELAY     200
 #endif
 
-#define FIRMWARE_ROLE "room_server"
-
 #define PACKET_LOG_FILE  "/packet_log"
 
 #define MAX_POST_TEXT_LEN    (160-9)
@@ -189,7 +187,7 @@ public:
 
   const char* getFirmwareVer() override { return FIRMWARE_VERSION; }
   const char* getBuildDate() override { return FIRMWARE_BUILD_DATE; }
-  const char* getRole() override { return FIRMWARE_ROLE; }
+  const char* getRole() override { return "room_server"; }
   const char* getNodeName() { return _prefs.node_name; }
   NodePrefs* getNodePrefs() {
     return &_prefs;
