@@ -30,6 +30,27 @@ uint32_t Mesh::getCADFailRetryDelay() const {
   return _rng->nextInt(1, 4)*120;
 }
 
+static bool isPeerDatagramType(uint8_t type) {
+  return type == PAYLOAD_TYPE_PATH || type == PAYLOAD_TYPE_REQ || type == PAYLOAD_TYPE_RESPONSE || type == PAYLOAD_TYPE_TXT_MSG;
+}
+
+void Mesh::rememberSelfAddressed(const Packet* packet) {
+  if (!isPeerDatagramType(packet->getPayloadType()) || packet->payload_len < 2) return;
+  if (!self_id.isHashMatch(&packet->payload[0])) return;   // dest_hash differs from ours, seen table is enough
+
+  packet->calculatePacketHash(_self_addressed_sent[_self_addressed_next]);
+  _self_addressed_next = (_self_addressed_next + 1) % MAX_SELF_ADDRESSED_SENT;
+}
+
+bool Mesh::isOwnSelfAddressedEcho(const Packet* packet) {
+  uint8_t hash[MAX_HASH_SIZE];
+  packet->calculatePacketHash(hash);
+  for (int i = 0; i < MAX_SELF_ADDRESSED_SENT; i++) {
+    if (memcmp(hash, _self_addressed_sent[i], MAX_HASH_SIZE) == 0) return true;
+  }
+  return false;
+}
+
 int Mesh::searchPeersByHash(const uint8_t* hash) {
   return 0;  // not found
 }
@@ -140,6 +161,12 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
       } else if (!_tables->wasSeen(pkt)) {
         _tables->markSeen(pkt);
+        if (dest_hash == src_hash && self_id.isHashMatch(&dest_hash) && isOwnSelfAddressedEcho(pkt)) {
+          // our own datagram to a peer that shares our hash, echoed back after its seen-table entry was
+          // evicted. It would decrypt as sent by that peer, so handle it like a seen packet: drop it.
+          MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): dropping echo of own datagram, hash=%02X", getLogDateTime(), (uint32_t)dest_hash);
+          break;
+        }
         // NOTE: this is a 'first packet wins' impl. When receiving from multiple paths, the first to arrive wins.
         //       For flood mode, the path may not be the 'best' in terms of hops.
         // FUTURE: could send back multiple paths, using createPathReturn(), and let sender choose which to use(?)
@@ -649,6 +676,7 @@ void Mesh::sendFlood(Packet* packet, uint32_t delay_millis, uint8_t path_hash_si
   packet->setPathHashSizeAndCount(path_hash_size, 0);
 
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
+  rememberSelfAddressed(packet);
 
   uint8_t pri;
   if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
@@ -678,6 +706,7 @@ void Mesh::sendFlood(Packet* packet, uint16_t* transport_codes, uint32_t delay_m
   packet->setPathHashSizeAndCount(path_hash_size, 0);
 
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
+  rememberSelfAddressed(packet);
 
   uint8_t pri;
   if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
@@ -711,6 +740,7 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
     }
   }
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
+  rememberSelfAddressed(packet);
   sendPacket(packet, pri, delay_millis);
 }
 
@@ -721,6 +751,7 @@ void Mesh::sendZeroHop(Packet* packet, uint32_t delay_millis) {
   packet->path_len = 0;  // path_len of zero means Zero Hop
 
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
+  rememberSelfAddressed(packet);
 
   sendPacket(packet, 0, delay_millis);
 }
@@ -734,6 +765,7 @@ void Mesh::sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay
   packet->path_len = 0;  // path_len of zero means Zero Hop
 
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
+  rememberSelfAddressed(packet);
 
   sendPacket(packet, 0, delay_millis);
 }

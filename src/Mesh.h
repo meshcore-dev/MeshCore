@@ -24,11 +24,23 @@ public:
  * \brief  The next layer in the basic Dispatcher task, Mesh recognises the particular Payload TYPES,
  *     and provides virtual methods for sub-classes on handling incoming, and also preparing outbound Packets.
 */
+#ifndef MAX_SELF_ADDRESSED_SENT
+  #define MAX_SELF_ADDRESSED_SENT  8
+#endif
+
 class Mesh : public Dispatcher {
   RTCClock* _rtc;
   RNG* _rng;
   MeshTables* _tables;
 
+  // Hashes of recently sent datagrams whose dest_hash equals our own hash (a peer shares our first
+  // pub_key byte). The shared secret is symmetric, so an echo of such a packet decrypts as if that peer
+  // sent it. Kept apart from _tables, so normal traffic cannot evict these entries.
+  uint8_t _self_addressed_sent[MAX_SELF_ADDRESSED_SENT][MAX_HASH_SIZE];
+  uint8_t _self_addressed_next;
+
+  void rememberSelfAddressed(const Packet* packet);
+  bool isOwnSelfAddressedEcho(const Packet* packet);
   void removeSelfFromPath(Packet* packet);
   void routeDirectRecvAcks(Packet* packet, uint32_t delay_millis);
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
@@ -169,6 +181,8 @@ protected:
   Mesh(Radio& radio, MillisecondClock& ms, RNG& rng, RTCClock& rtc, PacketManager& mgr, MeshTables& tables)
     : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables)
   {
+    memset(_self_addressed_sent, 0, sizeof(_self_addressed_sent));
+    _self_addressed_next = 0;
   }
 
   MeshTables* getTables() const { return _tables; }
