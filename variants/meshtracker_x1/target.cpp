@@ -14,10 +14,6 @@ AirohaGpsDriver gps_driver(Serial1);
 MicroNMEALocationProvider nmea(gps_driver, &rtc_clock);
 MeshTrackerX1SensorManager sensors = MeshTrackerX1SensorManager(nmea);
 
-#ifdef DISPLAY_CLASS
-  NullDisplayDriver display;
-#endif
-
 bool radio_init() {
   return radio.std_init(&SPI);
 }
