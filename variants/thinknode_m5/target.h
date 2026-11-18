@@ -13,6 +13,7 @@
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/GxEPDDisplay.h>
   #include <helpers/ui/MomentaryButton.h>
+  #include <UITask.h>
 #endif
 
 extern ThinknodeM5Board board;
@@ -25,6 +26,7 @@ extern PCA9557 expander;
   extern DISPLAY_CLASS display;
   extern MomentaryButton user_btn;
   extern MomentaryButton backlight_btn;
+  extern UITask ui_task;
 #endif
 
 bool radio_init();

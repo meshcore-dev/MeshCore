@@ -24,12 +24,6 @@ EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
 EnvironmentSensorManager sensors = EnvironmentSensorManager();
 #endif
 
-#ifdef DISPLAY_CLASS
-  DISPLAY_CLASS display;
-  MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
-  MomentaryButton backlight_btn(BACKLIGHT_BTN, 1000, true);
-#endif
-
 bool radio_init() {
   fallback_clock.begin();
   rtc_clock.begin(Wire);
