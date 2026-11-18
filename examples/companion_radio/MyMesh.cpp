@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #endif
 #include <Mesh.h>
+#include <helpers/StatsFormatHelper.h>
 
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
@@ -110,6 +111,22 @@
 #define DIRECT_SEND_PERHOP_FACTOR       6.0f
 #define DIRECT_SEND_PERHOP_EXTRA_MILLIS 250
 #define LAZY_CONTACTS_WRITE_DELAY       5000
+
+// Fixed RSSI margin (dB above the noise floor) at which a DIRECT resend treats the channel as busy
+// (isResendChannelActive(): busy when isReceivingPacket() || currentRSSI - noiseFloor >= this). It is
+// the resend-only counterpart of the general-LBT _prefs.interference_threshold, which flows through
+// getInterferenceThreshold() -> triggerNoiseFloorCalibrate() -> RadioLibWrapper::isChannelActive().
+// They are separate today only because interference_threshold is blanket-initialised to 0 (disabled;
+// see getInterferenceThreshold(), cited there as a currentRSSI() reliability concern). The margin
+// currentRSSI-noiseFloor is only as trustworthy as both terms: the median noise-floor estimator
+// (PR #2933) stabilises getNoiseFloor() and removes the dominant drift source (the old one-way
+// ratchet to -120 that inflated every margin), substantially rehabilitating the threshold path.
+// Once interference_threshold is enabled across the fleet, this constant can be superseded by it.
+// NB: here getInterferenceThreshold() is hardcoded to 0 (not prefs-driven), so superseding this
+// constant via interference_threshold additionally requires dropping that override.
+#ifndef RESEND_INTERFERENCE_MARGIN
+  #define RESEND_INTERFERENCE_MARGIN   12   // dB above noise floor that blocks a resend (non-invasive LBT)
+#endif
 
 #define PUBLIC_GROUP_PSK                "izOH6cXN6mrJ5e26oRXNcg=="
 
@@ -270,6 +287,15 @@ bool MyMesh::getCADEnabled() const {
   return _prefs.cad_enabled;
 }
 
+bool MyMesh::isResendChannelActive() {
+  // Non-invasive resend LBT (NO CAD, so RX stays open to overhear the downstream forward
+  // and cancel the resend). Block the resend when a LoRa preamble/header is being received
+  // (often that forward itself) OR the live channel energy is well above the noise floor
+  // (foreign interference). isReceivingPacket()/getCurrentRSSI() are IRQ/register reads.
+  int margin = (int)radio_driver.getCurrentRSSI() - _radio->getNoiseFloor();
+  return radio_driver.isReceivingPacket() || (margin >= RESEND_INTERFERENCE_MARGIN);
+}
+
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
   if (_prefs.rx_delay_base <= 0.0f) return 0;
   return (int)((pow(_prefs.rx_delay_base, 0.85f - score) - 1.0) * air_time);
@@ -279,6 +305,7 @@ uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
   uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.tx_delay_factor);
   return getRNG()->nextInt(0, 5*t + 1);
 }
+
 uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
   return getRNG()->nextInt(0, 5*t + 1);
@@ -925,6 +952,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.gps_enabled = 0;       // GPS disabled by default
   _prefs.gps_interval = 0;      // No automatic GPS updates by default
+  _prefs.max_resend_attempts = 2;
   _prefs.radio_fem_rxgain = 1;
 #ifdef RADIO_FEM_TXGAIN
   _prefs.radio_fem_txgain = RADIO_FEM_TXGAIN;   // board-specific default for PA
@@ -995,6 +1023,7 @@ void MyMesh::begin() {
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
   _prefs.adc_multiplier = constrain(_prefs.adc_multiplier, 0.0f, 10.0f);
   if (!board.setAdcMultiplier(_prefs.adc_multiplier)) _prefs.adc_multiplier = 0.0f;
+  _prefs.max_resend_attempts = constrain(_prefs.max_resend_attempts, 0, 3);
 
   _active_ble_pin = _prefs.ble_pin;
 
@@ -1500,6 +1529,9 @@ void MyMesh::handleCmdFrame(size_t len) {
         _prefs.advert_loc_policy = cmd_frame[3];
         if (len >= 5) {
           _prefs.multi_acks = cmd_frame[4];
+          if (len >= 6) {
+            _prefs.max_resend_attempts = constrain(cmd_frame[5], 0, 3);
+          }
         }
       }
     }
@@ -2128,6 +2160,27 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
   if (strcmp(command, "get name") == 0) {
     sprintf(reply, "> %s", _prefs.node_name);
+    return true;
+  }
+
+  // repeated sending (feature): same command and reply format as the CommonCLI nodes
+  // (repeaters/chat), so the app's CLI passthrough behaves identically everywhere.
+  if (memcmp(command, "set max.resend ", 15) == 0) {
+    int v = atoi(&command[15]);
+    if (v < 0 || v > 3) {
+      strcpy(reply, "ERROR: max.resend must be 0-3");
+    } else {
+      _prefs.max_resend_attempts = (uint8_t)v;
+      savePrefs();
+      strcpy(reply, "OK");
+    }
+    return true;
+  }
+  if (strcmp(command, "get max.resend") == 0) {
+    sprintf(reply, "> %d", (uint32_t)_prefs.max_resend_attempts);
+    if (_prefs.max_resend_attempts) {   // plain "> 0" when resends are disabled
+      StatsFormatHelper::formatResendRatio(reply, getNumResentDirect(), getNumSentDirect());
+    }
     return true;
   }
 
