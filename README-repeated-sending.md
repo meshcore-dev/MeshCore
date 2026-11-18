@@ -30,7 +30,7 @@ On the final relay hop there is no downstream forward to overhear — the destin
 
 | Location | Value | Meaning |
 |---|---|---|
-| CLI `set max.resend <0–3>` / `get max.resend` | Default `2` | Maximum resend attempts for DIRECT packets. `0` disables the feature entirely. `get` also reports the resend ratio, e.g. `2, resends 64/173 (37%)`. |
+| CLI `set max.resend <0–3>` / `get max.resend` | Default `2` | Maximum resend attempts for DIRECT packets. `0` disables the feature entirely. `get` also reports the resend ratio, e.g. `2, resends 64/173 (37%)`. Available on CommonCLI nodes (repeater/chat/room-server) **and on companion radios** via their USB/BLE CLI (`CMD_RUN_CLI_COMMAND` passthrough) — identical commands and reply format everywhere. |
 | `NodePrefs` (persisted) | `max_resend_attempts` | Saved/loaded via the ConfigSerializer prefs file; sanitised to 0–3. (The legacy binary migration path reads it at byte offset 295.) |
 | Companion-radio `CMD_SET_*` frame | Byte 6 in the path block | App-protocol path to set `max_resend_attempts` from the companion. |
 | `RESEND_INTERFERENCE_MARGIN` (compile-time) | Default `12` dB | Margin above the noise floor at which a resend is blocked (non-invasive LBT). |
