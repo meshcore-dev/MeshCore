@@ -1,4 +1,5 @@
 #include "Mesh.h"
+#include "helpers/RoutingPolicy.h"
 //#include <Arduino.h>
 
 namespace mesh {
@@ -344,7 +345,7 @@ void Mesh::removeSelfFromPath(Packet* pkt) {
 DispatcherAction Mesh::routeRecvPacket(Packet* packet) {
   uint8_t n = packet->getPathHashCount();
   if (packet->isRouteFlood() && !packet->isMarkedDoNotRetransmit()
-    && (n + 1)*packet->getPathHashSize() <= MAX_PATH_SIZE && allowPacketForward(packet)) {
+    && canAppendPathHash(packet) && allowPacketForward(packet)) {
     // append this node's hash to 'path'
     self_id.copyHashTo(&packet->path[n * packet->getPathHashSize()], packet->getPathHashSize());
     packet->setPathHashCount(n + 1);
