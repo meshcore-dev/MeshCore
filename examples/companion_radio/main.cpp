@@ -322,7 +322,7 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_CLASS
-  ui_task.begin(disp, &sensors, the_mesh.getNodePrefs(), &the_mesh, the_mesh.getBLEPin(), FIRMWARE_VERSION, FIRMWARE_BUILD_DATE);
+  ui_task.begin(disp, &sensors, the_mesh.getNodePrefs(), &interface_manager, &the_mesh, the_mesh.getBLEPin(), FIRMWARE_VERSION, FIRMWARE_BUILD_DATE);
   the_mesh.setListener(&ui_task);
 #ifdef EINK_REFRESH_LOOP
   if (disp != NULL) disp->setBusyHook(loopDuringDisplayRefresh);

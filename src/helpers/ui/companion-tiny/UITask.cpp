@@ -453,10 +453,12 @@ public:
   }
 };
 
-
-void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs, BaseChatMesh* mesh, uint32_t ble_pin, const char* ver, const char* build_date) {
+void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs, MultiSerialInterface* serial,
+                   BaseChatMesh* mesh, uint32_t ble_pin, const char* ver, const char* build_date)
+{
   _display = display;
   _sensors = sensors;
+  _interfaceManager = serial;
   the_mesh = mesh;
   _ble_pin = ble_pin;
   _auto_off = millis() + AUTO_OFF_MILLIS;

@@ -63,11 +63,12 @@ class UITask : public AbstractUITask {
  
 public:
 
-  UITask(mesh::MainBoard* board, MultiSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL) {
+  UITask(mesh::MainBoard* board) : AbstractUITask(board), _display(NULL), _sensors(NULL) {
       _next_refresh = 0;
       ui_started_at = 0;
   }
-  void begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs, BaseChatMesh* mesh, uint32_t ble_pin, const char* ver, const char* build_date);
+  void begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs, MultiSerialInterface* serial,
+             BaseChatMesh* mesh, uint32_t ble_pin, const char* ver, const char* build_date);
 
   bool hasDisplay() const { return _display != NULL; }
   void clearMsgPreview();

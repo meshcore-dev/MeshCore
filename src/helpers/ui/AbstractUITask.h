@@ -27,7 +27,7 @@ protected:
   mesh::MainBoard* _board;
   MultiSerialInterface* _interfaceManager;
 
-  AbstractUITask(mesh::MainBoard* board, MultiSerialInterface* interfaceManager) : _board(board), _interfaceManager(interfaceManager) {
+  AbstractUITask(mesh::MainBoard* board, MultiSerialInterface* interfaceManager = NULL) : _board(board), _interfaceManager(interfaceManager) {
   }
 
 public:

@@ -40,9 +40,12 @@ static const uint8_t meshcore_logo [] PROGMEM = {
     0xe3, 0xe3, 0x8f, 0xff, 0x1f, 0xfc, 0x3c, 0x0e, 0x1f, 0xf8, 0xff, 0xf8, 0x70, 0x3c, 0x7f, 0xf8, 
 };
 
-void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs, BaseChatMesh* mesh, uint32_t ble_pin, const char* ver, const char* build_date) {
+void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs, MultiSerialInterface* serial,
+                   BaseChatMesh* mesh, uint32_t ble_pin, const char* ver, const char* build_date)
+{
   _display = display;
   _sensors = sensors;
+  _interfaceManager = serial;
   the_mesh = mesh;
   _ble_pin = ble_pin;
 
