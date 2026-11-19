@@ -664,28 +664,138 @@ uint8_t MyMesh::onContactRequest(const ContactInfo &contact, uint32_t sender_tim
     permissions &= perm_mask;
 
     if (permissions & TELEM_PERM_BASE) { // only respond if base permission bit is set
-      telemetry.reset();
-      telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
-      // query other sensors -- target specific
-      sensors.querySensors(permissions, telemetry);
-
-      float temperature = board.getMCUTemperature();
-      if(!isnan(temperature)) { // Supported boards with built-in temperature sensor. ESP32-C3 may return NAN
-        telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature); // Built-in MCU Temperature
+#if ENV_INCLUDE_GPS == 1
+      if (gpsOnDemandApplies(permissions) && !gpsOnDemandFixReady()) {
+        // GPS is off: start it, answer now WITHOUT location, and send a second
+        // response with the same tag once a fix is available (see checkGpsOnDemand)
+        queueGpsDemand(contact, sender_timestamp, permissions);
+        permissions &= ~TELEM_PERM_LOCATION;
       }
-
-      memcpy(reply, &sender_timestamp,
-             4); // reflect sender_timestamp back in response packet (kind of like a 'tag')
-
-      uint8_t tlen = telemetry.getSize();
-      memcpy(&reply[4], telemetry.getBuffer(), tlen);
-      return 4 + tlen;
+#endif
+      return buildTelemetryReply(permissions, sender_timestamp, reply);
     }
   } else if (_listener) {
     return _listener->onUnhandledRequest(contact, sender_timestamp, data, len, reply);
   }
   return 0; // unknown
 }
+
+uint8_t MyMesh::buildTelemetryReply(uint8_t permissions, uint32_t tag, uint8_t *reply) {
+  telemetry.reset();
+  telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
+  // query other sensors -- target specific
+  sensors.querySensors(permissions, telemetry);
+
+  float temperature = board.getMCUTemperature();
+  if (!isnan(temperature)) { // Supported boards with built-in temperature sensor. ESP32-C3 may return NAN
+    telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature); // Built-in MCU Temperature
+  }
+
+  memcpy(reply, &tag, 4); // reflect sender_timestamp back in response packet (kind of like a 'tag')
+
+  uint8_t tlen = telemetry.getSize();
+  memcpy(&reply[4], telemetry.getBuffer(), tlen);
+  return 4 + tlen;
+}
+
+#if ENV_INCLUDE_GPS == 1
+bool MyMesh::gpsOnDemandApplies(uint8_t permissions) {
+  // only when GPS is not permanently on (normal behaviour then) and the board actually has a GPS
+  return (permissions & TELEM_PERM_LOCATION) && _prefs.gps_on_demand && !_prefs.gps_enabled &&
+         sensors.getLocationProvider() != NULL;
+}
+
+void MyMesh::queueGpsDemand(const ContactInfo &contact, uint32_t tag, uint8_t permissions) {
+  int slot = -1;
+  for (int i = 0; i < MAX_GPS_DEMANDS; i++) {
+    if (gps_demands[i].active && memcmp(gps_demands[i].pub_key, contact.id.pub_key, PUB_KEY_SIZE) == 0) {
+      slot = i; // same requester again: just refresh tag
+      break;
+    }
+    if (!gps_demands[i].active && slot < 0) slot = i;
+  }
+  if (slot < 0) return; // queue full: requester still gets the immediate (base) reply
+
+  memcpy(gps_demands[slot].pub_key, contact.id.pub_key, PUB_KEY_SIZE);
+  gps_demands[slot].tag = tag;
+  gps_demands[slot].permissions = permissions;
+  gps_demands[slot].active = true;
+
+  if (!gps_od_running) {
+    MESH_DEBUG_PRINTLN("GPS on demand: powering up");
+    sensors.setSettingValue("gps", "1");
+    LocationProvider *loc = sensors.getLocationProvider();
+    gps_od_start_ts = loc ? loc->getTimestamp() : 0;
+    gps_od_running = true;
+    gps_od_have_fix = false;
+    gps_od_deadline = futureMillis((int)constrain(_prefs.gps_od_timeout, 10, 600) * 1000);
+  }
+  gps_od_off_at = 0; // cancel any pending power-down while a request is waiting
+}
+
+void MyMesh::stopGpsOnDemand() {
+  if (gps_od_running && !_prefs.gps_enabled) {
+    MESH_DEBUG_PRINTLN("GPS on demand: powering down");
+    sensors.setSettingValue("gps", "0");
+  }
+  gps_od_running = false;
+  gps_od_have_fix = false;
+  gps_od_off_at = 0;
+  for (int i = 0; i < MAX_GPS_DEMANDS; i++)
+    gps_demands[i].active = false;
+}
+
+void MyMesh::checkGpsOnDemand() {
+  if (!gps_od_running) return;
+  if (_prefs.gps_enabled) { // user switched GPS on permanently meanwhile: hand over
+    gps_od_running = false;
+    for (int i = 0; i < MAX_GPS_DEMANDS; i++)
+      gps_demands[i].active = false;
+    return;
+  }
+
+  LocationProvider *loc = sensors.getLocationProvider();
+  if (!gps_od_have_fix && loc && loc->isValid() && loc->getTimestamp() > gps_od_start_ts) {
+    gps_od_have_fix = true;
+    gps_od_fix_at = futureMillis(GPS_OD_SETTLE_MILLIS);
+  }
+
+  bool any_pending = false;
+  for (int i = 0; i < MAX_GPS_DEMANDS; i++)
+    any_pending |= gps_demands[i].active;
+
+  if (any_pending && gps_od_have_fix && millisHasNowPassed(gps_od_fix_at)) {
+    uint8_t buf[MAX_PACKET_PAYLOAD];
+    for (int i = 0; i < MAX_GPS_DEMANDS; i++) {
+      if (!gps_demands[i].active) continue;
+      gps_demands[i].active = false;
+      ContactInfo *c = lookupContactByPubKey(gps_demands[i].pub_key, PUB_KEY_SIZE);
+      if (c == NULL) continue; // contact removed meanwhile
+      uint8_t len = buildTelemetryReply(gps_demands[i].permissions, gps_demands[i].tag, buf);
+      mesh::Packet *pkt = createDatagram(PAYLOAD_TYPE_RESPONSE, c->id, c->getSharedSecret(self_id), buf, len);
+      if (pkt) {
+        if (c->out_path_len != OUT_PATH_UNKNOWN) {
+          sendDirect(pkt, c->out_path, c->out_path_len);
+        } else {
+          sendFloodScoped(*c, pkt);
+        }
+      }
+    }
+    gps_od_off_at = futureMillis(GPS_OD_HOLD_MILLIS);
+    any_pending = false;
+  }
+
+  if (any_pending && millisHasNowPassed(gps_od_deadline)) {
+    MESH_DEBUG_PRINTLN("GPS on demand: no fix before timeout");
+    stopGpsOnDemand(); // requesters already got the base reply; no location to add
+    return;
+  }
+
+  if (!any_pending && gps_od_off_at && millisHasNowPassed(gps_od_off_at)) {
+    stopGpsOnDemand();
+  }
+}
+#endif
 
 void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, uint8_t len) {
   uint32_t tag;
@@ -910,6 +1020,12 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   sign_data = NULL;
   dirty_contacts_expiry = 0;
   memset(advert_paths, 0, sizeof(advert_paths));
+#if ENV_INCLUDE_GPS == 1
+  memset(gps_demands, 0, sizeof(gps_demands));
+  gps_od_running = gps_od_have_fix = false;
+  gps_od_deadline = gps_od_fix_at = gps_od_off_at = 0;
+  gps_od_start_ts = 0;
+#endif
   memset(send_scope.key, 0, sizeof(send_scope.key));
   send_unscoped = false;
 
@@ -925,6 +1041,8 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.gps_enabled = 0;       // GPS disabled by default
   _prefs.gps_interval = 0;      // No automatic GPS updates by default
+  _prefs.gps_on_demand = 0;     // GPS on demand disabled by default
+  _prefs.gps_od_timeout = 120;  // seconds
   _prefs.radio_fem_rxgain = 1;
 #ifdef RADIO_FEM_TXGAIN
   _prefs.radio_fem_txgain = RADIO_FEM_TXGAIN;   // board-specific default for PA
@@ -993,6 +1111,8 @@ void MyMesh::begin() {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
+  _prefs.gps_on_demand = constrain(_prefs.gps_on_demand, 0, 1);
+  _prefs.gps_od_timeout = constrain(_prefs.gps_od_timeout, 10, 600);
 
   _active_ble_pin = _prefs.ble_pin;
 
@@ -1863,6 +1983,13 @@ void MyMesh::handleCmdFrame(size_t len) {
       strcpy(dp, sensors.getSettingValue(i));
       dp = strchr(dp, 0);
     }
+#if ENV_INCLUDE_GPS == 1
+    if (sensors.getLocationProvider() != NULL) {
+      if (dp != (char *)&out_frame[1]) *dp++ = ',';
+      dp += sprintf(dp, "gps_od:%u,gps_od_to:%u", (unsigned)_prefs.gps_on_demand,
+                    (unsigned)_prefs.gps_od_timeout);
+    }
+#endif
     _serial->writeFrame(out_frame, dp - (char *)out_frame);
   } else if (cmd_frame[0] == CMD_SET_CUSTOM_VAR && len >= 4) {
     cmd_frame[len] = 0;
@@ -1870,6 +1997,20 @@ void MyMesh::handleCmdFrame(size_t len) {
     char *np = strchr(sp, ':'); // look for separator char
     if (np) {
       *np++ = 0; // modify 'cmd_frame', replace ':' with null
+#if ENV_INCLUDE_GPS == 1
+      // companion-level GPS prefs (not sensor settings)
+      if (strcmp(sp, "gps_od") == 0 || strcmp(sp, "gps_od_to") == 0) {
+        if (strcmp(sp, "gps_od") == 0) {
+          _prefs.gps_on_demand = (np[0] == '1') ? 1 : 0;
+          if (!_prefs.gps_on_demand) stopGpsOnDemand();
+        } else {
+          _prefs.gps_od_timeout = constrain(atoi(np), 10, 600);
+        }
+        savePrefs();
+        writeOKFrame();
+        return;
+      }
+#endif
       bool success = sensors.setSettingValue(sp, np);
       if (success) {
         #if ENV_INCLUDE_GPS == 1
@@ -2425,6 +2566,10 @@ void MyMesh::loop() {
     checkCLIRescueCmd();
 #endif
   }
+
+#if ENV_INCLUDE_GPS == 1
+  checkGpsOnDemand();
+#endif
 
   // is there are pending dirty contacts write needed?
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
