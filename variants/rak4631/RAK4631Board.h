@@ -5,8 +5,12 @@
 #include <helpers/NRF52Board.h>
 
 // built-ins
-#define  PIN_VBAT_READ    5
-#define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)
+#ifndef PIN_VBAT_READ
+  #define  PIN_VBAT_READ    5
+#endif
+#ifndef ADC_MULTIPLIER
+  #define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)
+#endif
 
 class RAK4631Board : public NRF52BoardDCDC {
 protected:
