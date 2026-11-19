@@ -245,6 +245,33 @@ private:
   uint32_t pending_status;
   uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ
   uint32_t pending_req;   // pending _BINARY_REQ
+
+#if ENV_INCLUDE_GPS == 1
+  // ---- GPS on demand ----
+  #define MAX_GPS_DEMANDS        4
+  #define GPS_OD_SETTLE_MILLIS   2000    // let sensors.loop() copy the first valid fix into node_lat/lon
+  #define GPS_OD_HOLD_MILLIS     30000   // keep GPS warm briefly so follow-up requests answer at once
+  struct GpsDemand {
+    uint8_t  pub_key[PUB_KEY_SIZE];
+    uint32_t tag;          // requester's sender_timestamp, reflected back like a normal reply
+    uint8_t  permissions;
+    bool     active;
+  };
+  GpsDemand gps_demands[MAX_GPS_DEMANDS];
+  bool gps_od_running;              // GPS was powered up by on-demand logic (not by user pref)
+  bool gps_od_have_fix;
+  unsigned long gps_od_deadline;    // give up searching at this time
+  unsigned long gps_od_fix_at;      // first valid fix seen at
+  unsigned long gps_od_off_at;      // power down after hold time (0 = not scheduled)
+  long gps_od_start_ts;             // GPS timestamp when powered up; a fix must be newer (avoids stale NMEA state)
+
+  bool gpsOnDemandApplies(uint8_t permissions);
+  bool gpsOnDemandFixReady() const { return gps_od_running && gps_od_have_fix; }
+  void queueGpsDemand(const ContactInfo& contact, uint32_t tag, uint8_t permissions);
+  void checkGpsOnDemand();
+  void stopGpsOnDemand();
+#endif
+  uint8_t buildTelemetryReply(uint8_t permissions, uint32_t tag, uint8_t* reply);
   BaseSerialInterface *_serial;
   Listener* _listener;
 
