@@ -688,6 +688,10 @@ uint8_t MyMesh::onContactRequest(const ContactInfo &contact, uint32_t sender_tim
 }
 
 void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, uint8_t len) {
+  if (len < 4) return;
+  if (len > MAX_FRAME_SIZE - 4) { // largest frame below writes 8-byte header + (len - 4) bytes
+    len = MAX_FRAME_SIZE - 4;
+  }
   uint32_t tag;
   memcpy(&tag, data, 4);
 
@@ -696,12 +700,12 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
     pending_login = 0;
 
     int i = 0;
-    if (memcmp(&data[4], "OK", 2) == 0) { // legacy Repeater login OK response
+    if (len >= 6 && memcmp(&data[4], "OK", 2) == 0) { // legacy Repeater login OK response
       out_frame[i++] = PUSH_CODE_LOGIN_SUCCESS;
       out_frame[i++] = 0; // legacy: is_admin = false
       memcpy(&out_frame[i], contact.id.pub_key, 6);
       i += 6;                                     // pub_key_prefix
-    } else if (data[4] == RESP_SERVER_LOGIN_OK) { // new login response
+    } else if (len >= 8 && data[4] == RESP_SERVER_LOGIN_OK) { // new login response
       uint16_t keep_alive_secs = ((uint16_t)data[5]) * 16;
       if (keep_alive_secs > 0) {
         startConnection(contact, keep_alive_secs);
@@ -713,7 +717,7 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
       memcpy(&out_frame[i], &tag, 4);
       i += 4; // NEW: include server timestamp
       out_frame[i++] = data[7]; // NEW (v7): ACL permissions
-      out_frame[i++] = data[12]; // FIRMWARE_VER_LEVEL
+      out_frame[i++] = (len >= 13) ? data[12] : 0; // FIRMWARE_VER_LEVEL
     } else {
       out_frame[i++] = PUSH_CODE_LOGIN_FAIL;
       out_frame[i++] = 0; // reserved

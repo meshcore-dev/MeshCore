@@ -40,7 +40,7 @@ int Mesh::searchChannelsByHash(const uint8_t* hash, GroupChannel channels[], int
 
 DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
   if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_TRACE) {
-    if (pkt->path_len < MAX_PATH_SIZE) {
+    if (pkt->path_len < MAX_PATH_SIZE && pkt->payload_len >= 9) {
       uint8_t i = 0;
       uint32_t trace_tag;
       memcpy(&trace_tag, &pkt->payload[i], 4); i += 4;
@@ -48,6 +48,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       memcpy(&auth_code, &pkt->payload[i], 4); i += 4;
       uint8_t flags = pkt->payload[i++];
       uint8_t path_sz = flags & 0x03;  // NEW v1.11+: lower 2 bits is path hash size
+      uint8_t hash_sz = (uint8_t)(1 << path_sz);
 
       uint8_t len = pkt->payload_len - i;
       // path_len*entry_size can exceed 255 (path_len up to 63, entry_size up to 8);
@@ -55,7 +56,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint16_t offset = (uint16_t)pkt->path_len << path_sz;
       if (offset >= len) {   // TRACE has reached end of given path
         onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], len);
-      } else if (self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->wasSeen(pkt)) {
+      } else if (offset + hash_sz <= len && self_id.isHashMatch(&pkt->payload[i + offset], hash_sz) && allowPacketForward(pkt) && !_tables->wasSeen(pkt)) {
         _tables->markSeen(pkt);
         // append SNR (Not hash!)
         pkt->path[pkt->path_len++] = (int8_t) (pkt->getSNR()*4);
@@ -67,7 +68,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     return ACTION_RELEASE;
   }
 
-  if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_CONTROL && (pkt->payload[0] & 0x80) != 0) {
+  if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_CONTROL && pkt->payload_len > 0 && (pkt->payload[0] & 0x80) != 0) {
     if (pkt->getPathHashCount() == 0) {
       onControlDataRecv(pkt);
     }
@@ -166,7 +167,12 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 }
                 uint8_t hash_size = (path_len >> 6) + 1;
                 uint8_t hash_count = path_len & 63;
-                uint8_t* path = &data[k]; k += hash_size*hash_count;
+                uint8_t path_byte_len = hash_size * hash_count;
+                if (k + path_byte_len + 1 > len) {
+                  MESH_DEBUG_PRINTLN("%s PAYLOAD_TYPE_PATH, incomplete payload: len=%d", getLogDateTime(), len);
+                  break;   // reject bad encoding
+                }
+                uint8_t* path = &data[k]; k += path_byte_len;
                 uint8_t extra_type = data[k++] & 0x0F;   // upper 4 bits reserved for future use
                 uint8_t* extra = &data[k];
                 uint8_t extra_len = len - k;   // remainder of packet (may be padded with zeroes!)
