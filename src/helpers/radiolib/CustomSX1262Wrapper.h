@@ -54,5 +54,5 @@ public:
     return ((CustomSX1262 *)_radio)->getRxBoostedGainMode();
   }
 
-  void doResetAGC() override { sx126xResetAGC((SX126x *)_radio, getRxBoostedGainMode()); }
+  void doResetAGC() override { sx126xResetAGC((SX126x *)_radio, getRxBoostedGainMode()); ((CustomSX1262 *)_radio)->applyAgcLockupFix(); }
 };
