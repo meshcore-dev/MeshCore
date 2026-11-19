@@ -188,6 +188,12 @@ void MyMesh::writeContactRespFrame(uint8_t code, const ContactInfo &contact) {
   i += 4;
   memcpy(&out_frame[i], &contact.lastmod, 4);
   i += 4;
+  // new fields
+  out_frame[i++] = contact.direct_mode;
+  out_frame[i++] = contact.next_seq_no;
+  memcpy(&out_frame[i], &contact.curr_session_id, 2);
+  i += 2;
+
   _serial->writeFrame(out_frame, i);
 }
 
@@ -212,6 +218,13 @@ void MyMesh::updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, co
     i += 4;
     if (len >= i + 4) {
       memcpy(&last_mod, &frame[i], 4);
+      i += 4;
+      if (len >= i + 4) {
+        contact.direct_mode = frame[i++];
+        contact.next_seq_no = frame[i++];
+        memcpy(&contact.curr_session_id, &frame[i], 2);
+        i += 2;
+      }
     }
   }
 }
@@ -488,6 +501,36 @@ bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
   return _prefs.isRepeatEn();
 }
 
+mesh::Packet* MyMesh::obtainPacketFor(ContactInfo& contact) {
+  auto pkt = obtainNewPacket();
+  if (pkt) {
+    uint8_t crypto_mode = contact.direct_mode & 0x0F;
+    if (contact.out_path_len == OUT_PATH_UNKNOWN) {
+      if (crypto_mode == CRYPTO_NEW_V1) {
+        pkt->header |= ROUTE_TYPE_TRANSPORT_FLOOD;
+        // pkt->transport_codes[0]   scope set later
+        pkt->transport_codes[1] = (contact.curr_session_id & ~(3u << 14));
+        pkt->transport_codes[1] |= (CRYPTO_NEW_V1 << 14);
+      } else {
+        pkt->header |= ROUTE_TYPE_FLOOD;
+        // NOTE: final route type, transport codes, path_len is set later in sendFloodScoped()
+      }
+    } else {
+      if (crypto_mode == CRYPTO_NEW_V1) {
+        uint8_t dm_mode = contact.direct_mode >> 4;   // upper 4 bits is which DM_MODE_* to use
+        pkt->header |= ROUTE_TYPE_TRANSPORT_DIRECT;
+        pkt->transport_codes[0] = (((uint16_t)dm_mode) << 14) | contact.next_seq_no++;  // implicit, cursor = 0
+        pkt->transport_codes[1] = (contact.curr_session_id & ~(3u << 14));
+        pkt->transport_codes[1] |= (CRYPTO_NEW_V1 << 14);
+      } else {
+        pkt->header |= ROUTE_TYPE_DIRECT;
+      }
+      pkt->path_len = mesh::Packet::copyPath(pkt->path, contact.out_path, contact.out_path_len);
+    }
+  }
+  return pkt;
+}
+
 void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis) {
   if (scope.isNull()) {
     sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
@@ -501,26 +544,38 @@ void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint3
 
 void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
   // TODO: dynamic send_scope, depending on recipient and current 'home' Region
-  if (send_unscoped) {
-    sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);  // app has explicitly requested un-scoped
-  } else {
-    TransportKey default_scope;
-    memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+  TransportKey default_scope;
+  memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+  auto scope = send_scope.isNull() ? &default_scope : &send_scope;
 
-    auto scope = send_scope.isNull() ? &default_scope : &send_scope;
-    sendFloodScoped(*scope, pkt, delay_millis);
+  if (pkt->transport_codes[1] != 0) {   // has a new CRYPTO_* encoding
+    pkt->transport_codes[0] = send_unscoped ? 0 : (scope->isNull() ? 0 : scope->calcTransportCode(pkt));
+    pkt->setPathHashSizeAndCount(_prefs.path_hash_mode + 1, 0);
+    send(pkt, delay_millis);
+  } else {
+    if (send_unscoped) {
+      sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);  // app has explicitly requested un-scoped
+    } else {
+      sendFloodScoped(*scope, pkt, delay_millis);
+    }
   }
 }
 void MyMesh::sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis) {
   // TODO: have per-channel send_scope
-  if (send_unscoped) {
-    sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);  // app has explicitly requested un-scoped
-  } else {
-    TransportKey default_scope;
-    memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+  TransportKey default_scope;
+  memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+  auto scope = send_scope.isNull() ? &default_scope : &send_scope;
 
-    auto scope = send_scope.isNull() ? &default_scope : &send_scope;
-    sendFloodScoped(*scope, pkt, delay_millis);
+  if (pkt->transport_codes[1] != 0) {   // has a new CRYPTO_* encoding
+    pkt->transport_codes[0] = send_unscoped ? 0 : (scope->isNull() ? 0 : scope->calcTransportCode(pkt));
+    pkt->setPathHashSizeAndCount(_prefs.path_hash_mode + 1, 0);
+    send(pkt, delay_millis);
+  } else {
+    if (send_unscoped) {
+      sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);  // app has explicitly requested un-scoped
+    } else {
+      sendFloodScoped(*scope, pkt, delay_millis);
+    }
   }
 }
 

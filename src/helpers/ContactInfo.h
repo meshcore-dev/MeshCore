@@ -12,6 +12,9 @@ struct ContactInfo {
   uint8_t flags;
   uint8_t out_path_len;
   mutable bool shared_secret_valid; // flag to indicate if shared_secret has been calculated
+  uint8_t direct_mode;
+  uint8_t next_seq_no;
+  uint16_t curr_session_id;
   uint8_t out_path[MAX_PATH_SIZE];
   uint32_t last_advert_timestamp;   // by THEIR clock
   uint32_t lastmod;  // by OUR clock
