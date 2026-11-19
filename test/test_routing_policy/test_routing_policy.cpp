@@ -107,6 +107,58 @@ TEST(ReplyScope, SendsUnscopedOnlyWhenNoScopeIsAvailableAtAll) {
     EXPECT_EQ(REPLY_SCOPE_NONE, chooseReplyScope(false, true, false));
 }
 
+static Packet makePath(uint8_t hash_size, uint8_t hops) {
+    Packet p;
+    p.header = ROUTE_TYPE_FLOOD | (PAYLOAD_TYPE_REQ << PH_TYPE_SHIFT);
+    p.setPathHashSizeAndCount(hash_size, hops);
+    p.payload_len = 1;
+    return p;
+}
+
+// the reported bug: with 1-byte hashes the byte limit still allows a 64th hash, but the
+// 6-bit count field cannot hold 64. setPathHashCount(64) spilled into the hash-size bits and
+// the packet re-flooded as a zero-hop, 2-byte-hash packet with a fresh hop budget.
+TEST(AppendPathHash, OneByteHashesStopAt63) {
+    auto ok = makePath(1, 62);
+    EXPECT_TRUE(canAppendPathHash(&ok));
+
+    auto full = makePath(1, 63);
+    EXPECT_FALSE(canAppendPathHash(&full));
+}
+
+TEST(AppendPathHash, TwoAndThreeByteHashesStopAtTheByteLimit) {
+    auto two_ok = makePath(2, 31);
+    EXPECT_TRUE(canAppendPathHash(&two_ok));
+    auto two_full = makePath(2, 32);   // 32 * 2 == 64, no room for a 33rd
+    EXPECT_FALSE(canAppendPathHash(&two_full));
+
+    auto three_ok = makePath(3, 20);
+    EXPECT_TRUE(canAppendPathHash(&three_ok));
+    auto three_full = makePath(3, 21);  // 22 * 3 > 64
+    EXPECT_FALSE(canAppendPathHash(&three_full));
+}
+
+// every append the policy allows must keep the hash size and land on exactly n + 1
+TEST(AppendPathHash, AllowedAppendNeverChangesHashSize) {
+    for (uint8_t sz = 1; sz <= 3; sz++) {
+        for (uint8_t n = 0; n < 64; n++) {
+            auto pkt = makePath(sz, n);
+            if (!canAppendPathHash(&pkt)) continue;
+            pkt.setPathHashCount(n + 1);
+            EXPECT_EQ(sz, pkt.getPathHashSize()) << "sz=" << (int)sz << " n=" << (int)n;
+            EXPECT_EQ(n + 1, pkt.getPathHashCount()) << "sz=" << (int)sz << " n=" << (int)n;
+        }
+    }
+}
+
+TEST(AppendPathHash, ReservedHashSizeIsNeverExtended) {
+    Packet p;
+    p.header = ROUTE_TYPE_FLOOD | (PAYLOAD_TYPE_REQ << PH_TYPE_SHIFT);
+    p.path_len = 0xC0 | 1;  // hash size bits == 3 (reserved), count 1
+    p.payload_len = 1;
+    EXPECT_FALSE(canAppendPathHash(&p));
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

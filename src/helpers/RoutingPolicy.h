@@ -23,6 +23,23 @@ inline bool isFloodHopLimitExceeded(const Packet* packet, uint8_t flood_max,
 }
 
 /**
+ * \brief  Can one more hash be appended to a flood packet's path?
+ *
+ * path_len packs the hash count in bits 0-5 (so at most 63) and the hash size - 1 in bits 6-7.
+ * Checking only the byte limit ((n + 1) * size <= MAX_PATH_SIZE) lets a 64th 1-byte hash through:
+ * setPathHashCount(64) then spills into bit 6, and the packet goes back on air with a hash count
+ * of 0 and a hash size of 2, ie. as a brand-new zero-hop flood with a fresh hop budget.
+ * \param  packet  inbound flood packet
+ * \returns  true if both the byte limit and the 6-bit count limit hold after the append
+ */
+inline bool canAppendPathHash(const Packet* packet) {
+  uint8_t n = packet->getPathHashCount();
+  uint8_t sz = packet->getPathHashSize();
+  if (sz > 3) return false;  // reserved hash size
+  return n < 63 && (n + 1) * sz <= MAX_PATH_SIZE;
+}
+
+/**
  * \brief  How a server routes a reply back to the requesting client.
  */
 enum ReplyRoute : uint8_t {
