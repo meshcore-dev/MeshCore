@@ -35,7 +35,7 @@ public:
   uint8_t  vibe_quiet = 0;
   uint8_t  gps_enabled = 0;      // GPS enabled flag (0=disabled, 1=enabled)
   uint32_t gps_interval = 0;     // GPS read interval in seconds
-  uint8_t  gps_on_demand = 0;    // 1 = when GPS is disabled, power it up for a permitted LOCATION telemetry request
+  uint8_t gps_on_demand = 0;     // 1 = power up GPS for a permitted LOCATION telemetry request
   uint16_t gps_od_timeout = 120; // max seconds to search for a fix on demand
   uint8_t autoadd_config = 0;    // bitmask for auto-add contacts config
   uint8_t rx_boosted_gain = 0; // SX126x RX boosted gain mode (0=power saving, 1=boosted)
@@ -131,7 +131,7 @@ private:
     void structure() override {
       def("en", _parent->gps_enabled); // boolean
       def("int", _parent->gps_interval);   // interval in seconds
-      def("od", _parent->gps_on_demand);   // boolean: GPS on demand for permitted telemetry requests
+      def("od", _parent->gps_on_demand);   // boolean: GPS on demand
       def("od_to", _parent->gps_od_timeout); // seconds to search for a fix on demand
       def("adv_loc", _parent->advert_loc_policy);
     }
