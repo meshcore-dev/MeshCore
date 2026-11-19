@@ -10,9 +10,20 @@ class RAK13800EthernetInterface : public SerialEthernetInterface {
   EthernetServer server;
   EthernetClient client;
 
+  bool bringUp();   // init the W5100S, obtain an IP and start listening
+
+#ifdef WITH_W5100S_POE
+  bool _hwReady;               // true once the (deferred) bring-up has run
+  unsigned long _startedAt;    // millis() at begin(); bring-up is deferred from here
+#endif
+
   public:
     RAK13800EthernetInterface() : server(EthernetServer(ETHERNET_TCP_PORT)) {
       _isConnected = false;
+    #ifdef WITH_W5100S_POE
+      _hwReady = false;
+      _startedAt = 0;
+    #endif
     }
     
     bool begin();
