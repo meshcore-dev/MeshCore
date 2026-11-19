@@ -67,8 +67,8 @@ bool DynamicConfigSerializer::getByKey(const char* key, char* value, size_t max_
   for (int i = 0; i < n; i++) {
     const char* item = parts[i];
     if (item[keylen] == KEY_SEP_CHAR && memcmp(item, key, keylen) == 0) {
-      strncpy(value, &item[keylen+1], max_len);
-      value[max_len] = 0;
+      strncpy(value, &item[keylen+1], max_len - 1);   // max_len inclusive of null
+      value[max_len - 1] = 0;
       return true;
     }
   }
