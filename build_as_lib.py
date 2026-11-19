@@ -20,11 +20,14 @@ for item in menv.get("CPPDEFINES", []):
         src_filter.append("+<helpers/stm32/*>")
     elif item == "ESP32":
         src_filter.append("+<helpers/esp32/*>")
+        src_filter.append("+<helpers/blev2/esp32/*>")
         src_filter.append("+<helpers/wifi/*>")
     elif item == "NRF52_PLATFORM":
         src_filter.append("+<helpers/nrf52/*>")
+        src_filter.append("+<helpers/blev2/nrf52/*>")
     elif item == "RP2040_PLATFORM":
         src_filter.append("+<helpers/rp2040/*>")
+        src_filter.append("+<helpers/blev2/rp2040/*>")
         src_filter.append("+<helpers/wifi/*>")
     
     # DISPLAY HANDLING
@@ -60,7 +63,11 @@ for item in menv.get("CPPDEFINES", []):
             print("***** PLEASE DEFINE EXAMPLE FIRST *****")
             break
         src_filter.append(f"+<../examples/{example_name}/{ui_flavor}/*.cpp>")
-        
+
+# after the platform globs: BLEV2 replaces the Bluedroid interface on ESP32
+if "BLEV2" in menv.get("CPPDEFINES", []):
+    src_filter.append("-<helpers/esp32/SerialBLEInterface.cpp>")
+
 menv.Replace(SRC_FILTER=src_filter)
 
 #print (menv.Dump())
