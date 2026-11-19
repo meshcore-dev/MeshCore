@@ -9,6 +9,10 @@
 #include "nrf_cc310/include/ssi_aes.h"
 #endif
 
+#ifdef USE_RP2350_HW_SHA256
+#include <helpers/rp2350/RP2350Crypto.h>
+#endif
+
 #ifdef ARDUINO
   #include <Arduino.h>
 #endif
@@ -26,6 +30,13 @@ void Utils::sha256(uint8_t *hash, size_t hash_len, const uint8_t* msg, int msg_l
   static CRYS_HASH_Result_t result;
   CRYS_HASH(CRYS_HASH_SHA256_mode, (uint8_t*)msg, (size_t)msg_len, result);
   memcpy(hash, result, hash_len);
+#elif defined(USE_RP2350_HW_SHA256)
+  // RP2350 hardware SHA-256 accelerator; falls back to software if the HW is busy
+  if (!rp2350::hwSha256(hash, hash_len, msg, msg_len)) {
+    SHA256 sha;
+    sha.update(msg, msg_len);
+    sha.finalize(hash, hash_len);
+  }
 #else
   SHA256 sha;
   sha.update(msg, msg_len);
@@ -42,6 +53,14 @@ void Utils::sha256(uint8_t *hash, size_t hash_len, const uint8_t* frag1, int fra
   CRYS_HASH_Update(&ctx, (uint8_t*)frag2, (size_t)frag2_len);
   CRYS_HASH_Finish(&ctx, result);
   memcpy(hash, result, hash_len);
+#elif defined(USE_RP2350_HW_SHA256)
+  // RP2350 hardware SHA-256 accelerator; falls back to software if the HW is busy
+  if (!rp2350::hwSha256(hash, hash_len, frag1, frag1_len, frag2, frag2_len)) {
+    SHA256 sha;
+    sha.update(frag1, frag1_len);
+    sha.update(frag2, frag2_len);
+    sha.finalize(hash, hash_len);
+  }
 #else
   SHA256 sha;
   sha.update(frag1, frag1_len);
