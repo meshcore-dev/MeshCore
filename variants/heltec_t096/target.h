@@ -12,9 +12,9 @@
 #ifdef DISPLAY_CLASS
 #include <helpers/ui/MomentaryButton.h>
 #include <helpers/ui/ST7735Display.h>
+#include <UITask.h>
 #else
 #include "helpers/ui/NullDisplayDriver.h"
-#include <UITask.h>
 #endif
 
 extern T096Board board;
