@@ -36,6 +36,10 @@ public:
     digitalWrite(PIN_ADC_CTRL, !adc_active_state); // Initially inactive
 
     periph_power.begin();
+    // WB_IO2 (GPIO14) switches the 3V3_S rail that powers WisBlock sensor-slot
+    // modules (GNSS, environment sensors). Nothing else claims it on this
+    // board, so keep it on; otherwise those modules are never powered.
+    periph_power.claim();
 
     esp_reset_reason_t reason = esp_reset_reason();
     if (reason == ESP_RST_DEEPSLEEP) {
