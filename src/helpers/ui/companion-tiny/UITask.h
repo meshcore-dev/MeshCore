@@ -74,7 +74,7 @@ class UITask : public AbstractUITask {
 
 public:
 
-  UITask(mesh::MainBoard* board) : AbstractUITask(board), _display(NULL), _sensors(NULL) {
+  UITask(mesh::MainBoard* board, DisplayDriver* display = NULL) : AbstractUITask(board), _display(display), _sensors(NULL) {
     next_batt_chck = _next_refresh = 0;
     _cached_batt_mv = 0;
     ui_started_at = 0;

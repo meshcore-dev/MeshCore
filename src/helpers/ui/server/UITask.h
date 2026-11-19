@@ -16,7 +16,7 @@ protected:
   long renderCurrScreen() override;
 
 public:
-  UITask(mesh::MainBoard& board, DisplayDriver& display) : BaseUITask(&board, &display) { _next_read = 0; }
+  UITask(mesh::MainBoard* board, DisplayDriver* display) : BaseUITask(board, display) { _next_read = 0; }
   void begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version, const char* role_lbl);
 
   void loop() override;
