@@ -15,6 +15,7 @@
     #include <helpers/ui/SH1106Display.h>
   #endif
   #include <helpers/ui/MomentaryButton.h>
+  #include <UITask.h>
 #endif
 #include <helpers/sensors/EnvironmentSensorManager.h>
 
@@ -28,6 +29,7 @@ extern EnvironmentSensorManager sensors;
   extern MomentaryButton joystick_left;
   extern MomentaryButton joystick_right;
   extern MomentaryButton back_btn;
+  extern UITask ui_task;
 #endif
 
 bool radio_init();

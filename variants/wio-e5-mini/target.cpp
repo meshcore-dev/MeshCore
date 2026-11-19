@@ -22,6 +22,7 @@ WIOE5SensorManager sensors;
 
 #ifdef DISPLAY_CLASS
   NullDisplayDriver display;
+  UITask ui_task(&board, &display);
 #endif
 
 #ifndef LORA_CR

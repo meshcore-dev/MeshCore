@@ -14,6 +14,7 @@
 #include <helpers/ui/ST7735Display.h>
 #else
 #include "helpers/ui/NullDisplayDriver.h"
+#include <UITask.h>
 #endif
 
 extern T1Board board;
@@ -24,6 +25,7 @@ extern EnvironmentSensorManager sensors;
 #ifdef DISPLAY_CLASS
 extern DISPLAY_CLASS display;
 extern MomentaryButton user_btn;
+extern UITask ui_task;
 #endif
 
 bool radio_init();

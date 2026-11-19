@@ -19,6 +19,7 @@
 #else
 #include <helpers/ui/NullDisplayDriver.h>
 #endif
+#include <UITask.h>
 #endif
 
 extern HeltecRC52Board board;
@@ -32,6 +33,7 @@ extern MomentaryButton user_btn;
 #if defined(UI_HAS_ROTARY_INPUT)
 extern RotaryInput& rotary_input;
 #endif
+extern UITask ui_task;
 #endif
 
 bool radio_init();

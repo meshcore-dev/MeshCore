@@ -10,7 +10,9 @@
 
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/SSD1306Display.h>
+  #include <UITask.h>
   extern DISPLAY_CLASS display;
+  extern UITask ui_task;
   #include <helpers/ui/MomentaryButton.h>
   extern MomentaryButton user_btn;
   extern MomentaryButton joystick_left;

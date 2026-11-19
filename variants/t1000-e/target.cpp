@@ -17,6 +17,7 @@ T1000SensorManager sensors(nmea, gps_driver);
 
 #ifdef DISPLAY_CLASS
   NullDisplayDriver display;
+  UITask ui_task(&board, &display);
 #endif
 
 #ifndef LORA_CR

@@ -30,6 +30,8 @@
   #include "helpers/ui/NullDisplayDriver.h"
   extern DISPLAY_CLASS display;
   extern MomentaryButton user_btn;
+  #include <UITask.h>
+  extern UITask ui_task;
 #endif
 
 extern MuziBaseBoard board;

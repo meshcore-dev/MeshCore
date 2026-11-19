@@ -14,11 +14,12 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 EnvironmentSensorManager sensors = EnvironmentSensorManager();
 
 #ifdef DISPLAY_CLASS
-DISPLAY_CLASS display;
+  DISPLAY_CLASS display;
   MomentaryButton user_btn(ENCODER_PRESS, 1000, true, true);
   MomentaryButton joystick_left(ENCODER_LEFT, 1000, true, true);
   MomentaryButton joystick_right(ENCODER_RIGHT, 1000, true, true);
   MomentaryButton back_btn(PIN_SIDE_BUTTON, 1000, true, true);
+  UITask ui_task(&board, &display);
 #endif
 
 bool radio_init() {

@@ -41,6 +41,7 @@ HWTSensorManager sensors = HWTSensorManager(nmea);
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display(&board.periph_power);   // peripheral power pin is shared
   MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+  UITask ui_task(&board, &display);
 #endif
 
 bool radio_init() {
