@@ -997,6 +997,8 @@ bool MyMesh::saveFilter(ClientInfo* client) {
 }
 
 void MyMesh::loop() {
+  _cli.loop();
+
   mesh::Mesh::loop();
 
   if (millisHasNowPassed(next_push) && acl.getNumClients() > 0) {
