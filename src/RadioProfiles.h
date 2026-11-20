@@ -109,13 +109,18 @@ class RadioProfiles {
   const RadioProfileParams& params(uint8_t profile) const {
     return profile == 1 ? secondary.params : primary;
   }
-  static bool valid(const RadioProfileParams& p) {
+  static bool valid(const RadioProfileParams& p, bool extended_bandwidths = true) {
     if (!isfinite(p.freq) || !isfinite(p.bw) || p.freq < 137 || p.freq > 2500
         || p.sf < 5 || p.sf > 12 || p.cr < 5 || p.cr > 8
         || (p.preamble != 0 && (p.preamble < 8 || p.preamble > MaxPreamble))) return false;
+    // The first ten entries are the shared SX126x/SX127x bandwidths.
     static constexpr float bandwidths[] = {7.8f, 10.4f, 15.6f, 20.8f, 31.25f, 41.7f,
-                               41.67f, 62.5f, 83.34f, 101.56f, 125, 250, 500, 1000, 203.125f, 406.25f, 812.5f, 1625};
-    for (float bw : bandwidths) if (fabsf(p.bw - bw) < 0.01f) return true;
+                               62.5f, 125, 250, 500, 41.67f, 83.34f, 101.56f, 203.125f,
+                               406.25f, 812.5f, 1000, 1625};
+    const size_t count = extended_bandwidths ? sizeof(bandwidths) / sizeof(bandwidths[0]) : 10;
+    for (size_t i = 0; i < count; ++i) {
+      if (fabsf(p.bw - bandwidths[i]) < 0.01f) return true;
+    }
     return false;
   }
   static double symbolUs(const RadioProfileParams& p) {
@@ -129,13 +134,13 @@ class RadioProfiles {
     const double symbol = symbolUs(p);
     if (symbol <= 0) return false;
     const int de = symbol >= 16000 ? 1 : 0;
-    const int denominator = 4 * (p.sf - 2 * de);
+    const int denominator = p.sf - 2 * de;
     // The payload expression is integral apart from this small rational
     // ceiling. Preserve even invalid-SF behavior: a zero denominator was
     // infinite (and failed the limit), while signed division rounds a
     // negative quotient toward zero, exactly its mathematical ceiling.
     if (!denominator) return false;
-    const int numerator = 8 * 255 - 4 * p.sf + (p.sf <= 6 ? 20 : 28) + 16;
+    const int numerator = 2 * 255 - p.sf + (p.sf <= 6 ? 9 : 11);
     const double payload = 8 + (denominator > 0
         ? (numerator + denominator - 1) / denominator : numerator / denominator) * 8;
     // RadioLib's microsecond airtime calculation multiplies by four before

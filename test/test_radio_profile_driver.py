@@ -58,7 +58,7 @@ struct RadioLibWrapper {
   uint16_t _profile_floor_samples[2]={},_num_floor_samples=0;
   int32_t _profile_floor_sum[2]={},_floor_sample_sum=0;
   bool packet=false,busy=false,warm=false;
-  unsigned applies=0,failApplies=0,failRx=0,ends=0;
+  unsigned applies=0,failApplies=0,failRx=0,ends=0,rxChecks=0;
   bool lastEnd=false;
   RadioLibWrapper() {
     radio_interrupt.claim();
@@ -69,7 +69,7 @@ struct RadioLibWrapper {
   uint16_t profilePreamble(uint8_t p) const { return _profiles.preamble(p,32); }
   bool validateProfile(const mesh::RadioProfileParams& p) const { return mesh::RadioProfiles::valid(p); }
   bool isChipBusy() { return busy; }
-  bool isReceivingPacket() { return packet; }
+  bool isReceivingPacket() { ++rxChecks; return packet; }
   bool lastRxHadCRC() { return true; }
   void beginProfileRetune(bool) {}
   void endProfileRetune(bool success) { ++ends;lastEnd=success; }
@@ -166,10 +166,14 @@ int main() {
   }
   {
     RadioLibWrapper r;second(r);r.serviceProfiles();assert(r.warm);
+    const auto initialChecks=r.rxChecks;
+    r.serviceProfiles();assert(r.rxChecks==initialChecks);
     for(unsigned i=0;i<12;++i) {
       const auto before=r._active_profile;
+      const auto checks=r.rxChecks;
       elapsed_us+=r._profiles.listenUs(before,r.profilePreamble(r._profiles.slowerProfile()))+1;
       r.serviceProfiles();assert(r._active_profile==(before^1));
+      assert(r.rxChecks==checks+1);
     }
     assert(r._profiles.switchTestReady() && r._profiles.switchBudgetUs()>=150);
     auto off=r._profiles.secondary;off.mode=mesh::RadioProfileMode::Off;

@@ -69,10 +69,10 @@ and service the radio. Its framebuffer uses 150 KiB of PSRAM, with direct
 rendering as the allocation-failure fallback. The qualified T-Deck SPI setting
 is 8.888888 MHz.
 
-The host scheduler covers SX1262, SX1268, SX127x, LLCC68, STM32WL,
-LR1110, LR1121 and LR2021 through their RadioLib wrappers. Each driver still
-validates the requested frequencies and modulation. The LR2021 uses
-host-controlled retuning here.
+The host scheduler covers SX1262, SX1268, SX1276, LLCC68, STM32WL,
+LR1110, LR1121 and LR2021 through their RadioLib wrappers. It skips
+duplicate radio status reads and validates changed profiles before applying
+them. Each retune still checks for a busy chip or an in-progress reception.
 
 Scanning and pending timers keep the MCU awake. One transceiver cannot receive both profiles simultaneously; acquisition still depends on peer preambles, traffic and application delays.
 

@@ -286,11 +286,12 @@ MC_RADIO_FAST_CODE_ATTR mesh::RadioParamApplyResult RadioLibWrapper::tuneProfile
   if (profile > 1 || (profile == 1 && !_profiles.enabled())) return Result::FAILED;
   const auto p = _profiles.params(profile);
   const uint16_t preamble = profilePreamble(profile);
-  if (!validateProfile(p) || !mesh::RadioProfiles::safePreamble(p, preamble)) return Result::FAILED;
+  // An exact match is already validated and programmed.
   if (!_profile_refresh_required && _active_profile == profile && _params_valid
       && _profile_generation == _profiles.generation[profile]
       && _physical_params == p && _physical_preamble == preamble
       && _physical_dual == _profiles.enabled()) return Result::APPLIED;
+  if (!validateProfile(p) || !mesh::RadioProfiles::safePreamble(p, preamble)) return Result::FAILED;
   const bool dual = _profiles.enabled();
   const uint32_t started = profileTimestamp(dual);
   beginProfileRetune(_state == STATE_RX);
@@ -345,8 +346,7 @@ void RadioLibWrapper::serviceProfiles() {
   // Poll even during RX/TX deferrals so long packet activity cannot hide an
   // RTC hardware wrap from the software extension.
   const uint32_t now = profileTimestamp(dual);
-  if (_state == STATE_TX_WAIT || _state == STATE_TX_DONE || isChipBusy()
-      || (!_profile_refresh_required && (radio_interrupt.pending() || isReceivingPacket()))) return;
+  if (_state == STATE_TX_WAIT || _state == STATE_TX_DONE) return;
   const bool changed = _profile_scan_generation[0] != _profiles.generation[0]
       || _profile_scan_generation[1] != _profiles.generation[1];
   setProfileStandbyWarm(dual);
@@ -356,6 +356,9 @@ void RadioLibWrapper::serviceProfiles() {
   else if (profileElapsedUs(_profile_visit_stamp, now, dual)
       >= _profiles.listenUs(_active_profile, profilePreamble(_profiles.slowerProfile())))
     target ^= 1;
+  // Check hardware admission once in beginReconfigure(), immediately before
+  // a real retune. While the current profile still matches, there is no SPI
+  // work for the scheduler.
   const auto result = tuneProfile(target);
   if (changed && result == mesh::RadioParamApplyResult::APPLIED) {
     _profile_scan_generation[0] = _profiles.generation[0];
@@ -387,9 +390,9 @@ uint32_t RadioLibWrapper::getProfileAirtime(uint8_t profile, int len, uint8_t cr
       || (p.freq > 1000 && p.sf > 10)
 #endif
       ? 1 : 0;
-  const double coded = ceil((8.0 * len - 4 * p.sf + (p.sf <= 6 ? 20 : 28) + 16)
-      / (4 * (p.sf - 2 * de)));
-  const double payload = 8 + (coded > 0 ? coded * cr : 0);
+  const int denominator = p.sf - 2 * de;
+  const int coded = (2 * len + (p.sf <= 6 ? 8 : 10) - 2 * de) / denominator;
+  const double payload = 8 + coded * cr;
   const double airtime = ceil((profilePreamble(profile) + (p.sf <= 6 ? 6.25 : 4.25)
       + payload) * symbol / 1000.0);
   const uint32_t rounded = airtime > UINT32_MAX ? UINT32_MAX : uint32_t(airtime);
@@ -418,12 +421,10 @@ mesh::RadioParamApplyResult RadioLibWrapper::trySetParams(float freq, float bw, 
 }
 
 bool RadioLibWrapper::validateProfile(const mesh::RadioProfileParams& p) const {
-  if (!mesh::RadioProfiles::valid(p)) return false;
 #if MESH_RADIO_PROFILE_CHIP != 1110 && MESH_RADIO_PROFILE_CHIP != 1121 && MESH_RADIO_PROFILE_CHIP != 2021 && MESH_RADIO_PROFILE_CHIP != 68 && MESH_RADIO_PROFILE_CHIP != 1272
-  static constexpr float bandwidths[] = {7.8f,10.4f,15.6f,20.8f,31.25f,41.7f,62.5f,125,250,500};
-  bool supported = false;
-  for (float bw : bandwidths) if (fabsf(p.bw - bw) < 0.01f) supported = true;
-  if (!supported) return false;
+  if (!mesh::RadioProfiles::valid(p, false)) return false;
+#else
+  if (!mesh::RadioProfiles::valid(p)) return false;
 #endif
 #if MESH_RADIO_PROFILE_CHIP == 1276
   return p.freq >= 137 && p.freq <= 1020 && p.sf >= 7 && p.bw <= 500;
