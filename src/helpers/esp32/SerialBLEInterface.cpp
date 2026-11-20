@@ -79,7 +79,7 @@ void SerialBLEInterface::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
     BLE_DEBUG_PRINTLN(" - SecurityCallback - Authentication Success");
     deviceConnected = true;
   } else {
-    BLE_DEBUG_PRINTLN(" - SecurityCallback - Authentication Failure*");
+    BLE_DEBUG_PRINTLN("Authentication failed: reason=0x%02x", cmpl.fail_reason);
 
     //pServer->removePeerDevice(pServer->getConnId(), true);
     pServer->disconnect(pServer->getConnId());
@@ -102,11 +102,15 @@ void SerialBLEInterface::onMtuChanged(BLEServer* pServer, esp_ble_gatts_cb_param
 }
 
 void SerialBLEInterface::onDisconnect(BLEServer* pServer) {
-  BLE_DEBUG_PRINTLN("onDisconnect()");
   deviceConnected = false;
   if (_isEnabled) {
     adv_restart_time = millis() + ADVERT_RESTART_DELAY;
   }
+}
+
+void SerialBLEInterface::onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) {
+  BLE_DEBUG_PRINTLN("onDisconnect(), conn_id=%u, reason=0x%02x, uptime_ms=%lu",
+    param->disconnect.conn_id, param->disconnect.reason, millis());
 }
 
 // -------- BLECharacteristicCallbacks methods
