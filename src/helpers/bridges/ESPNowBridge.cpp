@@ -93,13 +93,6 @@ void ESPNowBridge::loop() {
   // Nothing to do here - ESP-NOW is callback based
 }
 
-void ESPNowBridge::xorCrypt(uint8_t *data, size_t len) {
-  size_t keyLen = strlen(_prefs->bridge_secret);
-  for (size_t i = 0; i < len; i++) {
-    data[i] ^= _prefs->bridge_secret[i % keyLen];
-  }
-}
-
 void ESPNowBridge::onDataRecv(const uint8_t *mac, const uint8_t *data, int32_t len) {
   // Ignore packets that are too small to contain header + checksum
   if (len < (BRIDGE_MAGIC_SIZE + BRIDGE_CHECKSUM_SIZE)) {
