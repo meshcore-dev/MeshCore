@@ -112,11 +112,6 @@ MultiSerialInterface interface_manager;
 #endif
 
 /* GLOBAL OBJECTS */
-#ifdef DISPLAY_CLASS
-  #include "UITask.h"
-  UITask ui_task(&board, &interface_manager);
-#endif
-
 StdRNG fast_rng;
 SimpleMeshTables tables;
 MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store);
@@ -327,7 +322,7 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_CLASS
-  ui_task.begin(disp, &sensors, the_mesh.getNodePrefs());  // still want to pass this in as dependency, as prefs might be moved
+  ui_task.begin(disp, &sensors, the_mesh.getNodePrefs(), &interface_manager, &the_mesh, the_mesh.getBLEPin(), FIRMWARE_VERSION, FIRMWARE_BUILD_DATE);
   the_mesh.setListener(&ui_task);
 #ifdef EINK_REFRESH_LOOP
   if (disp != NULL) disp->setBusyHook(loopDuringDisplayRefresh);

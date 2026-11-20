@@ -21,6 +21,7 @@ EnvironmentSensorManager sensors = EnvironmentSensorManager();
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
+  UITask ui_task(&board, &display);
 #endif
 
 #ifdef RF_SWITCH_TABLE

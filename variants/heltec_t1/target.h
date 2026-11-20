@@ -12,6 +12,7 @@
 #ifdef DISPLAY_CLASS
 #include <helpers/ui/MomentaryButton.h>
 #include <helpers/ui/ST7735Display.h>
+#include <UITask.h>
 #else
 #include "helpers/ui/NullDisplayDriver.h"
 #endif
@@ -24,6 +25,7 @@ extern EnvironmentSensorManager sensors;
 #ifdef DISPLAY_CLASS
 extern DISPLAY_CLASS display;
 extern MomentaryButton user_btn;
+extern UITask ui_task;
 #endif
 
 bool radio_init();

@@ -11,6 +11,7 @@
 #include <Adafruit_SPA06_003.h>
 #ifdef DISPLAY_CLASS
   #include "NullDisplayDriver.h"
+  #include <UITask.h>   // needs -I(nclude) path setting
 #endif
 
 class MeshTrackerX1SensorManager: public SensorManager {
@@ -34,6 +35,7 @@ public:
 
 #ifdef DISPLAY_CLASS
   extern NullDisplayDriver display;
+  extern UITask ui_task;
 #endif
 
 extern MeshTrackerX1Board board;

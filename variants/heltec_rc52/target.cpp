@@ -39,6 +39,7 @@ MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
 static HeltecRC52RotaryInput rotaryInputImpl(&board.periph_power);
 RotaryInput& rotary_input = rotaryInputImpl;
 #endif
+UITask ui_task(&board, &display);
 #endif
 
 bool radio_init()

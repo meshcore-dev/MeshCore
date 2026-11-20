@@ -11,6 +11,7 @@
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/GxEPDDisplay.h>
   #include <helpers/ui/MomentaryButton.h>
+  #include <UITask.h>
 #endif
 
 class ThinkNodeM1SensorManager : public SensorManager {
@@ -39,6 +40,7 @@ extern ThinkNodeM1SensorManager sensors;
   extern DISPLAY_CLASS display;
   extern MomentaryButton user_btn;
   extern MomentaryButton backlight_btn;
+  extern UITask ui_task;
 #endif
 
 bool radio_init();

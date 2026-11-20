@@ -13,6 +13,8 @@
   extern DISPLAY_CLASS display;
   #include <helpers/ui/MomentaryButton.h>
   extern MomentaryButton user_btn;
+  #include <UITask.h>
+  extern UITask ui_task;
 #endif
 
 extern RAKWismeshTagBoard board;

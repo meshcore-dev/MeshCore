@@ -1,10 +1,5 @@
 #include "SensorMesh.h"
 
-#ifdef DISPLAY_CLASS
-  #include "UITask.h"
-  static UITask ui_task(display);
-#endif
-
 class MyMesh : public SensorMesh {
 public:
   MyMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::MeshTables& tables)
@@ -111,7 +106,7 @@ void setup() {
   the_mesh.begin(fs);
 
 #ifdef DISPLAY_CLASS
-  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
+  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION, "< Sensor >");
 #endif
 
   // send out initial zero hop Advertisement to the mesh

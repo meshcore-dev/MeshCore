@@ -22,6 +22,7 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
   MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
+  UITask ui_task(&board, &display);
 #endif
 
 bool radio_init() {

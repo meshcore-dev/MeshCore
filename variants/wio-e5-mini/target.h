@@ -9,6 +9,7 @@
 #include <helpers/SensorManager.h>
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/NullDisplayDriver.h>
+  #include <UITask.h>
 #endif
 
 #include <BME280I2C.h>
@@ -16,6 +17,7 @@
 
 #ifdef DISPLAY_CLASS
   extern NullDisplayDriver display;
+  extern UITask ui_task;
 #endif
 
 class WIOE5Board : public STM32Board {

@@ -15,6 +15,7 @@ RAK4631Board board;
   #if defined(PIN_USER_BTN_ANA)
   MomentaryButton analog_btn(PIN_USER_BTN_ANA, 1000, 20);
   #endif
+  UITask ui_task(&board, &display);
 #endif
 
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);

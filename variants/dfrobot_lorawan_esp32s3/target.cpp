@@ -19,6 +19,7 @@ SensorManager sensors;
   DISPLAY_CLASS display(&board.periph_power);
   // Active-low button, internal pull-up.
   MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
+  UITask ui_task(&board, &display);
 #endif
 
 bool radio_init() {

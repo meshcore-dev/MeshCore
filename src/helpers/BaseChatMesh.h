@@ -182,5 +182,8 @@ public:
   bool setChannel(int idx, const ChannelDetails& src);
   int findChannelIdx(const mesh::GroupChannel& ch);
 
+  virtual void savePrefs() { }
+  virtual void enterCLIRescue() { }
+
   void loop();
 };

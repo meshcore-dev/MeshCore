@@ -1,7 +1,7 @@
 #include "UITask.h"
 #include <Arduino.h>
 #include <helpers/TxtDataHelpers.h>
-#include "../MyMesh.h"
+#include "target.h"
 
 #define AUTO_OFF_MILLIS     15000   // 15 seconds
 #define BOOT_SCREEN_MILLIS   3000   // 3 seconds
@@ -40,9 +40,15 @@ static const uint8_t meshcore_logo [] PROGMEM = {
     0xe3, 0xe3, 0x8f, 0xff, 0x1f, 0xfc, 0x3c, 0x0e, 0x1f, 0xf8, 0xff, 0xf8, 0x70, 0x3c, 0x7f, 0xf8, 
 };
 
-void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs) {
+void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs, MultiSerialInterface* serial,
+                   BaseChatMesh* mesh, uint32_t ble_pin, const char* ver, const char* build_date)
+{
   _display = display;
   _sensors = sensors;
+  _interfaceManager = serial;
+  the_mesh = mesh;
+  _ble_pin = ble_pin;
+
   _auto_off = millis() + AUTO_OFF_MILLIS;
   clearMsgPreview();
   _node_prefs = node_prefs;
@@ -52,14 +58,14 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 
   // strip off dash and commit hash by changing dash to null terminator
   // e.g: v1.2.3-abcdef -> v1.2.3
-  char *version = strdup(FIRMWARE_VERSION);
+  char *version = strdup(ver);
   char *dash = strchr(version, '-');
   if (dash) {
     *dash = 0;
   }
 
   // v1.2.3 (1 Jan 2025)
-  sprintf(_version_info, "%s (%s)", version, FIRMWARE_BUILD_DATE);
+  sprintf(_version_info, "%s (%s)", version, build_date);
 
 #ifdef PIN_BUZZER
   buzzer.begin();
@@ -300,11 +306,11 @@ void UITask::renderCurrScreen() {
     _display->print(tmp);
 
     // BT pin
-    if (!hasConnection() && the_mesh.getBLEPin() != 0) {
+    if (!hasConnection() && _ble_pin != 0) {
       _display->setColor(UIColor::warning_txt);
       _display->setTextSize(2);
       _display->setCursor(0, 43);
-      sprintf(tmp, "Pin:%d", the_mesh.getBLEPin());
+      sprintf(tmp, "Pin:%d", _ble_pin);
       _display->print(tmp);
       _display->setColor(UIColor::primary_txt);
     } else {
@@ -555,7 +561,14 @@ void UITask::handleButtonDoublePress() {
   #ifdef PIN_BUZZER
       notify(UIEventType::ack);
   #endif
-  if (the_mesh.advert()) {
+  mesh::Packet* pkt;
+  if (_node_prefs->advert_loc_policy == ADVERT_LOC_NONE) {
+    pkt = the_mesh->createSelfAdvert(_node_prefs->node_name);
+  } else {
+    pkt = the_mesh->createSelfAdvert(_node_prefs->node_name, sensors.node_lat, sensors.node_lon);
+  }
+  if (pkt) {
+    the_mesh->sendZeroHop(pkt);
     MESH_DEBUG_PRINTLN("Advert sent!");
     sprintf(_alert, "Advert sent!");
   } else {
@@ -584,7 +597,7 @@ void UITask::handleButtonTriplePress() {
     case 2: sprintf(_alert, "Alerts: Vibe only"); break;
     default: sprintf(_alert, "Alerts: Silent"); break;
   }
-  the_mesh.savePrefs();
+  the_mesh->savePrefs();
   _need_refresh = true;
 #elif defined(PIN_BUZZER)
     if (buzzer.isQuiet()) {
@@ -596,7 +609,7 @@ void UITask::handleButtonTriplePress() {
       sprintf(_alert, "Buzzer: OFF");
     }
     _node_prefs->buzzer_quiet = buzzer.isQuiet();
-    the_mesh.savePrefs();
+    the_mesh->savePrefs();
     _need_refresh = true;
 #endif
 }
@@ -617,7 +630,7 @@ void UITask::handleButtonQuadruplePress() {
           notify(UIEventType::ack);
           sprintf(_alert, "GPS: Enabled");
         }
-        the_mesh.savePrefs();
+        the_mesh->savePrefs();
         break;
       }
     }
@@ -628,7 +641,7 @@ void UITask::handleButtonQuadruplePress() {
 void UITask::handleButtonLongPress() {
   MESH_DEBUG_PRINTLN("UITask: long press triggered");
   if (millis() - ui_started_at < 8000) {   // long press in first 8 seconds since startup -> CLI/rescue
-    the_mesh.enterCLIRescue();
+    the_mesh->enterCLIRescue();
   } else {
     shutdown();
   }

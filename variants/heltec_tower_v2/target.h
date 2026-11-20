@@ -13,6 +13,7 @@
 #ifdef DISPLAY_CLASS
 #include <helpers/ui/MomentaryButton.h>
 #include "helpers/ui/NullDisplayDriver.h"
+#include <UITask.h>
 #endif
 
 class TowerV2ExternalWatchdog : public ExternalWatchdogManager {
@@ -33,6 +34,7 @@ extern TowerV2ExternalWatchdog external_watchdog;
 #ifdef DISPLAY_CLASS
 extern DISPLAY_CLASS display;
 extern MomentaryButton user_btn;
+extern UITask ui_task;
 #endif
 
 bool radio_init();
