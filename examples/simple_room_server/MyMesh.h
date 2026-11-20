@@ -130,6 +130,9 @@ protected:
   float getAirtimeBudgetFactor() const override {
     return _prefs.airtime_factor;
   }
+  uint32_t estimateTxAirtimeFor(int len_bytes, uint8_t tx_cr=0) const override {
+    return estimateLoRaAirtimeFor(len_bytes, _prefs.sf, _prefs.bw, tx_cr != 0 ? tx_cr : _prefs.cr);
+  }
 
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
   void logRx(mesh::Packet* pkt, int len, float score) override;

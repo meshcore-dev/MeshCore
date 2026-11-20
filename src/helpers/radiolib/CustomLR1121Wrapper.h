@@ -19,6 +19,8 @@ public:
     ((CustomLR1121 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
   }
 
+  void setCodingRate(uint8_t cr) override { ((CustomLR1121 *)_radio)->setCodingRate(cr); }
+
   void doResetAGC() override { lr11x0ResetAGC((LR11x0 *)_radio, ((CustomLR1121 *)_radio)->getFreqMHz(), getRxBoostedGainMode()); }
   bool lastRxHadCRC() override {
     bool crc = true;
