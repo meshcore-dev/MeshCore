@@ -4,6 +4,7 @@
 void BaseUITask::loop() {
   if (_display->isOn()) {
     if (millis() >= _next_refresh) {
+      _display->startFrame();
       long interval = renderCurrScreen();
       _display->endFrame();
 

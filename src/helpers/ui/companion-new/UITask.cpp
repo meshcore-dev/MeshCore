@@ -142,7 +142,6 @@ class HomeScreen : public UIScreen {
 #ifndef UI_NO_HIBERNATE
     SHUTDOWN,
 #endif
-    BOARD_PAGE,
     Count    // keep as last
   };
 
@@ -150,10 +149,8 @@ class HomeScreen : public UIScreen {
   mesh::RTCClock* _rtc;
   SensorManager* _sensors;
   NodePrefs* _node_prefs;
-  mesh::BoardUiExtension* _board_ui;
   uint8_t _page;
   bool _shutdown_init;
-  bool boardPageFullRefresh;
   int recent_next_idx;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
 #if UI_DISCOVER_SCREEN
@@ -196,7 +193,7 @@ class HomeScreen : public UIScreen {
 
     // while charging, show a bolt (or a plug once full) just left of the battery,
     // keeping the fill bar itself clean and uninterrupted
-    bool charging = board.hasChargerStatus() ? board.isChargerActive() : board.isExternalPowered();
+    bool charging = board.isExternalPowered();
     if (charging) {
       // There's no charge-complete signal on most boards, so "full" is a high
       // voltage band rather than an exact 100% (a real pack rarely reads 4.2V).
@@ -243,10 +240,9 @@ class HomeScreen : public UIScreen {
   }
 
 public:
-  HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs,
-             mesh::BoardUiExtension* board_ui)
-     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _board_ui(board_ui), _page(0),
-       _shutdown_init(false), boardPageFullRefresh(true), sensors_lpp(200)
+  HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
+     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0),
+       _shutdown_init(false), sensors_lpp(200)
   {
     memset(recent, 0, sizeof(recent));
     recent_next_idx = 0;
@@ -300,28 +296,7 @@ public:
     }
   }
 
-  uint8_t pageCount() const { return _board_ui ? HomePage::Count : HomePage::BOARD_PAGE; }
-  bool isBoardPage() const { return _board_ui && _page == BOARD_PAGE; }
-  void invalidateBoardPage() { if (_board_ui) boardPageFullRefresh = true; }
-
-  bool showBoardPage() {
-    if (!_board_ui || _shutdown_init) return false;
-#ifndef UI_NO_HIBERNATE
-    if (_page == SHUTDOWN) return false;
-#endif
-    if (_page != BOARD_PAGE) {
-      _page = BOARD_PAGE;
-      boardPageFullRefresh = true;
-    }
-    return true;
-  }
-
   int render(DisplayDriver& display) override {
-    if (isBoardPage()) {
-      const int interval = _board_ui->render(display, boardPageFullRefresh);
-      boardPageFullRefresh = false;
-      return interval;
-    }
     display.setColor(UIColor::title_bkg);
     display.fillRect(0, 0, display.width(), 12);
     char tmp[80];
@@ -343,9 +318,8 @@ public:
       display.setColor(UIColor::title_bkg);
     }
     int y = 14;
-    const uint8_t count = pageCount();
-    int x = display.width() / 2 - 5 * (count-1);
-    for (uint8_t i = 0; i < count; i++, x += 10) {
+    int x = display.width() / 2 - 5 * (HomePage::Count-1);
+    for (uint8_t i = 0; i < HomePage::Count; i++, x += 10) {
       if (i == _page) {
         display.fillRect(x-1, y-1, 4, 4);
       } else {
@@ -645,14 +619,11 @@ public:
 
   bool handleInput(char c) override {
     if (c == KEY_LEFT || c == KEY_PREV) {
-      const uint8_t count = pageCount();
-      _page = (_page + count - 1) % count;
-      invalidateBoardPage();
+      _page = (_page + HomePage::Count - 1) % HomePage::Count;
       return true;
     }
     if (c == KEY_NEXT || c == KEY_RIGHT) {
-      _page = (_page + 1) % pageCount();
-      invalidateBoardPage();
+      _page = (_page + 1) % HomePage::Count;
       if (_page == HomePage::RECENT) {
         _task->showAlert("Recent adverts", 800);
       }
@@ -821,7 +792,6 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 {
   _display = display;
   _sensors = sensors;
-  _board_ui = _board->getUiExtension();
   _interfaceManager = serial;
   the_mesh = mesh;
   _ble_pin = ble_pin;
@@ -858,7 +828,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   _alert_expiry = 0;
 
   splash = new SplashScreen(this, ver, build_date);
-  home = new HomeScreen(this, &rtc_clock, sensors, node_prefs, _board_ui);
+  home = new HomeScreen(this, &rtc_clock, sensors, node_prefs);
   msg_preview = new MsgPreviewScreen(this, &rtc_clock);
   setCurrScreen(splash);
 }
@@ -988,7 +958,6 @@ void UITask::userLedHandler() {
 }
 
 void UITask::setCurrScreen(UIScreen* c) {
-  if (curr && curr == home && c != home) static_cast<HomeScreen*>(home)->invalidateBoardPage();
   curr = c;
   _next_refresh = 100;
 }
@@ -1030,16 +999,8 @@ bool UITask::isButtonPressed() const {
 #endif
 }
 
-void UITask::handleBoardUiFocus(uint8_t events, bool handlingInput) {
-  // Consume even when busy: an old event must not steal focus later.
-  if (!(events & mesh::BoardUiExtension::EVENT_REQUEST_FOCUS) || handlingInput ||
-      !_display || curr != home || millis() < _alert_expiry) return;
-  if (static_cast<HomeScreen*>(home)->showBoardPage()) checkDisplayOn(0);
-}
-
 void UITask::loop() {
   char c = 0;
-  bool boardInputHandled = false;
 #if UI_HAS_JOYSTICK
   int ev = user_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
@@ -1097,21 +1058,6 @@ void UITask::loop() {
     }
   }
 #endif
-  const uint8_t boardEvents = _board_ui ? _board_ui->pollEvents() : mesh::BoardUiExtension::EVENT_NONE;
-  HomeScreen* homeScreen = static_cast<HomeScreen*>(home);
-  if ((boardEvents & mesh::BoardUiExtension::EVENT_SHOW_PAGE) && c == 0 &&
-      curr == home && homeScreen->showBoardPage()) {
-    checkDisplayOn(0);
-    boardInputHandled = true;
-  }
-  else if ((boardEvents & mesh::BoardUiExtension::EVENT_PAGE_ACTION) && c == 0 &&
-           _display && _display->isOn() && curr == home && homeScreen->isBoardPage() &&
-           millis() >= _alert_expiry) {
-    _board_ui->handlePageAction();
-    _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;
-    _next_refresh = 0;
-    boardInputHandled = true;
-  }
 #if defined(PIN_USER_BTN_ANA)
   if (abs(millis() - _analogue_pin_read_millis) > 10) {
     int ev = analog_btn.check();
@@ -1170,7 +1116,6 @@ void UITask::loop() {
 #endif
 #endif
 
-  handleBoardUiFocus(boardEvents, c != 0 || boardInputHandled);
   if (c != 0 && curr) {
     curr->handleInput(c);
     _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;   // extend auto-off timer
@@ -1188,15 +1133,9 @@ void UITask::loop() {
 
   if (_display != NULL && _display->isOn()) {
     if (millis() >= _next_refresh && curr) {
-      HomeScreen* homeScreen = static_cast<HomeScreen*>(home);
-      const bool boardFrame = curr == home && homeScreen->isBoardPage();
-      const bool alertVisible = millis() < _alert_expiry;
-      // A board page may keep its pixels for field-level updates.
-      if (!boardFrame || (boardPageHadAlert && !alertVisible)) homeScreen->invalidateBoardPage();
-      if (!boardFrame) _display->startFrame();
-      boardPageHadAlert = boardFrame && alertVisible;
+      _display->startFrame();
       int delay_millis = curr->render(*_display);
-      if (alertVisible) {  // render alert popup
+      if (millis() < _alert_expiry) {  // render alert popup
         _display->setTextSize(1);
         int y = _display->height() / 3;
         int p = _display->height() / 32;
@@ -1222,7 +1161,6 @@ void UITask::loop() {
       }
 #endif
       if (millis() > _auto_off) {
-        static_cast<HomeScreen*>(home)->invalidateBoardPage();
         if (_node_prefs->ui_auto_off_blank &&
               !(_node_prefs->ui_auto_off_keep_msgs 
                           && curr == msg_preview)) { 
@@ -1264,7 +1202,6 @@ void UITask::loop() {
 char UITask::checkDisplayOn(char c) {
   if (_display != NULL) {
     if (!_display->isOn()) {
-      static_cast<HomeScreen*>(home)->invalidateBoardPage();
       _display->turnOn(_node_prefs->ui_max_partial);   // turn display on and consume event
       c = 0;
     }

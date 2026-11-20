@@ -22,9 +22,6 @@ public:
   int width() const { return _w; }
   int height() const { return _h; }
 
-  // Optional physical-pixel coordinate mode. Unsupported displays keep their
-  // existing logical coordinate system.
-  virtual void setNativePixels(bool) {}
   virtual bool isOn() = 0;
   virtual bool isEink() { return false; } // default to non-eink, override in eink drivers
   virtual void forceFullRefresh() {} // next refresh will be full for eink

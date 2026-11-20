@@ -1,7 +1,6 @@
 #pragma once
 
 #include <MeshCore.h>
-#include <helpers/ui/BoardUiExtension.h>
 #include <helpers/ui/DisplayDriver.h>
 #include <helpers/ui/UIScreen.h>
 #include <helpers/SensorManager.h>
@@ -81,8 +80,6 @@ class UITask : public AbstractUITask {
   UIScreen* home;
   UIScreen* msg_preview;
   UIScreen* curr;
-  mesh::BoardUiExtension* _board_ui;
-  bool boardPageHadAlert = false;
 
   void userLedHandler();
 
@@ -93,12 +90,10 @@ class UITask : public AbstractUITask {
   char handleTripleClick(char c);
 
   void setCurrScreen(UIScreen* c);
-  void handleBoardUiFocus(uint8_t events, bool handlingInput);
 
 public:
 
-  UITask(mesh::MainBoard* board, DisplayDriver* display = NULL) :
-      AbstractUITask(board), _display(display), _sensors(NULL), _board_ui(nullptr) {
+  UITask(mesh::MainBoard* board, DisplayDriver* display = NULL) : AbstractUITask(board), _display(display), _sensors(NULL) {
     next_batt_chck = _next_refresh = 0;
     ui_started_at = 0;
     curr = NULL;

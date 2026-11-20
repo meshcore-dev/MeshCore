@@ -12,7 +12,6 @@ protected:
 
   BaseUITask(mesh::MainBoard* board, DisplayDriver* display) : _board(board), _display(display) { _next_refresh = 0; }
 
-  // The renderer starts its frame when a clear is needed. The loop ends it.
   virtual long renderCurrScreen() = 0;
 
 public:

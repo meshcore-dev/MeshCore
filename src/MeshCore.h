@@ -42,8 +42,6 @@ namespace mesh {
 #define  BD_STARTUP_NORMAL     0  // getStartupReason() codes
 #define  BD_STARTUP_RX_PACKET  1
 
-class BoardUiExtension;
-
 class MainBoard {
 public:
   virtual uint16_t getBattMilliVolts() = 0;
@@ -72,7 +70,6 @@ public:
   virtual bool isExternalPowered() { return false; }
   // True while a board can identify an active battery-charging source.
   virtual bool isChargerActive() { return false; }
-  virtual bool hasChargerStatus() const { return false; }
 
   // Optional, source-specific power detection. Boards that can distinguish a USB
   // supply from a solar charger override these; defaults keep every other board
@@ -87,9 +84,6 @@ public:
   virtual const char* getResetReasonString(uint32_t reason) { return "Not available"; }
   virtual uint8_t getShutdownReason() const { return 0; }
   virtual const char* getShutdownReasonString(uint8_t reason) { return "Not available"; }
-
-  // Optional full-screen board UI. The returned object remains owned by the board.
-  virtual BoardUiExtension* getUiExtension() { return nullptr; }
 
   virtual bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) { return false; }
 

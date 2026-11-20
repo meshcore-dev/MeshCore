@@ -30,18 +30,13 @@ static const uint8_t meshcore_logo [] PROGMEM = {
 };
 
 void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version, const char* role_lbl) {
-#ifdef MESHPOCKET_V2_ROOM_SERVER
   _prevBtnState = HIGH;
-  _started_at = 0;  // The Room Server's splash starts at power-on.
-#else
-  _started_at = millis();
-#endif
   _auto_off = millis() + AUTO_OFF_MILLIS;
+  _started_at = millis();
   _node_prefs = node_prefs;
   _display->turnOn();
-  boardScreen.begin(*_board, *_display);
 
-#if defined(PIN_USER_BTN) && defined(DISPLAY_CLASS) && !defined(MESHPOCKET_V2_ROOM_SERVER)
+#if defined(PIN_USER_BTN) && defined(DISPLAY_CLASS)
   user_btn.begin();
 #endif
 
@@ -61,9 +56,6 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
 }
 
 long UITask::renderCurrScreen() {
-  uint32_t interval;
-  if (!_powering_off_at && boardScreen.renderIfSelected(interval)) return interval;
-  _display->startFrame();
   char tmp[80];
   if (millis() < _started_at + BOOT_SCREEN_MILLIS) { // boot screen
     // meshcore logo
@@ -120,52 +112,21 @@ long UITask::renderCurrScreen() {
 }
 
 void UITask::loop() {
-  const uint8_t boardEvents = boardScreen.pollEvents();
-  bool handlingInput = false;
-  const bool canChangePage = !_powering_off_at && millis() - _started_at >= BOOT_SCREEN_MILLIS;
-  if (boardScreen.handleInput(boardEvents, canChangePage)) {
-    handlingInput = true;
-    _auto_off = millis() + AUTO_OFF_MILLIS;
-    _next_refresh = 0;
-  }
 #if defined(PIN_USER_BTN) && defined(DISPLAY_CLASS)
-#ifdef MESHPOCKET_V2_ROOM_SERVER
-  int ev = BUTTON_EVENT_NONE;
-  if (millis() >= _next_read) {
-    const int btnState = digitalRead(PIN_USER_BTN);
-    if (btnState == USER_BTN_PRESSED && btnState != _prevBtnState) ev = BUTTON_EVENT_CLICK;
-    _prevBtnState = btnState;
-    _next_read = millis() + 200;
-  }
-#else
   int ev = user_btn.check();
-#endif
-  handlingInput = handlingInput || ev != BUTTON_EVENT_NONE;
   if (ev == BUTTON_EVENT_CLICK) {
     if (_display->isOn()) {
-      if (canChangePage && boardScreen.togglePage()) {
-        _next_refresh = 0;
-      }
+      // TODO: any action ?
     } else {
       _display->turnOn();
     }
     _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    _display->turnOn();
-    Serial.println("Powering Off");
-    _powering_off_at = millis() + POWEROFF_DELAY;
-    if (boardScreen.available()) {
-      _next_refresh = 0;
-      _auto_off = millis() + AUTO_OFF_MILLIS;
-    }
+      _display->turnOn();
+      Serial.println("Powering Off");
+      _powering_off_at = millis() + POWEROFF_DELAY; 
   }
 #endif
-
-  const bool canTakePowerEvent = !_powering_off_at && millis() - _started_at >= BOOT_SCREEN_MILLIS;
-  if (boardScreen.handleFocusRequest(boardEvents, canTakePowerEvent, handlingInput)) {
-    _auto_off = millis() + AUTO_OFF_MILLIS;
-    _next_refresh = 0;
-  }
 
   BaseUITask::loop();
 

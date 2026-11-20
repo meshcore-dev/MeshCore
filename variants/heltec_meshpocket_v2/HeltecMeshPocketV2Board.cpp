@@ -1,66 +1,11 @@
 #include "HeltecMeshPocketV2Board.h"
-#include "PowerBankPage.h"
-#include <helpers/ui/BoardUiExtension.h>
-#include <helpers/ui/MomentaryButton.h>
 #include <nrf_gpio.h>
-
-class HeltecMeshPocketV2Board::UiExtension : public mesh::BoardUiExtension {
-  HeltecMeshPocketV2Board& board;
-  PowerBankPage page;
-  MomentaryButton secondaryButton;
-
-public:
-  explicit UiExtension(HeltecMeshPocketV2Board& board) :
-      board(board), secondaryButton(PIN_BUTTON2, 1000, true, true, false) {}
-
-  void begin() {
-    secondaryButton.begin();
-  }
-
-  uint8_t pollEvents() override {
-    uint8_t events = EVENT_NONE;
-    const int buttonEvent = secondaryButton.check();
-    if (buttonEvent == BUTTON_EVENT_CLICK) {
-      events |= EVENT_SHOW_PAGE;
-    }
-#ifdef MESHPOCKET_V2_USB_SWITCHABLE
-    else if (buttonEvent == BUTTON_EVENT_LONG_PRESS) {
-      events |= EVENT_PAGE_ACTION;
-    }
-#endif
-    if (board.powerBank.takePageEvent()) events |= EVENT_REQUEST_FOCUS;
-    return events;
-  }
-
-#ifdef MESHPOCKET_V2_USB_SWITCHABLE
-  void handlePageAction() override {
-    board.toggleUsbData();
-  }
-#endif
-
-  uint32_t render(DisplayDriver& display, bool fullRefresh) override {
-    if (fullRefresh) page.invalidate();
-    display.setNativePixels(true);
-    page.draw(display, board.powerBank.snapshot(), board.isUsbDataEnabled());
-    display.setNativePixels(false);
-    return 500;
-  }
-};
 
 void HeltecMeshPocketV2Board::begin() {
   NRF52Board::begin();
   powerBank.begin();
   pinMode(PIN_USER_BTN, INPUT_PULLUP);
-  uiExtension().begin();
-}
-
-HeltecMeshPocketV2Board::UiExtension& HeltecMeshPocketV2Board::uiExtension() {
-  static UiExtension extension(*this);
-  return extension;
-}
-
-mesh::BoardUiExtension* HeltecMeshPocketV2Board::getUiExtension() {
-  return &uiExtension();
+  powerUi.begin();
 }
 
 uint16_t HeltecMeshPocketV2Board::getBattMilliVolts() {

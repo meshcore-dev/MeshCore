@@ -66,7 +66,7 @@ public:
 #endif
 
   bool begin();
-  void setNativePixels(bool enabled) override;
+  void setNativePixels(bool enabled);
   static const char* driverName() { return "NV3001B"; }
   static uint16_t physicalWidth() { return NV3001B_PANEL_WIDTH; }
   static uint16_t physicalHeight() { return NV3001B_PANEL_HEIGHT; }
