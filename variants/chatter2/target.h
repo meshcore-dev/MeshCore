@@ -4,6 +4,7 @@
 #include <RadioLib.h>
 #include <helpers/ESP32Board.h>
 #include <helpers/AutoDiscoverRTCClock.h>
+#include "Chatter2Radio.h"
 #include <helpers/radiolib/CustomLLCC68Wrapper.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
