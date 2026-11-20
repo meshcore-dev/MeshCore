@@ -27,6 +27,49 @@ static bool isValidName(const char *n) {
   return true;
 }
 
+// The binary loader has sanitised these values since before /prefs.json existed.
+// Both loaders call it now, so a file that was edited by hand or written by
+// another tool cannot leave the node on values its own CLI would refuse.
+// Non-finite floats never reach this point: ConfigSerializer keeps the default
+// in place for those, and constrain() would pass a NaN through unchanged.
+void CommonCLI::sanitisePrefs() {
+  // sanitise bad pref values
+  _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
+  _prefs->tx_delay_factor = constrain(_prefs->tx_delay_factor, 0, 2.0f);
+  _prefs->direct_tx_delay_factor = constrain(_prefs->direct_tx_delay_factor, 0, 2.0f);
+  // 99 is what the CLI can produce, not the 9 of "set af": "set dutycycle 1"
+  // stores 100/1 - 1. The old limit of 9 predates that command by a year
+  // (01d84d5d 2025-03-05 against 0aa0ec1f 2026-03-07) and would throw away a
+  // duty cycle below 10 percent at the next boot.
+  _prefs->airtime_factor = constrain(_prefs->airtime_factor, 0, 99.0f);
+  _prefs->freq = constrain(_prefs->freq, 150.0f, 2500.0f);
+  _prefs->bw = constrain(_prefs->bw, 7.8f, 500.0f);
+  _prefs->sf = constrain(_prefs->sf, 5, 12);
+  _prefs->cr = constrain(_prefs->cr, 5, 8);
+  _prefs->tx_power_dbm = constrain(_prefs->tx_power_dbm, -9, 30);
+  _prefs->multi_acks = constrain(_prefs->multi_acks, 0, 1);
+  _prefs->adc_multiplier = constrain(_prefs->adc_multiplier, 0.0f, 10.0f);
+  _prefs->path_hash_mode = constrain(_prefs->path_hash_mode, 0, 2);   // NOTE: mode 3 reserved for future
+
+  // sanitise bad bridge pref values
+  _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
+  _prefs->bridge_delay = constrain(_prefs->bridge_delay, 0, 10000);
+  _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 1);
+  _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
+  _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
+
+  _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
+
+  _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
+  _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
+
+  // sanitise settings
+  _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
+  _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
+  _prefs->radio_fem_txgain = constrain(_prefs->radio_fem_txgain, 0, 1); // boolean
+  _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
+}
+
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
   if (fs->exists("/prefs.json")) {
 #if defined(RP2040_PLATFORM)
@@ -35,8 +78,11 @@ void CommonCLI::loadPrefs(FILESYSTEM* fs) {
     File file = fs->open("/prefs.json");
 #endif
     if (file) {
-      _prefs->loadSerial(file);   // new Serial prefs
+      if (!_prefs->loadSerial(file)) {
+        MESH_DEBUG_PRINTLN("loadPrefs: /prefs.json did not parse cleanly");
+      }
       file.close();
+      sanitisePrefs();
     }
   } else if (fs->exists("/com_prefs")) {
     loadPrefsInt(fs, "/com_prefs");
@@ -104,39 +150,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
     // next: 295
 
-    // sanitise bad pref values
-    _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
-    _prefs->tx_delay_factor = constrain(_prefs->tx_delay_factor, 0, 2.0f);
-    _prefs->direct_tx_delay_factor = constrain(_prefs->direct_tx_delay_factor, 0, 2.0f);
-    _prefs->airtime_factor = constrain(_prefs->airtime_factor, 0, 9.0f);
-    _prefs->freq = constrain(_prefs->freq, 150.0f, 2500.0f);
-    _prefs->bw = constrain(_prefs->bw, 7.8f, 500.0f);
-    _prefs->sf = constrain(_prefs->sf, 5, 12);
-    _prefs->cr = constrain(_prefs->cr, 5, 8);
-    _prefs->tx_power_dbm = constrain(_prefs->tx_power_dbm, -9, 30);
-    _prefs->multi_acks = constrain(_prefs->multi_acks, 0, 1);
-    _prefs->adc_multiplier = constrain(_prefs->adc_multiplier, 0.0f, 10.0f);
-    _prefs->path_hash_mode = constrain(_prefs->path_hash_mode, 0, 2);   // NOTE: mode 3 reserved for future
-
-    // sanitise bad bridge pref values
-    _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
-    _prefs->bridge_delay = constrain(_prefs->bridge_delay, 0, 10000);
-    _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 1);
-    _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
-    _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
-
-    _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
-
-    _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
-    _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
-
-    // sanitise settings
-    _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
-    _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
-    _prefs->radio_fem_txgain = constrain(_prefs->radio_fem_txgain, 0, 1); // boolean
-    _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
 
     file.close();
+    sanitisePrefs();
   }
 }
 
