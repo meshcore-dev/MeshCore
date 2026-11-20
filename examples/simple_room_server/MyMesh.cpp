@@ -235,8 +235,9 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
                pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
                (int)_radio->getLastSNR(), (int)_radio->getLastRSSI(), (int)(score * 1000));
 
-      if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
-          pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
+      if (pkt->payload_len >= 2 &&
+          (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
+           pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG)) {
         f.printf(" [%02X -> %02X]\n", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
       } else {
         f.printf("\n");
@@ -253,8 +254,9 @@ void MyMesh::logTx(mesh::Packet *pkt, int len) {
       f.printf(": TX, len=%d (type=%d, route=%s, payload_len=%d)", len, pkt->getPayloadType(),
                pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
 
-      if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
-          pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
+      if (pkt->payload_len >= 2 &&
+          (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
+           pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG)) {
         f.printf(" [%02X -> %02X]\n", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
       } else {
         f.printf("\n");

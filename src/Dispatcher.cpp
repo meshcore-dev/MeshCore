@@ -147,45 +147,11 @@ void Dispatcher::loop() {
 }
 
 bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
-  int i = 0;
-
-  pkt->header = raw[i++];
-  if (pkt->getPayloadVer() > PAYLOAD_VER_1) {
-    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): unsupported packet version", getLogDateTime());
+  if (len < 0 || !pkt->readFrom(raw, static_cast<size_t>(len))) {
+    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): partial, corrupt, or unsupported packet received, len=%d", getLogDateTime(), len);
     return false;
   }
-
-  if (pkt->hasTransportCodes()) {
-    memcpy(&pkt->transport_codes[0], &raw[i], 2); i += 2;
-    memcpy(&pkt->transport_codes[1], &raw[i], 2); i += 2;
-  } else {
-    pkt->transport_codes[0] = pkt->transport_codes[1] = 0;
-  }
-
-  pkt->path_len = raw[i++];
-  uint8_t path_mode = pkt->path_len >> 6;  // upper 2 bits (legacy firmware: 00)
-  if (path_mode == 3) {   // Reserved for future
-    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): unsupported path mode: 3", getLogDateTime());
-    return false;
-  }
-
-  uint8_t path_byte_len = (pkt->path_len & 63) * pkt->getPathHashSize();
-  if (path_byte_len > MAX_PATH_SIZE || i + path_byte_len > len) {
-    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): partial or corrupt packet received, len=%d", getLogDateTime(), len);
-    return false;
-  }
-
-  memcpy(pkt->path, &raw[i], path_byte_len); i += path_byte_len;
-
-  pkt->payload_len = len - i;  // payload is remainder
-  if (pkt->payload_len > sizeof(pkt->payload)) {
-    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): packet payload too big, payload_len=%d", getLogDateTime(), (uint32_t)pkt->payload_len);
-    return false;
-  }
-
-  memcpy(pkt->payload, &raw[i], pkt->payload_len);
-
-  return true;  // success
+  return true;
 }
 
 void Dispatcher::checkRecv() {
@@ -228,8 +194,9 @@ void Dispatcher::checkRecv() {
     Serial.print(" hash=");
     mesh::Utils::printHex(Serial, packet_hash, MAX_HASH_SIZE);
 
-    if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ
-        || pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
+    if (pkt->payload_len >= 2 &&
+        (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ
+         || pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG)) {
       Serial.printf(" [%02X -> %02X]\n", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
     } else {
       Serial.printf("\n");
@@ -342,8 +309,9 @@ void Dispatcher::checkSend() {
       Serial.print(getLogDateTime());
       Serial.printf(": TX, len=%d (type=%d, route=%s, payload_len=%d)", 
             len, outbound->getPayloadType(), outbound->isRouteDirect() ? "D" : "F", outbound->payload_len);
-      if (outbound->getPayloadType() == PAYLOAD_TYPE_PATH || outbound->getPayloadType() == PAYLOAD_TYPE_REQ
-        || outbound->getPayloadType() == PAYLOAD_TYPE_RESPONSE || outbound->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
+      if (outbound->payload_len >= 2 &&
+          (outbound->getPayloadType() == PAYLOAD_TYPE_PATH || outbound->getPayloadType() == PAYLOAD_TYPE_REQ
+           || outbound->getPayloadType() == PAYLOAD_TYPE_RESPONSE || outbound->getPayloadType() == PAYLOAD_TYPE_TXT_MSG)) {
         Serial.printf(" [%02X -> %02X]\n", (uint32_t)outbound->payload[1], (uint32_t)outbound->payload[0]);
       } else {
         Serial.printf("\n");

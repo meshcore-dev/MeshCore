@@ -62,25 +62,33 @@ uint8_t Packet::writeTo(uint8_t dest[]) const {
   return i;
 }
 
-bool Packet::readFrom(const uint8_t src[], uint8_t len) {
-  uint8_t i = 0;
+bool Packet::readFrom(const uint8_t src[], size_t len) {
+  if (src == nullptr || len == 0 || len > MAX_TRANS_UNIT) return false;
+
+  size_t i = 0;
   header = src[i++];
   if (hasTransportCodes()) {
-    memcpy(&transport_codes[0], &src[i], 2); i += 2;
-    memcpy(&transport_codes[1], &src[i], 2); i += 2;
+    if (len - i < sizeof(transport_codes)) return false;
+    memcpy(transport_codes, &src[i], sizeof(transport_codes));
+    i += sizeof(transport_codes);
   } else {
     transport_codes[0] = transport_codes[1] = 0;
   }
+
+  if (i >= len) return false;
   path_len = src[i++];
-  if (!isValidPathLen(path_len)) return false;   // bad encoding
+  if (!isValidPathLen(path_len)) return false;
 
-  uint8_t bl = getPathByteLen();
-  memcpy(path, &src[i], bl); i += bl;
+  const uint8_t hash_count = path_len & 63;
+  const uint8_t hash_size = (path_len >> 6) + 1;
+  const size_t path_byte_len = hash_count * hash_size;
+  if (len - i < path_byte_len) return false;
 
-  if (i >= len) return false;   // bad encoding
+  memcpy(path, &src[i], path_byte_len);
+  i += path_byte_len;
   payload_len = len - i;
-  if (payload_len > sizeof(payload)) return false;  // bad encoding
-  memcpy(payload, &src[i], payload_len); //i += payload_len;
+  if (payload_len > sizeof(payload)) return false;
+  memcpy(payload, &src[i], payload_len);
   return true;   // success
 }
 
