@@ -31,6 +31,7 @@ bool HeltecMeshPocketV2Board::isUsbDataEnabled() const {
 void HeltecMeshPocketV2Board::shutdownPeripherals() {
   NRF52Board::shutdownPeripherals();
   powerBank.end();
+  setUsbDataEnabled(false);
   nrf_gpio_cfg_sense_input(PIN_USER_BTN, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
   pinMode(PIN_9006_IO1, INPUT_PULLDOWN);
   // A held-high IO1 must not immediately wake the board from SYSTEM OFF.
