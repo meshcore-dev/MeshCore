@@ -87,6 +87,12 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Usage:**
 - `start ota`
 
+Supported ESP32 companion builds also accept this command through the app CLI or
+serial rescue CLI. Connect to `MeshCore-OTA` and open the printed `/update` URL.
+The companion disconnects from its WiFi network and pauses automatic and manual
+reconnection during OTA. Saved credentials are retained; reboot to resume normal
+operation if you cancel the update.
+
 ---
 
 ### Erase/Factory Reset
