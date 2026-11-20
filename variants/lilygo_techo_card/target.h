@@ -12,6 +12,7 @@
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/U8g2Display.h>
   #include <helpers/ui/MomentaryButton.h>
+  #include <UITask.h>   // needs -I(nclude) path setting
 #endif
 
 extern TechoCardBoard board;
@@ -23,6 +24,7 @@ extern EnvironmentSensorManager sensors;
   extern DISPLAY_CLASS display;
   extern MomentaryButton user_btn;
   extern MomentaryButton back_btn;
+  extern UITask ui_task;
 #endif
 
 bool radio_init();

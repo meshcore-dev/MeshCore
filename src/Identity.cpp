@@ -7,6 +7,10 @@
 #ifdef USE_CC310_HW_CRYPTO
 #include <Adafruit_nRFCrypto.h>
 #include "nrf_cc310/include/crys_ec_edw_api.h"
+#include "nrf_cc310/include/ssi_pal_mutex.h"
+extern "C" {
+  extern SaSi_PalMutex sasiAsymCryptoMutex;
+}
 #endif
 
 namespace mesh {
@@ -30,6 +34,13 @@ bool Identity::verify(const uint8_t* sig, const uint8_t* message, int msg_len) c
   CRYSError_t rc = CRYS_ECEDW_Verify((uint8_t*)sig, CRYS_ECEDW_SIGNATURE_BYTES,
                                      (uint8_t*)pub_key, CRYS_ECEDW_MOD_SIZE_IN_BYTES,
                                      (uint8_t*)message, (size_t)msg_len, &cc310_tmp);
+
+  // workaround for CC310 v0.9.13 where mutex can still be locked after a failed verification
+  if (rc != CRYS_OK && sasiAsymCryptoMutex != 0) {
+    MESH_DEBUG_PRINTLN("CRYS_ECEDW_Verify mutex still locked after error result, unlocking");
+    SaSi_PalMutexUnlock(&sasiAsymCryptoMutex);
+  }
+
   return rc == CRYS_OK;
 #elif 0
   // NOTE:  memory corruption bug was found in this function!!

@@ -22,7 +22,9 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #if ENV_INCLUDE_GPS
 #include <helpers/sensors/MicroNMEALocationProvider.h>
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock, GPS_RESET, GPS_EN, &board.periph_power);
+NmeaGpsDriver gps_driver(Serial1, PIN_GPS_TX, PIN_GPS_RX, GPS_RESET, GPS_EN,
+                          &board.periph_power);
+MicroNMEALocationProvider nmea(gps_driver, &rtc_clock);
 EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
 #else
 EnvironmentSensorManager sensors;
@@ -31,6 +33,7 @@ EnvironmentSensorManager sensors;
 #ifdef DISPLAY_CLASS
 DISPLAY_CLASS display(&board.periph_power);
 MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+UITask ui_task(&board, &display);
 #endif
 
 bool radio_init() {

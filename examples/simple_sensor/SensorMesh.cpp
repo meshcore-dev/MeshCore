@@ -667,7 +667,8 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
         // len can be > original length, but 'text' will be padded with zeroes
         data[len] = 0; // need to make a C string again, with null terminator
 
-        uint8_t temp[166];
+        // 5-byte datagram header + 3-byte reflected CLI prefix + 160-byte reply text + NUL
+        uint8_t temp[169];
         char *command = (char *) &data[5];
         char *reply = (char *) &temp[5];
         handleCommand(from, sender_timestamp, command, reply);

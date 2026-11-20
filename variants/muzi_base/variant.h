@@ -54,8 +54,8 @@ static const uint8_t AREF = (PIN_AREF); // not used
 ////////////////////////////////////////////////////////////////////////////////
 // UART pin definition
 
-#define PIN_SERIAL1_RX          (19)             // P0.19 used for GPS RX
-#define PIN_SERIAL1_TX          (20)             // P0.20 used for GPS TX
+#define PIN_SERIAL1_RX          (20)             // P0.20, data from the gps
+#define PIN_SERIAL1_TX          (19)             // P0.19, data to the gps
 
 ////////////////////////////////////////////////////////////////////////////////
 // I2C pin definition
@@ -153,8 +153,8 @@ static const uint8_t AREF = (PIN_AREF); // not used
 ////////////////////////////////////////////////////////////////////////////////
 // GPS
 #define HAS_GPS                 1
-#define PIN_GPS_RX              PIN_SERIAL1_RX
-#define PIN_GPS_TX              PIN_SERIAL1_TX
+#define PIN_GPS_TX              PIN_SERIAL1_RX    // gps module's TX pin
+#define PIN_GPS_RX              PIN_SERIAL1_TX    // gps module's RX pin
 #define PIN_GPS_EN                   (32+1)            // P1.01 PWR_IO2 on schematic. gps power, driven by the sensor manager.
 
 // superIO 3-position mode switch (pins from the meshtastic muzi_base variant).
@@ -162,6 +162,8 @@ static const uint8_t AREF = (PIN_AREF); // not used
 #define SWITCH_MODE1            (32+9)            // P1.09
 #define SWITCH_MODE2            (12)              // P0.12
 #define PIN_GPS_SWITCH          SWITCH_MODE2
+#define GPS_SWITCH_IS_HARDWARE  (0)
+#define GPS_SWITCH_TURNS_GPS_ON (1)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Buzzer

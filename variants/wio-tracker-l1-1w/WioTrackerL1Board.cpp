@@ -65,14 +65,14 @@ bool WioTrackerL1Board::handleCommand(const char* command, uint32_t sender_times
   if (memcmp(command, "set radio.fem.txgain ", 21) == 0) {
     if (memcmp(&command[21], "on", 2) == 0) {
       if (setLoRaFemPaGainEnabled(true)) {
-        _prefs->setByKey("fem_txgain", "1");
+        if (_prefs) _prefs->setByKey("fem_txgain", "1");
         strcpy(reply, "OK - LoRa FEM TX gain on");
       } else {
         strcpy(reply, "Error: failed to apply LoRa FEM TX gain");
       }
     } else if (memcmp(&command[21], "off", 3) == 0) {
       if (setLoRaFemPaGainEnabled(false)) {
-        _prefs->setByKey("fem_txgain", "0");
+        if (_prefs) _prefs->setByKey("fem_txgain", "0");
         strcpy(reply, "OK - LoRa FEM TX gain off");
       } else {
         strcpy(reply, "Error: failed to apply LoRa FEM TX gain");

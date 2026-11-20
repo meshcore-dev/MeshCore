@@ -3,14 +3,9 @@
 #include "KeyValueStore.h"
 
 class CommonRadioPrefs : public ConfigSerializer, public KeyValueStore {
-  bool _is_dirty = false;
 protected:
   CommonRadioPrefs() { }
 public:
-  void markDirty() { _is_dirty = true; }
-  void clearDirty() { _is_dirty = false; }
-  bool isDirty() const { return _is_dirty; }
-
   virtual float getFreq() const = 0;
   virtual void setFreq(float f) = 0;
 
@@ -35,8 +30,8 @@ public:
   virtual uint8_t getRxGain() const = 0;
   virtual void setRxGain(uint8_t g) = 0;
 
-  virtual uint8_t getTxPower() const = 0;
-  virtual void setTxPower(uint8_t dbm) = 0;
+  virtual int8_t getTxPower() const = 0;
+  virtual void setTxPower(int8_t dbm) = 0;
 
   virtual float getRxDelay() const = 0;
   virtual void setRxDelay(float d) = 0;

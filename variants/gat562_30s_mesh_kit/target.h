@@ -10,12 +10,14 @@
 
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/SSD1306Display.h>
+  #include <UITask.h>
   extern DISPLAY_CLASS display;
   #include <helpers/ui/MomentaryButton.h>
   extern MomentaryButton user_btn;
   extern MomentaryButton joystick_left;
   extern MomentaryButton joystick_right;
   extern MomentaryButton back_btn;
+  extern UITask ui_task;
 #endif
 
 extern GAT56230SMeshKitBoard board;

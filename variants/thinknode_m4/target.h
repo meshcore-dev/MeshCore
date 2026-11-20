@@ -11,10 +11,12 @@
 #include <helpers/AutoDiscoverRTCClock.h>
 #ifdef DISPLAY_CLASS
   #include "NullDisplayDriver.h"
+  #include <UITask.h>
 #endif
 
 #ifdef DISPLAY_CLASS
   extern NullDisplayDriver display;
+  extern UITask ui_task;
 #endif
 
 extern ThinkNodeM4Board board;

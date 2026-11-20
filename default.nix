@@ -9,4 +9,7 @@ in
       # optional: needed as a programmer i.e. for esp32
       pkgs.avrdude
     ];
+  LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+    pkgs.zstd
+  ];
   }

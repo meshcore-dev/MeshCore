@@ -117,6 +117,8 @@
 #define GPS_RTC_INT             (15)            // P0.15
 #define GPS_RESETB              (46)            // P1.14
 
+#define GPS_BAUDRATE            115200
+
 ////////////////////////////////////////////////////////////////////////////////
 // Temp+Lux Sensor
 

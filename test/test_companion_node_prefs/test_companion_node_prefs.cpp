@@ -4,7 +4,7 @@
 #include <cstring>
 #include <string>
 
-#include "../../examples/companion_radio/NodePrefs.h"
+#include "../../src/helpers/CompanionNodePrefs.h"
 
 class ReplayStream : public Stream {
   const char* _text;

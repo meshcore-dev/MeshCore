@@ -10,6 +10,7 @@
 #ifdef DISPLAY_CLASS
 #include <helpers/ui/MomentaryButton.h>
 #include <helpers/ui/SSD1306Display.h>
+#include <UITask.h>
 #endif
 #include <helpers/sensors/EnvironmentSensorManager.h>
 
@@ -24,6 +25,7 @@ extern MomentaryButton user_btn;
 extern MomentaryButton joystick_left;
 extern MomentaryButton joystick_right;
 extern MomentaryButton back_btn;
+extern UITask ui_task;
 #endif
 
 bool radio_init();

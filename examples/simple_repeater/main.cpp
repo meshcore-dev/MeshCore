@@ -3,11 +3,6 @@
 
 #include "MyMesh.h"
 
-#ifdef DISPLAY_CLASS
-  #include "UITask.h"
-  static UITask ui_task(board, display);
-#endif
-
 #ifdef ETHERNET_ENABLED
   #define ETHERNET_CLI_BANNER "MeshCore Repeater CLI"
   #include <helpers/nrf52/EthernetCLI.h>
@@ -107,7 +102,7 @@ void setup() {
   the_mesh.begin(fs);
 
 #ifdef DISPLAY_CLASS
-  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
+  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION, "< Repeater >");
 #endif
 
 #ifdef ETHERNET_ENABLED

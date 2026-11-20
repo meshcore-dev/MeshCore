@@ -211,6 +211,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       uint32_t curr = getRTCClock()->getCurrentTime();
       if (sender_timestamp > curr) {
         getRTCClock()->setCurrentTime(sender_timestamp + 1);
+        CommonGpsPrefs::onClockSetManually(*_sensors);
         uint32_t now = getRTCClock()->getCurrentTime();
         DateTime dt = DateTime(now);
         sprintf(reply, "OK - clock set: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
@@ -230,6 +231,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       uint32_t curr = getRTCClock()->getCurrentTime();
       if (secs > curr) {
         getRTCClock()->setCurrentTime(secs);
+        CommonGpsPrefs::onClockSetManually(*_sensors);
         uint32_t now = getRTCClock()->getCurrentTime();
         DateTime dt = DateTime(now);
         sprintf(reply, "OK - clock set: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
@@ -326,67 +328,40 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       if (start >= end) {
         strcpy(reply, "no custom var");
       } else {
+        const int reply_max = 160;    // callers pass a 160-byte reply buffer
+        const int next_reserve = 16;  // room for "... next:NNN"
         sprintf(dp, "%d vars\n", end);
         dp = strchr(dp, 0);
         int i;
-        for (i = start; i < end && (dp-reply < 134); i++) {
-          sprintf(dp, "%s=%s\n",
-            _sensors->getSettingName(i),
-            _sensors->getSettingValue(i));
+        for (i = start; i < end; i++) {
+          const char* name = _sensors->getSettingName(i);
+          const char* value = _sensors->getSettingValue(i);
+          if (name == NULL) name = "?";
+          if (value == NULL) value = "";
+          int room = reply_max - next_reserve - (int)(dp - reply);
+          int need = snprintf(NULL, 0, "%s=%s\n", name, value);
+          if (need >= room && i > start) break;   // continue on the next page
+          snprintf(dp, room, "%s=%s\n", name, value);   // a single oversized entry is truncated
           dp = strchr(dp, 0);
+          if (need >= room) { i++; break; }
         }
         if (i < end) {
-          sprintf(dp, "... next:%d", i);
-        } else {
+          snprintf(dp, reply_max - (int)(dp - reply), "... next:%d", i);
+        } else if (dp > reply && *(dp-1) == '\n') {
           *(dp-1) = 0; // remove last CR
         }
       }
+    } else if (_prefs->getGpsPrefs()->handleCommand(command, *_sensors, reply)) {
+      if (_prefs->getGpsPrefs()->isDirty()) savePrefs();
     } else if (memcmp(command, "region", 6) == 0) {
       handleRegionCmd(command, reply);
 #if ENV_INCLUDE_GPS == 1
-    } else if (memcmp(command, "gps on", 6) == 0) {
-      if (_sensors->setSettingValue("gps", "1")) {
-        _prefs->gps_enabled = 1;
-        savePrefs();
-        strcpy(reply, "ok");
-      } else {
-        strcpy(reply, "gps toggle not found");
-      }
-    } else if (memcmp(command, "gps off", 7) == 0) {
-      if (_sensors->setSettingValue("gps", "0")) {
-        _prefs->gps_enabled = 0;
-        savePrefs();
-        strcpy(reply, "ok");
-      } else {
-        strcpy(reply, "gps toggle not found");
-      }
-    } else if (memcmp(command, "gps sync", 8) == 0) {
-      LocationProvider * l = _sensors->getLocationProvider();
-      if (l != NULL) {
-        l->syncTime();
-        strcpy(reply, "ok");
-      } else {
-        strcpy(reply, "gps provider not found");
-      }
-    } else if (strcmp(command, "gps diag") == 0) {
-      LocationProvider * l = _sensors->getLocationProvider();
-      if (l != NULL) {
-        const char* setting = _sensors->getSettingByKey("gps");
-        bool requested = setting != NULL && strcmp(setting, "1") == 0;
-        int prefix_len = snprintf(reply, 160, "req:%u ", requested ? 1U : 0U);
-        if (prefix_len < 0 || prefix_len >= 160) {
-          reply[159] = 0;
-        } else {
-          l->formatDiagnostics(reply + prefix_len, 160 - prefix_len);
-        }
-      } else {
-        strcpy(reply, "gps provider not found");
-      }
     } else if (memcmp(command, "gps setloc", 10) == 0) {
       _prefs->node_lat = _sensors->node_lat;
       _prefs->node_lon = _sensors->node_lon;
+      _prefs->getGpsPrefs()->applyGuardReference(*_sensors);
       savePrefs();
-      strcpy(reply, "ok");
+      strcpy(reply, "OK");
     } else if (memcmp(command, "gps advert", 10) == 0) {
       if (strlen(command) == 10) {
         switch (_prefs->advert_loc_policy) {
@@ -400,40 +375,22 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
             strcpy(reply, "> share");
             break;
           default:
-            strcpy(reply, "error");
+            strcpy(reply, "Error, invalid policy");
         }
       } else if (memcmp(command+11, "none", 4) == 0) {
         _prefs->advert_loc_policy = ADVERT_LOC_NONE;
         savePrefs();
-        strcpy(reply, "ok");
+        strcpy(reply, "OK");
       } else if (memcmp(command+11, "share", 5) == 0) {
         _prefs->advert_loc_policy = ADVERT_LOC_SHARE;
         savePrefs();
-        strcpy(reply, "ok");
+        strcpy(reply, "OK");
       } else if (memcmp(command+11, "prefs", 5) == 0) {
         _prefs->advert_loc_policy = ADVERT_LOC_PREFS;
         savePrefs();
-        strcpy(reply, "ok");
+        strcpy(reply, "OK");
       } else {
-        strcpy(reply, "error");
-      }
-    } else if (memcmp(command, "gps", 3) == 0) {
-      LocationProvider * l = _sensors->getLocationProvider();
-      if (l != NULL) {
-        bool enabled = l->isEnabled(); // is EN pin on ?
-        bool fix = l->isValid();       // has fix ?
-        int sats = l->satellitesCount();
-        bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
-        if (enabled) {
-          sprintf(reply, "on, %s, %s, %d sats",
-            active?"active":"deactivated",
-            fix?"fix":"no fix",
-            sats);
-        } else {
-          strcpy(reply, "off");
-        }
-      } else {
-        strcpy(reply, "Can't find GPS");
+        strcpy(reply, "Error, invalid policy");
       }
 #endif
     } else if (memcmp(command, "powersaving on", 14) == 0) {
@@ -510,6 +467,22 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     }
+  } else if (memcmp(config, "advert.loc ", 11) == 0) {
+    if (memcmp(config+11, "none", 4) == 0) {
+      _prefs->advert_loc_policy = ADVERT_LOC_NONE;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(config+11, "share", 5) == 0) {
+      _prefs->advert_loc_policy = ADVERT_LOC_SHARE;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(config+11, "prefs", 5) == 0) {
+      _prefs->advert_loc_policy = ADVERT_LOC_PREFS;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, invalid policy");
+    }    
   } else if (memcmp(config, "guest.password ", 15) == 0) {
     StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
     savePrefs();
@@ -541,10 +514,12 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
   } else if (memcmp(config, "lat ", 4) == 0) {
     _prefs->node_lat = atof(&config[4]);
+    _prefs->getGpsPrefs()->applyGuardReference(*_sensors);
     savePrefs();
     strcpy(reply, "OK");
   } else if (memcmp(config, "lon ", 4) == 0) {
     _prefs->node_lon = atof(&config[4]);
+    _prefs->getGpsPrefs()->applyGuardReference(*_sensors);
     savePrefs();
     strcpy(reply, "OK");
   } else if (memcmp(config, "flood.max.unscoped ", 19) == 0) {
@@ -706,6 +681,20 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", ((uint32_t) _prefs->flood_advert_interval));
   } else if (memcmp(config, "advert.interval", 15) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
+  } else if (memcmp(config, "advert.loc", 10) == 0) {
+    switch (_prefs->advert_loc_policy) {
+      case ADVERT_LOC_NONE:
+        strcpy(reply, "> none");
+        break;
+      case ADVERT_LOC_PREFS:
+        strcpy(reply, "> prefs");
+        break;
+      case ADVERT_LOC_SHARE:
+        strcpy(reply, "> share");
+        break;
+      default:
+        strcpy(reply, "Error, invalid policy");
+    }    
   } else if (memcmp(config, "guest.password", 14) == 0) {
     sprintf(reply, "> %s", _prefs->guest_password);
   } else if (sender_timestamp == 0 && memcmp(config, "prv.key", 7) == 0) {  // from serial command line only

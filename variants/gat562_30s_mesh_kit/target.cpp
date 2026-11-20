@@ -15,6 +15,7 @@ GAT56230SMeshKitBoard board;
   MomentaryButton joystick_left(JOYSTICK_LEFT, 1000, true, false, false);
   MomentaryButton joystick_right(JOYSTICK_RIGHT, 1000, true, false, false);
   MomentaryButton back_btn(PIN_BACK_BTN, 1000, true, false, true);
+  UITask ui_task(&board, &display);
 #endif
 
 
@@ -26,9 +27,10 @@ VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #if ENV_INCLUDE_GPS
-  #include <helpers/sensors/MicroNMEALocationProvider.h>
-  MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
-  EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
+  #include <helpers/sensors/RakLocationProvider.h>
+  RakI2cGpsDriver gps_driver;
+  RakLocationProvider location(gps_driver, &rtc_clock);
+  EnvironmentSensorManager sensors(location);
 #else
   EnvironmentSensorManager sensors;
 #endif
