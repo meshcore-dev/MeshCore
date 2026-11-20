@@ -1,4 +1,5 @@
 #pragma once
+#include "RadioFastCode.h"
 
 #include <RadioLib.h>
 #include "MeshCore.h"
@@ -105,7 +106,7 @@ class CustomSX1262 : public SX1262 {
       return rc;
     }
 
-    int16_t standby() override {
+    MC_RADIO_FAST_CODE_ATTR int16_t standby() override {
       const bool alreadyAwake = !_coldStandby && _profileSwitch.active && _profileSwitch.rxValid;
       if (!alreadyAwake) _profileSwitch.invalidate();
       int16_t rc;
@@ -204,7 +205,7 @@ class CustomSX1262 : public SX1262 {
       return SX1262::forceLDRO(enabled);
     }
 
-    int16_t setLoRaModulationParams(float bw, uint8_t sf, uint8_t cr) {
+    MC_RADIO_FAST_CODE_ATTR int16_t setLoRaModulationParams(float bw, uint8_t sf, uint8_t cr) {
       if (sf < 5 || sf > 12) return RADIOLIB_ERR_INVALID_SPREADING_FACTOR;
       if (cr < 4 || cr > 8) return RADIOLIB_ERR_INVALID_CODING_RATE;
       if (!isfinite(bw)) return RADIOLIB_ERR_INVALID_BANDWIDTH;
@@ -273,7 +274,7 @@ class CustomSX1262 : public SX1262 {
       return state;
     }
 
-    bool isChipBusy() {
+    MC_RADIO_FAST_CODE_ATTR bool isChipBusy() {
       uint32_t busy = this->mod->getGpio();
       return busy != RADIOLIB_NC && this->mod->hal->digitalRead(busy);
     }
@@ -399,7 +400,7 @@ class CustomSX1262 : public SX1262 {
 #endif
 
 
-    int16_t startReceive() override {
+    MC_RADIO_FAST_CODE_ATTR int16_t startReceive() override {
       if (_profileSwitch.canResumeFast()) {
         // Existing continuous RX already established buffer bases and the
         // MeshCore IRQ map (including preamble detection). No TX/CAD/sleep/
@@ -482,7 +483,7 @@ class CustomSX1262 : public SX1262 {
           ModemType_t::RADIOLIB_MODEM_LORA, data_rate, packet_config, len);
     }
 
-    bool isReceiving() {
+    MC_RADIO_FAST_CODE_ATTR bool isReceiving() {
       if (isChipBusy()) return false;
       uint32_t irq = getIrqFlags();
       bool preamble = irq & RADIOLIB_SX126X_IRQ_PREAMBLE_DETECTED; // bit 2

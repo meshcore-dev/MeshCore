@@ -21,7 +21,7 @@ public:
   bool isCadEnabled()const override{return false;} void setCadEnabled(bool)override{}
   uint8_t getIntThresh()const override{return 0;} void setIntThresh(uint8_t)override{}
   uint8_t getRxGain()const override{return 0;} void setRxGain(uint8_t)override{}
-  uint8_t getTxPower()const override{return 0;} void setTxPower(uint8_t)override{}
+  int8_t getTxPower()const override{return 0;} void setTxPower(int8_t)override{}
   float getRxDelay()const override{return 0;} void setRxDelay(float)override{}
   uint16_t getAgcResetInt()const override{return 0;} void setAgcResetInt(uint16_t)override{}
   uint8_t getHashMode()const override{return 0;} void setHashMode(uint8_t)override{}

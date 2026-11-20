@@ -22,6 +22,8 @@ class ProfileDriverTests(NativeTest):
 #define STATE_TX_WAIT 3
 #define STATE_TX_DONE 4
 #define RADIOLIB_ERR_NONE 0
+#define RADIOLIB_ERR_LORA_HEADER_DAMAGED -1
+#define MESH_DEBUG_PRINTLN(...) ((void)0)
 static uint32_t elapsed_us = 100000;
 uint32_t profileTimestamp(bool) { return elapsed_us; }
 uint32_t profileElapsedUs(uint32_t since,uint32_t now,bool) { return now-since; }
@@ -68,6 +70,7 @@ struct RadioLibWrapper {
   bool validateProfile(const mesh::RadioProfileParams& p) const { return mesh::RadioProfiles::valid(p); }
   bool isChipBusy() { return busy; }
   bool isReceivingPacket() { return packet; }
+  bool lastRxHadCRC() { return true; }
   void beginProfileRetune(bool) {}
   void endProfileRetune(bool success) { ++ends;lastEnd=success; }
   void setProfileStandbyWarm(bool enabled) { warm=enabled; }

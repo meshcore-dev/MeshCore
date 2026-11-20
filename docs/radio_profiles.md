@@ -56,7 +56,23 @@ Overdue events apply in start order; equal starts apply permanent settings first
 
 Live changes wait at least two seconds and for queued transmissions to drain. Remote changes also require a successful transmission of their exact CLI response; this confirms local transmission, not delivery. Failed responses cancel the change (`reply_failed=1` in status). Expiry retires the old session before new transmissions and restores the radio when safe.
 
-SX1262 and LR1110 switches reuse acknowledged RX settings and keep the oscillator warm. TX, CAD, reset, sleep and errors revoke cached state. T-Deck display transfers release SPI between bounded strips and service the radio; its framebuffer uses 150 KiB of PSRAM, with direct rendering as the allocation-failure fallback. The qualified T-Deck SPI setting is 8.888888 MHz.
+The shared timing uses a minimum visit of 4.6 LoRa symbols on each profile.
+Automatic preambles start conservatively. After four successful RX-to-RX
+switches in each direction, the timing uses the largest measured switch time
+plus 10%. Use `get radio2.timing` to see the allowance.
+
+SX1262 and LR1110 switches can reuse acknowledged RX settings and keep the
+oscillator warm. TX, CAD, reset, sleep and errors revoke cached state. Heltec
+V4 keeps the application-side retune code in instruction RAM to reduce
+flash-cache delays. T-Deck display transfers release SPI between bounded strips
+and service the radio. Its framebuffer uses 150 KiB of PSRAM, with direct
+rendering as the allocation-failure fallback. The qualified T-Deck SPI setting
+is 8.888888 MHz.
+
+The host scheduler covers SX1262, SX1268, SX127x, LLCC68, STM32WL,
+LR1110, LR1121 and LR2021 through their RadioLib wrappers. Each driver still
+validates the requested frequencies and modulation. The LR2021 uses
+host-controlled retuning here.
 
 Scanning and pending timers keep the MCU awake. One transceiver cannot receive both profiles simultaneously; acquisition still depends on peer preambles, traffic and application delays.
 

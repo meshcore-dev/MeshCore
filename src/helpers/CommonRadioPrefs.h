@@ -4,15 +4,13 @@
 #include "RadioProfileCLI.h"
 
 class CommonRadioPrefs : public ConfigSerializer, public KeyValueStore {
-  bool _is_dirty = false;
   mesh::RadioProfileCLI _profiles;
 protected:
   CommonRadioPrefs() { }
   void structure() override { def("profiles", _profiles); }
 public:
-  void markDirty() { _is_dirty = true; }
-  void clearDirty() override { _is_dirty = false; _profiles.clearDirty(); }
-  bool isDirty() const override { return _is_dirty || _profiles.isDirty(); }
+  void clearDirty() override { ConfigSerializer::clearDirty(); _profiles.clearDirty(); }
+  bool isDirty() const override { return ConfigSerializer::isDirty() || _profiles.isDirty(); }
   mesh::RadioProfileCLI& profileCLI() { return _profiles; }
   const mesh::RadioProfileCLI& profileCLI() const { return _profiles; }
 

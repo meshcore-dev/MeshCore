@@ -1,4 +1,5 @@
 #pragma once
+#include "RadioFastCode.h"
 #include <hal/Arduino/ArduinoHal.h>
 
 #ifndef MC_SX1262_SPI_HZ
@@ -12,7 +13,7 @@ class ESP32BufferedRadioHal : public ArduinoHal {
  public:
   explicit ESP32BufferedRadioHal(SPIClass& bus, uint32_t hz = MC_SX1262_SPI_HZ)
       : ArduinoHal(bus, SPISettings(hz, MSBFIRST, SPI_MODE0)) {}
-  void spiTransfer(uint8_t* out, size_t len, uint8_t* in) override {
+  MC_RADIO_FAST_CODE_ATTR void spiTransfer(uint8_t* out, size_t len, uint8_t* in) override {
     if (len) spi->transferBytes(out, in, len);
   }
 };

@@ -25,7 +25,7 @@ protected:
 public:
   CustomSX1262Wrapper(CustomSX1262& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
 
-  bool applyParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
+  MC_RADIO_FAST_CODE_ATTR bool applyParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
     if (((CustomSX1262 *)_radio)->profileSwitchFailed()) return false;
     if (((CustomSX1262 *)_radio)->setFrequency(freq) != RADIOLIB_ERR_NONE) return false;
     if (((CustomSX1262 *)_radio)->setLoRaModulationParams(bw, sf, cr) != RADIOLIB_ERR_NONE) return false;

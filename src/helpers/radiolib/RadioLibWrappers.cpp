@@ -2,6 +2,7 @@
 #include "RadioLibWrappers.h"
 #include "RadioInterruptEvents.h"
 #include "RadioProfileChip.h"
+#include "RadioFastCode.h"
 
 #define STATE_IDLE 0
 #define STATE_RX 1
@@ -167,7 +168,7 @@ void RadioLibWrapper::loop() {
   serviceProfiles();
 }
 
-bool RadioLibWrapper::startRecv() {
+MC_RADIO_FAST_CODE_ATTR bool RadioLibWrapper::startRecv() {
 #if defined(USE_LR2021)
   _radio->standby();
 #endif
@@ -263,7 +264,7 @@ float RadioLibWrapper::getLastRSSI() const { return _last_rssi; }
 float RadioLibWrapper::getLastSNR() const { return _last_snr; }
 
 // 0/1 = safely stopped (whether to resume RX), 2 = busy, 3 = command failure.
-uint8_t RadioLibWrapper::beginReconfigure() {
+MC_RADIO_FAST_CODE_ATTR uint8_t RadioLibWrapper::beginReconfigure() {
   if (_state == STATE_TX_WAIT || _state == STATE_TX_DONE || isChipBusy()
       || (!_profile_refresh_required && (radio_interrupt.pending() || isReceivingPacket()))) return 2;
   // After a failed rollback, no FIFO contents have a trustworthy profile.
@@ -280,7 +281,7 @@ uint8_t RadioLibWrapper::beginReconfigure() {
   return resume;
 }
 
-mesh::RadioParamApplyResult RadioLibWrapper::tuneProfile(uint8_t profile) {
+MC_RADIO_FAST_CODE_ATTR mesh::RadioParamApplyResult RadioLibWrapper::tuneProfile(uint8_t profile) {
   using Result = mesh::RadioParamApplyResult;
   if (profile > 1 || (profile == 1 && !_profiles.enabled())) return Result::FAILED;
   const auto p = _profiles.params(profile);
@@ -472,7 +473,7 @@ float RadioLibWrapper::packetScoreInt(float snr, int sf, int packet_len) {
   return max(0.0, min(1.0, success_rate_based_on_snr * collision_penalty));
 }
 
-PacketMillis RadioLibWrapper::calcMaxPacketMillis(uint8_t sf, float bw, uint8_t cr, uint16_t preambleSymbols) {
+MC_RADIO_FAST_CODE_ATTR PacketMillis RadioLibWrapper::calcMaxPacketMillis(uint8_t sf, float bw, uint8_t cr, uint16_t preambleSymbols) {
   // based on RadioLib's calculateTimeOnAir()
   uint32_t tsym_us = ((uint32_t)10000 << sf) / (bw * 10);
   uint32_t sfCoeff1_x4 = (sf == 5 || sf == 6) ? 25 : 17; // 6.25 : 4.25, semtech magic numbers to account for sync word + sfd
