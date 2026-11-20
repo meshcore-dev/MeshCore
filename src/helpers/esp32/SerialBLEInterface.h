@@ -31,6 +31,7 @@ class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLE
   QueueHandle_t recv_queue;
   int send_queue_len;
   Frame send_queue[FRAME_QUEUE_SIZE];
+  bool _notify_success;
 
   void clearBuffers();
 
@@ -50,6 +51,7 @@ protected:
 
   // BLECharacteristicCallbacks methods
   void onWrite(BLECharacteristic* pCharacteristic, esp_ble_gatts_cb_param_t* param) override;
+  void onStatus(BLECharacteristic* pCharacteristic, Status status, uint32_t code) override;
 
 public:
   SerialBLEInterface() {
@@ -65,6 +67,7 @@ public:
       FRAME_QUEUE_SIZE, sizeof(Frame), recv_queue_storage, &recv_queue_state
     );
     send_queue_len = 0;
+    _notify_success = false;
   }
 
   /**
