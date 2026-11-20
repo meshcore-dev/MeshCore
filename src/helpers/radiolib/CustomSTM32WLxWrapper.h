@@ -21,6 +21,11 @@ public:
     return true;
   }
 
+  bool lastRxHadCRC() override {
+    bool crc = true;
+    ((CustomSTM32WLx *)_radio)->getLoRaRxHeaderInfo(NULL, &crc);
+    return crc;
+  }
   bool isReceivingPacket() override { 
     return ((CustomSTM32WLx *)_radio)->isReceiving();
   }

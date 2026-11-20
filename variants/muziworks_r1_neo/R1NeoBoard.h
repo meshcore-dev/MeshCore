@@ -6,8 +6,6 @@
 #include "NullDisplayDriver.h"
 #include "MomentaryButton.h"
 
-#define DISPLAY_CLASS NullDisplayDriver
-
 class R1NeoBoard : public NRF52BoardDCDC {
 protected:
 #ifdef NRF52_POWER_MANAGEMENT

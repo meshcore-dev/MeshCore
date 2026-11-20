@@ -4,7 +4,7 @@
 #include <cstring>
 #include <string>
 
-#include "../../examples/companion_radio/NodePrefs.h"
+#include "../../src/helpers/CompanionNodePrefs.h"
 
 // The native target tests serialization without the board-dependent CLI backend.
 bool CommonRadioPrefs::setByKey(const char*, const char*) { return false; }

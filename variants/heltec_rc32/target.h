@@ -18,6 +18,7 @@
 #else
 #include <helpers/ui/NullDisplayDriver.h>
 #endif
+#include <UITask.h>
 #endif
 
 extern HeltecRC32Board board;
@@ -31,6 +32,7 @@ extern EnvironmentSensorManager sensors;
 #if defined(UI_HAS_ROTARY_INPUT)
   extern RotaryInput& rotary_input;
 #endif
+  extern UITask ui_task;
 #endif
 
 bool radio_init();

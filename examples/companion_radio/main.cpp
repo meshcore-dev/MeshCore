@@ -2,6 +2,11 @@
 #include <Mesh.h>
 #include "MyMesh.h"
 
+#if defined(ENABLE_WIFI_INTERFACE) && defined(ENABLE_ESP_MDNS)
+#define HAS_ESP_MDNS
+#include <ESPmDNS.h>
+#endif
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -107,11 +112,6 @@ MultiSerialInterface interface_manager;
 #endif
 
 /* GLOBAL OBJECTS */
-#ifdef DISPLAY_CLASS
-  #include "UITask.h"
-  UITask ui_task(&board, &interface_manager);
-#endif
-
 StdRNG fast_rng;
 SimpleMeshTables tables;
 MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store);
@@ -130,6 +130,10 @@ void halt() {
   char wifi_pwd[64] = WIFI_PWD;
   bool wifi_was_connected = false;
   bool wifi_enabled = false;   // set at boot from prefs; false also when the effective SSID is blank
+#endif
+
+#if defined(DISPLAY_CLASS) && defined(EINK_REFRESH_LOOP)
+static void loopDuringDisplayRefresh();
 #endif
 
 void setup() {
@@ -206,7 +210,13 @@ void setup() {
 
 // add bluetooth interface
 #if defined(BLE_PIN_CODE)
-  bluetooth_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
+  char *prefix = BLE_NAME_PREFIX;
+  char *ble_name = the_mesh.getNodePrefs()->node_name;
+  if (the_mesh.getNodePrefs()->ble_name[0]) {
+    prefix = "";
+    ble_name = the_mesh.getNodePrefs()->ble_name;
+  }
+  bluetooth_interface.begin((const char *) prefix, ble_name, the_mesh.getBLEPin());
   interface_manager.addInterface(InterfaceType::Bluetooth, &bluetooth_interface);
 #endif
 
@@ -266,6 +276,36 @@ void setup() {
   interface_manager.addInterface(InterfaceType::Ethernet, &ethernet_interface);
 #endif
 
+#ifdef HAS_ESP_MDNS
+  const char* nodeName = the_mesh.getNodeName();
+
+  // "meshcore_" prefix + sanitized node name, capped at 63 chars (max DNS label length)
+  char mdnsName[64];
+  const size_t prefixLen = snprintf(mdnsName, sizeof(mdnsName), "meshcore_");
+  size_t pos = prefixLen;
+  for (size_t i = 0; nodeName[i] != '\0' && pos < sizeof(mdnsName) - 1; ++i) {
+    const char c = nodeName[i];
+    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+        (c >= '0' && c <= '9') || c == '-' || c == '_') {
+      mdnsName[pos++] = c;
+    }
+  }
+  mdnsName[pos] = '\0';
+
+  if (!MDNS.begin(mdnsName)) {
+    WIFI_DEBUG_PRINTLN("mDNS failed to start!");
+  } else {
+    MDNS.addService("meshcore", "tcp", TCP_PORT);
+    MDNS.addServiceTxt("meshcore", "tcp", "node-name", nodeName);
+    MDNS.addServiceTxt("meshcore", "tcp", "firmware-version", FIRMWARE_VERSION);
+    char protocol[12];
+    snprintf(protocol, sizeof(protocol), "%d", (int)FIRMWARE_VER_CODE);
+    MDNS.addServiceTxt("meshcore", "tcp", "protocol-version", (const char*)protocol);
+    MDNS.addServiceTxt("meshcore", "tcp", "build-date", __DATE__);
+    MDNS.addServiceTxt("meshcore", "tcp", "build-time", __TIME__);
+  }
+#endif
+
 // add hardware serial interface
 #if defined(SERIAL_RX)
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);
@@ -282,17 +322,38 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_CLASS
-  ui_task.begin(disp, &sensors, the_mesh.getNodePrefs());  // still want to pass this in as dependency, as prefs might be moved
+  ui_task.begin(disp, &sensors, the_mesh.getNodePrefs(), &interface_manager, &the_mesh, the_mesh.getBLEPin(), FIRMWARE_VERSION, FIRMWARE_BUILD_DATE);
   the_mesh.setListener(&ui_task);
+#ifdef EINK_REFRESH_LOOP
+  if (disp != NULL) disp->setBusyHook(loopDuringDisplayRefresh);
+#endif
 #endif
 
   board.onBootComplete();
 }
 
-void loop() {
+// Work that must keep running even while the UI is blocked (e.g. by an e-ink refresh).
+// Called from loop() and from the display busy hook, so both always run the same set.
+static void loopCore() {
   the_mesh.loop();
   interface_manager.loop();
   sensors.loop();
+}
+
+#if defined(DISPLAY_CLASS) && defined(EINK_REFRESH_LOOP)
+// Runs from inside the e-ink busy wait, so radio/BLE/sensors keep going during a panel refresh.
+// Must not touch the display: UI listener callbacks only update state and schedule the next frame.
+static void loopDuringDisplayRefresh() {
+  static bool active = false;
+  if (active) return;
+  active = true;
+  loopCore();
+  active = false;
+}
+#endif
+
+void loop() {
+  loopCore();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif

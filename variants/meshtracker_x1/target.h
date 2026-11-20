@@ -11,16 +11,15 @@
 #include <Adafruit_SPA06_003.h>
 #ifdef DISPLAY_CLASS
   #include "NullDisplayDriver.h"
+  #include <UITask.h>   // needs -I(nclude) path setting
 #endif
 
 class MeshTrackerX1SensorManager: public SensorManager {
-  bool gps_active = false;
   bool baro_ok = false;
   Adafruit_SPA06_003 spa06;
   LocationProvider * _nmea;
 
   void start_gps();
-  void sleep_gps();
   void stop_gps();
 public:
   MeshTrackerX1SensorManager(LocationProvider &nmea): _nmea(&nmea) { }
@@ -36,6 +35,7 @@ public:
 
 #ifdef DISPLAY_CLASS
   extern NullDisplayDriver display;
+  extern UITask ui_task;
 #endif
 
 extern MeshTrackerX1Board board;

@@ -16,6 +16,8 @@
   #if defined(PIN_USER_BTN_ANA)
   extern MomentaryButton analog_btn;
   #endif
+  #include <UITask.h>
+  extern UITask ui_task;
 #endif
 
 extern RAK3401Board board;

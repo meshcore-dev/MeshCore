@@ -14,7 +14,8 @@ ESP32RTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #ifdef ENV_INCLUDE_GPS
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
+NmeaGpsDriver gps_driver(Serial1);
+MicroNMEALocationProvider nmea(gps_driver, &rtc_clock);
 EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
 #else
 EnvironmentSensorManager sensors = EnvironmentSensorManager();
@@ -22,6 +23,7 @@ EnvironmentSensorManager sensors = EnvironmentSensorManager();
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
+  UITask ui_task(&board, &display);
 #endif
 
 #ifdef RF_SWITCH_TABLE
@@ -82,5 +84,4 @@ mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
   return mesh::LocalIdentity(&rng);  // create new random identity
 }
-
 
