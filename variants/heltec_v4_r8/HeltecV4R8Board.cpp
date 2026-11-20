@@ -62,7 +62,17 @@ void HeltecV4R8Board::enterDeepSleep(uint32_t secs, int pin_wake_btn) {
 }
 
 void HeltecV4R8Board::powerOff() {
-  enterDeepSleep(0);
+  // enterDeepSleep() is wake-on-LoRa: it keeps the FEM in RX and arms DIO1
+  // as an EXT1 wakeup source, so with the radio still running any received
+  // packet boots the device again. Hibernate needs the FEM off (latched
+  // through deep sleep; init() releases the holds on the next boot) and the
+  // base behaviour: radio put to sleep, no wakeup sources armed.
+  loRaFEMControl.setSleepModeEnable();
+  digitalWrite(P_LORA_PA_POWER, LOW);
+  rtc_gpio_hold_en((gpio_num_t)P_LORA_KCT8103L_PA_CSD);
+  rtc_gpio_hold_en((gpio_num_t)P_LORA_PA_POWER);
+
+  ESP32Board::enterDeepSleep(0);
 }
 
 uint16_t HeltecV4R8Board::getBattMilliVolts() {
