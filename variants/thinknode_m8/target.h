@@ -13,6 +13,7 @@
   #include <helpers/ui/GxEPDDisplay.h>
   #include <helpers/ui/RotaryInputGPIO.h>
   #include <helpers/ui/MomentaryButton.h>
+  #include <UITask.h>
 #endif
 
 extern ThinkNodeM8Board board;
@@ -25,6 +26,7 @@ extern EnvironmentSensorManager sensors;
   extern MomentaryButton user_btn;
   extern MomentaryButton backlight_btn;
   extern RotaryInputGPIO rotary_input;
+  extern UITask ui_task;
 #endif
 
 bool radio_init();

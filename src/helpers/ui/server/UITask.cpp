@@ -1,4 +1,5 @@
 #include "UITask.h"
+#include "target.h"
 #include <Arduino.h>
 #include <helpers/CommonCLI.h>
 
@@ -8,6 +9,8 @@
 
 #define AUTO_OFF_MILLIS      20000  // 20 seconds
 #define BOOT_SCREEN_MILLIS   4000   // 4 seconds
+
+#define POWEROFF_DELAY 3000
 
 // 'meshcore', 128x13px
 static const uint8_t meshcore_logo [] PROGMEM = {
@@ -26,32 +29,43 @@ static const uint8_t meshcore_logo [] PROGMEM = {
     0xe3, 0xe3, 0x8f, 0xff, 0x1f, 0xfc, 0x3c, 0x0e, 0x1f, 0xf8, 0xff, 0xf8, 0x70, 0x3c, 0x7f, 0xf8, 
 };
 
-void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version) {
+void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version, const char* role_lbl) {
+#ifdef MESHPOCKET_V2_ROOM_SERVER
   _prevBtnState = HIGH;
+  _started_at = 0;  // The Room Server's splash starts at power-on.
+#else
+  _started_at = millis();
+#endif
   _auto_off = millis() + AUTO_OFF_MILLIS;
   _node_prefs = node_prefs;
   _display->turnOn();
   boardScreen.begin(*_board, *_display);
 
+#if defined(PIN_USER_BTN) && defined(DISPLAY_CLASS) && !defined(MESHPOCKET_V2_ROOM_SERVER)
+  user_btn.begin();
+#endif
+
   // strip off dash and commit hash by changing dash to null terminator
   // e.g: v1.2.3-abcdef -> v1.2.3
   char *version = strdup(firmware_version);
   char *dash = strchr(version, '-');
-  if(dash){
+  if (dash){
     *dash = 0;
   }
 
   // v1.2.3 (1 Jan 2025)
   snprintf(_version_info, sizeof(_version_info), "%s (%s)", version, build_date);
   free(version);
+
+  _role_label = role_lbl;
 }
 
-unsigned long UITask::renderCurrScreen() {
+long UITask::renderCurrScreen() {
   uint32_t interval;
-  if (boardScreen.renderIfSelected(interval)) return interval;
+  if (!_powering_off_at && boardScreen.renderIfSelected(interval)) return interval;
   _display->startFrame();
   char tmp[80];
-  if (millis() < BOOT_SCREEN_MILLIS) { // boot screen
+  if (millis() < _started_at + BOOT_SCREEN_MILLIS) { // boot screen
     // meshcore logo
     _display->setColor(UIColor::corp_blue);
     int logoWidth = 128;
@@ -61,23 +75,32 @@ unsigned long UITask::renderCurrScreen() {
     const char* website = "https://meshcore.io";
     _display->setColor(UIColor::primary_txt);
     _display->setTextSize(1);
-    uint16_t websiteWidth = _display->getTextWidth(website);
-    _display->setCursor((_display->width() - websiteWidth) / 2, 22);
-    _display->print(website);
+    _display->drawTextCentered(_display->width() / 2, 22, website);
 
     // version info
     _display->setTextSize(1);
-    uint16_t versionWidth = _display->getTextWidth(_version_info);
-    _display->setCursor((_display->width() - versionWidth) / 2, 35);
-    _display->print(_version_info);
+    _display->drawTextCentered(_display->width() / 2, 35, _version_info);
 
     // node type
-    const char* node_type = "< Room Server >";
-    uint16_t typeWidth = _display->getTextWidth(node_type);
-    _display->setCursor((_display->width() - typeWidth) / 2, 48);
-    _display->print(node_type);
-  } else {  // home screen
-    // node name
+    _display->drawTextCentered(_display->width() / 2, 48, _role_label);
+  } else if (_powering_off_at > 0) {
+    // meshcore logo
+    _display->setColor(UIColor::corp_blue);
+    int logoWidth = 128;
+    _display->drawXbm((_display->width() - logoWidth) / 2, 3, meshcore_logo, logoWidth, 13);
+
+    // meshcore website
+    const char* website = "https://meshcore.io";
+    _display->setColor(UIColor::primary_txt);
+    _display->setTextSize(1);
+    _display->drawTextCentered(_display->width()/ 2, 22, website);
+
+    // Powering off
+    const char* poweroff_string = "Turning OFF";
+    uint16_t poffWidth = _display->getTextWidth(poweroff_string);
+    _display->setCursor((_display->width() - poffWidth) / 2, 48);
+    _display->drawTextCentered(_display->width()/2, 48, poweroff_string);
+  } else {
     _display->setCursor(0, 0);
     _display->setTextSize(1);
     _display->setColor(UIColor::primary_txt);
@@ -93,53 +116,67 @@ unsigned long UITask::renderCurrScreen() {
     sprintf(tmp, "BW: %03.2f CR: %d", _node_prefs->bw, _node_prefs->cr);
     _display->print(tmp);
   }
-  return 1000;
+  return 1000;   // 1 sec interval
 }
 
 void UITask::loop() {
   const uint8_t boardEvents = boardScreen.pollEvents();
   bool handlingInput = false;
-  const bool canChangePage = millis() >= BOOT_SCREEN_MILLIS;
+  const bool canChangePage = !_powering_off_at && millis() - _started_at >= BOOT_SCREEN_MILLIS;
   if (boardScreen.handleInput(boardEvents, canChangePage)) {
     handlingInput = true;
     _auto_off = millis() + AUTO_OFF_MILLIS;
     _next_refresh = 0;
   }
-#ifdef PIN_USER_BTN
+#if defined(PIN_USER_BTN) && defined(DISPLAY_CLASS)
+#ifdef MESHPOCKET_V2_ROOM_SERVER
+  int ev = BUTTON_EVENT_NONE;
   if (millis() >= _next_read) {
-    int btnState = digitalRead(PIN_USER_BTN);
-    if (btnState != _prevBtnState) {
-      if (btnState == USER_BTN_PRESSED) {  // pressed?
-        handlingInput = true;
-        if (_display->isOn()) {
-          if (canChangePage && boardScreen.togglePage()) {
-            _next_refresh = 0;
-          }
-        } else {
-          _display->turnOn();
-        }
-        _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
+    const int btnState = digitalRead(PIN_USER_BTN);
+    if (btnState == USER_BTN_PRESSED && btnState != _prevBtnState) ev = BUTTON_EVENT_CLICK;
+    _prevBtnState = btnState;
+    _next_read = millis() + 200;
+  }
+#else
+  int ev = user_btn.check();
+#endif
+  handlingInput = handlingInput || ev != BUTTON_EVENT_NONE;
+  if (ev == BUTTON_EVENT_CLICK) {
+    if (_display->isOn()) {
+      if (canChangePage && boardScreen.togglePage()) {
+        _next_refresh = 0;
       }
-      _prevBtnState = btnState;
+    } else {
+      _display->turnOn();
     }
-    _next_read = millis() + 200;  // 5 reads per second
+    _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    _display->turnOn();
+    Serial.println("Powering Off");
+    _powering_off_at = millis() + POWEROFF_DELAY;
+    if (boardScreen.available()) {
+      _next_refresh = 0;
+      _auto_off = millis() + AUTO_OFF_MILLIS;
+    }
   }
 #endif
 
-  if (boardScreen.handleFocusRequest(boardEvents, canChangePage, handlingInput)) {
+  const bool canTakePowerEvent = !_powering_off_at && millis() - _started_at >= BOOT_SCREEN_MILLIS;
+  if (boardScreen.handleFocusRequest(boardEvents, canTakePowerEvent, handlingInput)) {
     _auto_off = millis() + AUTO_OFF_MILLIS;
     _next_refresh = 0;
   }
 
-  if (_display->isOn()) {
-    if (millis() >= _next_refresh) {
-      unsigned long interval = renderCurrScreen();
-      _display->endFrame();
+  BaseUITask::loop();
 
-      _next_refresh = millis() + interval;
-    }
-    if (millis() > _auto_off) {
-      _display->turnOff();
+  if (_powering_off_at > 0) { // power off timer armed
+#if defined(LED_PIN) && defined(LED_STATE_ON)
+    digitalWrite(LED_PIN, LED_STATE_ON); // switch on the led until poweroff
+    delay(1000);
+    digitalWrite(LED_PIN, !LED_STATE_ON); // off LED
+#endif
+    if (millis() > _powering_off_at) {
+      _board->powerOff();  // should not return
     }
   }
 }

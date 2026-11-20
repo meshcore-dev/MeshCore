@@ -18,6 +18,7 @@ SolarExternalWatchdog external_watchdog;
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
+  UITask ui_task(&board, &display);
 #endif
 
 bool radio_init() {

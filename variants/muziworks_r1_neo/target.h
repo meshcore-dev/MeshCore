@@ -12,8 +12,14 @@ extern R1NeoBoard board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;
+
+#ifdef DISPLAY_CLASS
+#include <UITask.h>
+
 extern DISPLAY_CLASS display;
 extern MomentaryButton user_btn;
+extern UITask ui_task;
+#endif
 
 bool radio_init();
 mesh::LocalIdentity radio_new_identity();

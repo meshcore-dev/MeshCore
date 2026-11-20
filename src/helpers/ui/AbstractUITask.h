@@ -5,14 +5,13 @@
 #include <helpers/ui/UIScreen.h>
 #include <helpers/SensorManager.h>
 #include <helpers/MultiSerialInterface.h>
+#include <helpers/MeshEventListener.h>
+#include <helpers/CompanionNodePrefs.h>
 #include <Arduino.h>
 
 #ifdef PIN_BUZZER
   #include <helpers/ui/buzzer.h>
 #endif
-
-#include "NodePrefs.h"
-#include "MyMesh.h"
 
 enum class UIEventType {
     none,
@@ -23,12 +22,12 @@ enum class UIEventType {
     ack
 };
 
-class AbstractUITask : public MyMesh::Listener {
+class AbstractUITask : public MeshEventListener {
 protected:
   mesh::MainBoard* _board;
   MultiSerialInterface* _interfaceManager;
 
-  AbstractUITask(mesh::MainBoard* board, MultiSerialInterface* interfaceManager) : _board(board), _interfaceManager(interfaceManager) {
+  AbstractUITask(mesh::MainBoard* board, MultiSerialInterface* interfaceManager = NULL) : _board(board), _interfaceManager(interfaceManager) {
   }
 
 public:

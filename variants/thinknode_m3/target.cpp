@@ -20,6 +20,7 @@ EnvironmentSensorManager sensors = EnvironmentSensorManager();
 
 #ifdef DISPLAY_CLASS
   NullDisplayDriver display;
+  UITask ui_task(&board, &display);
 #endif
 
 #ifndef LORA_CR

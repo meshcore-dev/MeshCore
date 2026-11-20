@@ -17,6 +17,7 @@ SensorManager sensors;
 DISPLAY_CLASS display;
 // PH3 is also BOOT0: the board's button is active high with an external pull-down.
 MomentaryButton user_btn(PIN_USER_BTN, 1000, false);
+UITask ui_task(&board, &display);
 
 static const uint32_t rfswitch_pins[] = {
   PB2, PB6, RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC

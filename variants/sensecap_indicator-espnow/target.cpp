@@ -20,6 +20,7 @@ EnvironmentSensorManager sensors = EnvironmentSensorManager();
   #ifdef PIN_USER_BTN
   MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
   #endif
+  UITask ui_task(&board, &display);
 #endif
 
 bool radio_init() {

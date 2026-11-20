@@ -16,6 +16,7 @@ MeshTrackerX1SensorManager sensors = MeshTrackerX1SensorManager(nmea);
 
 #ifdef DISPLAY_CLASS
   NullDisplayDriver display;
+  UITask ui_task(&board, &display);
 #endif
 
 bool radio_init() {

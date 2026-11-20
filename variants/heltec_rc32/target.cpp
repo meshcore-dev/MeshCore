@@ -35,6 +35,7 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
   static HeltecRC32RotaryInput rotaryInputImpl(&board.periph_power);
   RotaryInput& rotary_input = rotaryInputImpl;
 #endif
+  UITask ui_task(&board, &display);
 #endif
 
 bool radio_init() {

@@ -5,6 +5,7 @@
 #include <helpers/ui/DisplayDriver.h>
 #include <helpers/ui/UIScreen.h>
 #include <helpers/SensorManager.h>
+#include <helpers/BaseChatMesh.h>
 #include <helpers/MultiSerialInterface.h>
 #include <Arduino.h>
 #include <helpers/sensors/LPPDataHelpers.h>
@@ -20,8 +21,8 @@
   #include <helpers/ui/GenericVibration.h>
 #endif
 
-#include "../AbstractUITask.h"
-#include "../NodePrefs.h"
+#include <helpers/ui/AbstractUITask.h>
+#include <helpers/CompanionNodePrefs.h>
 
 #ifdef UI_NO_DISCOVER_SCREEN
   #error "UI_NO_DISCOVER_SCREEN is obsolete - use -D UI_DISCOVER_SCREEN=0 instead"
@@ -50,6 +51,8 @@ struct DiscoveredNode {
 class UITask : public AbstractUITask {
   DisplayDriver* _display;
   SensorManager* _sensors;
+  BaseChatMesh* the_mesh;
+  uint32_t _ble_pin;
 #ifdef PIN_BUZZER
   genericBuzzer buzzer;
 #endif
@@ -94,19 +97,23 @@ class UITask : public AbstractUITask {
 
 public:
 
-  UITask(mesh::MainBoard* board, MultiSerialInterface* serial) :
-      AbstractUITask(board, serial), _display(NULL), _sensors(NULL), _board_ui(nullptr) {
+  UITask(mesh::MainBoard* board, DisplayDriver* display = NULL) :
+      AbstractUITask(board), _display(display), _sensors(NULL), _board_ui(nullptr) {
     next_batt_chck = _next_refresh = 0;
     ui_started_at = 0;
     curr = NULL;
   }
-  void begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs);
+  void begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs, MultiSerialInterface* serial,
+             BaseChatMesh* mesh, uint32_t ble_pin, const char* ver, const char* build_date);
 
   void gotoHomeScreen() { setCurrScreen(home); }
   void showAlert(const char* text, int duration_millis);
   int  getMsgCount() const { return _msgcount; }
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
+
+  BaseChatMesh* getMesh() const { return the_mesh; }
+  uint32_t getBLEPin() const  { return _ble_pin; }
 
   bool isBuzzerQuiet() { 
 #ifdef PIN_BUZZER
@@ -121,7 +128,7 @@ public:
   void toggleGPS();
   void triggerGPS();
 
-  // MyMesh::Listener
+  // MeshEventListener
   void onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, const char* text) override;
   void onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) override;
   void onQueueSizeChanged(int offline_queue_size) override;

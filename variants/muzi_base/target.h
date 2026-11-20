@@ -26,10 +26,14 @@
   extern MomentaryButton joystick_left;
   extern MomentaryButton joystick_right;
   extern MomentaryButton back_btn;
+  #include <UITask.h>
+  extern UITask ui_task;
 #elif defined(DISPLAY_CLASS)
   #include "helpers/ui/NullDisplayDriver.h"
   extern DISPLAY_CLASS display;
   extern MomentaryButton user_btn;
+  #include <UITask.h>
+  extern UITask ui_task;
 #endif
 
 extern MuziBaseBoard board;

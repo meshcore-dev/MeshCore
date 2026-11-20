@@ -9,6 +9,7 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 #ifdef DISPLAY_CLASS
   NullDisplayDriver display;
+  UITask ui_task(&board, &display);
 #endif
 
 #ifdef PIN_USER_BTN 

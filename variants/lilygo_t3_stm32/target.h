@@ -11,6 +11,7 @@
 #endif
 #include <helpers/ui/SSD1306Display.h>
 #include <helpers/ui/MomentaryButton.h>
+#include <UITask.h>
 
 class LilyGoT3STM32Board : public STM32Board {
 public:
@@ -31,6 +32,7 @@ extern SensorManager sensors;
 #endif
 extern DISPLAY_CLASS display;
 extern MomentaryButton user_btn;
+extern UITask ui_task;
 
 bool radio_init();
 mesh::LocalIdentity radio_new_identity();

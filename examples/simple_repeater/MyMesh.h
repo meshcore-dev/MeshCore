@@ -74,8 +74,6 @@ struct NeighbourInfo {
   #define FIRMWARE_VERSION   "v1.18.0"
 #endif
 
-#define FIRMWARE_ROLE "repeater"
-
 #define PACKET_LOG_FILE  "/packet_log"
 
 class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
@@ -189,7 +187,7 @@ public:
   void sendNodeDiscoverReq();
   const char* getFirmwareVer() override { return FIRMWARE_VERSION; }
   const char* getBuildDate() override { return FIRMWARE_BUILD_DATE; }
-  const char* getRole() override { return FIRMWARE_ROLE; }
+  const char* getRole() override { return "repeater"; }
   const char* getNodeName() { return _prefs.node_name; }
   NodePrefs* getNodePrefs() {
     return &_prefs;

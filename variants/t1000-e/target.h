@@ -10,6 +10,7 @@
 #include <helpers/sensors/LocationProvider.h>
 #ifdef DISPLAY_CLASS
   #include "NullDisplayDriver.h"
+  #include <UITask.h>
 #endif
 
 class AirohaGpsDriver;
@@ -36,6 +37,7 @@ public:
 
 #ifdef DISPLAY_CLASS
   extern NullDisplayDriver display;
+  extern UITask ui_task;
 #endif
 
 extern T1000eBoard board;
