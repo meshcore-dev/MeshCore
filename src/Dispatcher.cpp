@@ -15,6 +15,9 @@ namespace mesh {
 #ifndef NOISE_FLOOR_CALIB_INTERVAL
   #define NOISE_FLOOR_CALIB_INTERVAL   2000     // 2 seconds
 #endif
+#ifndef AGC_FORCED_RESET_MILLIS
+  #define AGC_FORCED_RESET_MILLIS  (24UL*60*60*1000)  // reset AGC at least once a day, even on a busy channel
+#endif
 
 void Dispatcher::begin() {
   n_sent_flood = n_sent_direct = 0;
@@ -131,7 +134,20 @@ void Dispatcher::loop() {
   }
 
   if (getAGCResetInterval() > 0 && millisHasNowPassed(next_agc_reset_time)) {
-    _radio->resetAGC();
+    // a reset takes the radio off the air, so (as in Meshtastic) skip it while packets are still
+    // being decoded: the gain is not stuck then. Still reset at least once per AGC_FORCED_RESET_MILLIS.
+    unsigned long now = _ms->getMillis();
+    bool hearing = last_rx_good_time != 0 && now - last_rx_good_time < (unsigned long) getAGCResetInterval();
+    bool forced = last_agc_reset_time == 0 || now - last_agc_reset_time >= AGC_FORCED_RESET_MILLIS;
+    if (_mgr->getOutboundTotal() > 0) {
+      MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): AGC reset skipped, tx queued", getLogDateTime());
+    } else if (hearing && !forced) {
+      MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): AGC reset skipped, last rx %lu ms ago", getLogDateTime(), now - last_rx_good_time);
+    } else {
+      MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): AGC reset", getLogDateTime());
+      _radio->resetAGC();
+      last_agc_reset_time = now ? now : 1;
+    }
     next_agc_reset_time = futureMillis(getAGCResetInterval());
   }
 
@@ -236,6 +252,7 @@ void Dispatcher::checkRecv() {
     }
     #endif
     logRx(pkt, pkt->getRawLength(), score);   // hook for custom logging
+    last_rx_good_time = _ms->getMillis();
 
     if (pkt->isRouteFlood()) {
       n_recv_flood++;
