@@ -33,18 +33,4 @@ bool hwSha256(uint8_t* hash, size_t hash_len, const uint8_t* msg, int msg_len);
  */
 bool hwSha256(uint8_t* hash, size_t hash_len, const uint8_t* frag1, int frag1_len, const uint8_t* frag2, int frag2_len);
 
-// ---------------------------------------------------------------------------
-// STUB: hardware AES
-//
-// The RP2350 also has an AES-128/256 accelerator (upstream pico-sdk
-// "hardware_crypto" driver), but the pico-sdk build the arduino-pico framework
-// ships does not include it. To enable later:
-//   1. vendor/upgrade the SDK so src/common/hardware_crypto is present,
-//   2. link the hardware_crypto library into the firmware,
-//   3. implement hwAesBlock() here and add a USE_RP2350_HW_AES branch in
-//      Utils.cpp mirroring the USE_CC310_HW_CRYPTO encrypt/decrypt paths.
-// Until then AES block cipher + HMAC-SHA256 + Ed25519 all run in software,
-// which is the same situation as every non-CC310 ARM platform in this repo.
-// ---------------------------------------------------------------------------
-
 }  // namespace rp2350
