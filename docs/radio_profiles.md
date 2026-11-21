@@ -62,9 +62,8 @@ switches in each direction, the timing uses the largest measured switch time
 plus 10%. Use `get radio2.timing` to see the allowance.
 
 SX1262 and LR1110 switches can reuse acknowledged RX settings and keep the
-oscillator warm. TX, CAD, reset, sleep and errors revoke cached state. Heltec
-V4 keeps the application-side retune code in instruction RAM to reduce
-flash-cache delays. T-Deck display transfers release SPI between bounded strips
+oscillator warm. TX, CAD, reset, sleep and errors revoke cached state.
+T-Deck display transfers release SPI between bounded strips
 and service the radio. Its framebuffer uses 150 KiB of PSRAM, with direct
 rendering as the allocation-failure fallback. The qualified T-Deck SPI setting
 is 8.888888 MHz.

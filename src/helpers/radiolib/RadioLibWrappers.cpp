@@ -168,7 +168,7 @@ void RadioLibWrapper::loop() {
   serviceProfiles();
 }
 
-MC_RADIO_FAST_CODE_ATTR bool RadioLibWrapper::startRecv() {
+MC_RADIO_RETUNE_ATTR(start_recv) bool RadioLibWrapper::startRecv() {
 #if defined(USE_LR2021)
   _radio->standby();
 #endif
@@ -264,7 +264,7 @@ float RadioLibWrapper::getLastRSSI() const { return _last_rssi; }
 float RadioLibWrapper::getLastSNR() const { return _last_snr; }
 
 // 0/1 = safely stopped (whether to resume RX), 2 = busy, 3 = command failure.
-MC_RADIO_FAST_CODE_ATTR uint8_t RadioLibWrapper::beginReconfigure() {
+MC_RADIO_RETUNE_ATTR(begin_reconfigure) uint8_t RadioLibWrapper::beginReconfigure() {
   if (_state == STATE_TX_WAIT || _state == STATE_TX_DONE || isChipBusy()
       || (!_profile_refresh_required && (radio_interrupt.pending() || isReceivingPacket()))) return 2;
   // After a failed rollback, no FIFO contents have a trustworthy profile.
@@ -281,7 +281,7 @@ MC_RADIO_FAST_CODE_ATTR uint8_t RadioLibWrapper::beginReconfigure() {
   return resume;
 }
 
-MC_RADIO_FAST_CODE_ATTR mesh::RadioParamApplyResult RadioLibWrapper::tuneProfile(uint8_t profile) {
+MC_RADIO_RETUNE_ATTR(tune_profile) mesh::RadioParamApplyResult RadioLibWrapper::tuneProfile(uint8_t profile) {
   using Result = mesh::RadioParamApplyResult;
   if (profile > 1 || (profile == 1 && !_profiles.enabled())) return Result::FAILED;
   const auto p = _profiles.params(profile);
