@@ -9,7 +9,6 @@
 #include <helpers/radiolib/CustomLR1121Wrapper.h>
 #endif
 #include <TLoRaPagerBoard.h>
-#include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/ST7789LCDDisplay.h>
@@ -21,7 +20,7 @@
 
 extern TLoRaPagerBoard board;
 extern WRAPPER_CLASS radio_driver;
-extern AutoDiscoverRTCClock rtc_clock;
+extern ESP32RTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;
 
 #ifdef DISPLAY_CLASS

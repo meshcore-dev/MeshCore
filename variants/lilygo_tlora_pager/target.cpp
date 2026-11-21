@@ -9,8 +9,7 @@ static ESP32BufferedRadioHal radio_hal(SPI);
 RADIO_CLASS radio = new Module(&radio_hal, P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 WRAPPER_CLASS radio_driver(radio, board);
 
-ESP32RTCClock fallback_clock;
-AutoDiscoverRTCClock rtc_clock(fallback_clock);
+ESP32RTCClock rtc_clock;
 NmeaGpsDriver gps_driver(Serial1);
 MicroNMEALocationProvider gps(gps_driver, &rtc_clock);
 EnvironmentSensorManager sensors(gps);
@@ -26,8 +25,8 @@ EnvironmentSensorManager sensors(gps);
 #endif
 
 bool radio_init() {
-  fallback_clock.begin();
-  rtc_clock.begin(Wire);
+  // The onboard PCF85063A shares an address with the incompatible PCF8563.
+  rtc_clock.begin();
   if (!board.peripheralsReady()) return false;
 #ifdef USE_SX1262
   const bool ready = radio.std_init();
