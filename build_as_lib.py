@@ -26,6 +26,10 @@ for item in menv.get("CPPDEFINES", []):
     elif item == "RP2040_PLATFORM":
         src_filter.append("+<helpers/rp2040/*>")
         src_filter.append("+<helpers/wifi/*>")
+    elif item == "RP2350_PLATFORM":
+        # RP2350 builds also define RP2040_PLATFORM, which pulls in the shared
+        # Pico helpers (BLE/WiFi) above; this adds only the RP2350-specific ones
+        src_filter.append("+<helpers/rp2350/*>")
     
     # DISPLAY HANDLING
     elif isinstance(item, tuple) and item[0] == "DISPLAY_CLASS":

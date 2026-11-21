@@ -77,6 +77,14 @@ static Adafruit_BME280 BME280;
 #include <Adafruit_BMP280.h>
 static Adafruit_BMP280 BMP280(TELEM_WIRE);
 #endif
+#if ENV_INCLUDE_BMP3XX
+#ifndef TELEM_BMP3XX_ADDRESS
+#define TELEM_BMP3XX_ADDRESS    0x76      // BMP390/BMP388 environmental sensor I2C address
+#endif
+#define TELEM_BMP3XX_SEALEVELPRESSURE_HPA (1013.25)    // Atmospheric pressure at sea level
+#include <Adafruit_BMP3XX.h>
+static Adafruit_BMP3XX BMP3XX;
+#endif
 
 #if ENV_INCLUDE_SHTC3
 #include <Adafruit_SHTC3.h>
@@ -248,6 +256,17 @@ static void query_bmp280(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   lpp.addTemperature(ch, BMP280.readTemperature());
   lpp.addBarometricPressure(ch, BMP280.readPressure() / 100);
   lpp.addAltitude(ch, BMP280.readAltitude(TELEM_BMP280_SEALEVELPRESSURE_HPA));
+}
+#endif
+#if ENV_INCLUDE_BMP3XX
+static uint8_t init_bmp3xx(TwoWire* wire, uint8_t addr) {
+  return BMP3XX.begin_I2C(addr, wire) ? 1 : 0;
+}
+
+static void query_bmp3xx(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  lpp.addTemperature(ch, BMP3XX.readTemperature());
+  lpp.addBarometricPressure(ch, BMP3XX.readPressure() / 100);
+  lpp.addAltitude(ch, BMP3XX.readAltitude(TELEM_BMP3XX_SEALEVELPRESSURE_HPA));
 }
 #endif
 
@@ -528,6 +547,10 @@ static const SensorDef SENSOR_TABLE[] = {
 #if ENV_INCLUDE_BMP280
   { TELEM_BMP280_ADDRESS,                       "BMP280",       init_bmp280,      query_bmp280      },
   { TELEM_BOSCH_ALT_ADDR(TELEM_BMP280_ADDRESS), "BMP280",       init_bmp280,      query_bmp280      },
+#endif
+#if ENV_INCLUDE_BMP3XX
+  { TELEM_BMP3XX_ADDRESS,                       "BMP3XX",       init_bmp3xx,      query_bmp3xx      },
+  { TELEM_BOSCH_ALT_ADDR(TELEM_BMP3XX_ADDRESS), "BMP3XX",       init_bmp3xx,      query_bmp3xx      },
 #endif
 #if ENV_INCLUDE_SHTC3
   { 0x70,                  "SHTC3",        init_shtc3,    query_shtc3    },
