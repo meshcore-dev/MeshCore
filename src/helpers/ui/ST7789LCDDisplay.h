@@ -4,10 +4,17 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
+#ifdef LILYGO_TLORA_PAGER
+#include <Adafruit_ST7796S.h>
+#else
 #include <Adafruit_ST7789.h>
+#endif
+#if defined(LILYGO_TDECK) || defined(LILYGO_TLORA_PAGER)
+#define MESHCORE_BUFFERED_SPI_DISPLAY 1
+#endif
 #include <helpers/RefCountedDigitalPin.h>
 
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
 class TDeckCanvas;
 #endif
 
@@ -15,9 +22,13 @@ class ST7789LCDDisplay : public DisplayDriver {
   #if defined(LILYGO_TDECK) || defined(HELTEC_LORA_V4_TFT) || defined(HELTEC_V4_R8_TFT)
     SPIClass displaySPI;
   #endif
+#ifdef LILYGO_TLORA_PAGER
+  Adafruit_ST7796S display;
+#else
   Adafruit_ST7789 display;
+#endif
   bool _isOn;
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   friend class TDeckCanvas;
   TDeckCanvas* _canvas = nullptr;
   bool _panel_ready = false;
@@ -61,7 +72,7 @@ public:
   }
 #endif
   bool begin();
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   ~ST7789LCDDisplay();
   void setBufferedRendering(bool enabled);
   bool isBufferedRendering() const;

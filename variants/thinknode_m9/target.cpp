@@ -73,6 +73,11 @@ bool radio_init() {
   radio.setRxBoostedGainMode(RX_BOOSTED_GAIN);
 #endif
 
+#ifdef DISPLAY_CLASS
+  display.setRenderYieldCallback([]() {
+    if (radio_driver.profiles()->enabled()) radio_driver.loop();
+  });
+#endif
   return true;  // success
 }
 

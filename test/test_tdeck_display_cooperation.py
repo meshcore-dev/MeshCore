@@ -104,16 +104,21 @@ PANEL = r'''
 #define ST77XX_BLUE 0x001f
 #define ST77XX_ORANGE 0xfd20
 #define ST77XX_CYAN 0x07ff
-inline std::vector<uint16_t> panel(320*240);
+#ifdef LILYGO_TLORA_PAGER
+constexpr int PanelWidth=480, PanelHeight=222;
+#else
+constexpr int PanelWidth=320, PanelHeight=240;
+#endif
+inline std::vector<uint16_t> panel(PanelWidth*PanelHeight);
 struct Window {int x,y,w,h;};
 inline std::vector<Window> windows;
 class Adafruit_ST7789:public Adafruit_GFX {
- int _w=320,_h=240;
+ int _w=PanelWidth,_h=PanelHeight;
  Window window{};
 public:
- template<class... T> explicit Adafruit_ST7789(T...):Adafruit_GFX(320,240) {}
+ template<class... T> explicit Adafruit_ST7789(T...):Adafruit_GFX(PanelWidth,PanelHeight) {}
  void init(int,int) {++initializations;}
- void setRotation(int r) {_w=(r&1)?320:240;_h=(r&1)?240:320;}
+ void setRotation(int r) {_w=(r&1)?PanelWidth:PanelHeight;_h=(r&1)?PanelHeight:PanelWidth;}
  int width()const{return _w;} int height()const{return _h;}
  void setSPISpeed(double) {}
  void drawPixel(int16_t x,int16_t y,uint16_t c) override {
@@ -249,6 +254,53 @@ int main(int argc,char** argv) {
 
 
 class TDeckDisplayCooperationTests(unittest.TestCase):
+    def test_pager_geometry_and_radio_service_between_strips(self):
+        with tempfile.TemporaryDirectory(prefix="pager-display-") as temporary:
+            directory = Path(temporary)
+            write_stubs(directory)
+            (directory / "Adafruit_ST7796S.h").write_text(r'''
+#include <Adafruit_ST7789.h>
+constexpr int ST7796S_BGR=8;
+class Adafruit_ST7796S : public Adafruit_ST7789 {
+ public:
+  using Adafruit_ST7789::Adafruit_ST7789;
+  void init(int w,int h,int row,int col,int order) {
+    assert(w==222 && h==480 && row==0 && col==49 && order==ST7796S_BGR);
+    ++initializations;
+  }
+  void invertDisplay(bool inverted) { assert(inverted); }
+};
+''')
+            (directory / "main.cpp").write_text(r'''
+#include <helpers/ui/ST7789LCDDisplay.h>
+#include <esp_heap_caps.h>
+static unsigned services;
+void service() { assert(!transaction && cs_high); ++services; }
+int main() {
+  ST7789LCDDisplay d;
+  d.setRenderYieldCallback(service);
+  assert(d.begin() && d.isBufferedRendering() && allocated_bytes==480*222*2);
+  d.startFrame(0x1234);
+  windows.clear();
+  services=0;
+  d.endFrame();
+  assert(windows.size()==111 && services>=112);
+  for (unsigned i=0; i<windows.size(); ++i) {
+    const auto& w=windows[i];
+    assert(w.x==0 && w.y==int(i*2) && w.w==480 && w.h==2);
+  }
+  assert(panel.front()==0x1234 && panel.back()==0x1234);
+  d.turnOff(); d.turnOn();
+  assert(initializations==1);
+}
+''')
+            binary = directory / "pager"
+            subprocess.run([os.environ.get("CXX", "g++"), "-std=c++17", *SANITIZER_FLAGS,
+                            "-DLILYGO_TLORA_PAGER", "-DDISPLAY_SCALE_X=1", "-DDISPLAY_SCALE_Y=1",
+                            "-I"+str(directory), "-I"+str(ROOT/"src"), str(directory/"main.cpp"),
+                            str(ROOT/"src/helpers/ui/ST7789LCDDisplay.cpp"), "-o", str(binary)], check=True)
+            subprocess.run([str(binary)], check=True, timeout=10)
+
     def test_production_renderer_pixels_transactions_psram_fallback_and_sleep(self):
         with tempfile.TemporaryDirectory(prefix="tdeck-display-") as temporary:
             directory = Path(temporary)

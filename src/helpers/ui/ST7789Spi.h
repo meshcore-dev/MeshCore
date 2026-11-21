@@ -106,6 +106,7 @@ class ST7789Spi : public OLEDDisplay {
       SPISettings 		    _spiSettings;
       uint16_t            _RGB=0xFFFF;
       uint8_t             _buffheight;
+      void (*_serviceRadio)() = nullptr;
   public:
     /* pass _cs as -1 to indicate "do not use CS pin", for cases where it is hard wired low */
     ST7789Spi(SPIClass *spiClass,uint8_t _rst, uint8_t _dc, uint8_t _cs, OLEDDISPLAY_GEOMETRY g = GEOMETRY_RAWMODE,uint16_t width=240,uint16_t height=135,int mosi=-1,int miso=-1,int clk=-1) {
@@ -150,95 +151,63 @@ class ST7789Spi : public OLEDDisplay {
       return true;
     }
 
+    void setRenderYieldCallback(void (*callback)()) { _serviceRadio = callback; }
+
     void display(void) {
-    #ifdef OLEDDISPLAY_DOUBLE_BUFFER
-
-       uint16_t minBoundY = UINT16_MAX;
-       uint16_t maxBoundY = 0;
-
-       uint16_t minBoundX = UINT16_MAX;
-       uint16_t maxBoundX = 0;
-
-       uint16_t x, y;
-        
-       // Calculate the Y bounding box of changes
-       // and copy buffer[pos] to buffer_back[pos];
-       for (y = 0; y < _buffheight; y++) {
-         for (x = 0; x < displayWidth; x++) {
-          //Serial.printf("x  %d y %d\r\n",x,y);
-          uint16_t pos = x + y * displayWidth;
+      uint16_t left = 0, right = displayWidth;
+      uint16_t firstPage = 0, endPage = _buffheight;
+      // Allocate before acknowledging dirty bytes so a failed allocation can be retried.
+      auto* pixels = static_cast<uint16_t*>(rtos_malloc(displayWidth * sizeof(uint16_t)));
+      if (!pixels) return;
+#ifdef OLEDDISPLAY_DOUBLE_BUFFER
+      left = displayWidth;
+      right = 0;
+      firstPage = _buffheight;
+      endPage = 0;
+      for (uint16_t page = 0; page < _buffheight; ++page) {
+        for (uint16_t x = 0; x < displayWidth; ++x) {
+          const size_t pos = size_t(page) * displayWidth + x;
           if (buffer[pos] != buffer_back[pos]) {
-            minBoundY = min(minBoundY, y);
-            maxBoundY = max(maxBoundY, y);
-            minBoundX = min(minBoundX, x);
-            maxBoundX = max(maxBoundX, x);
+            if (x < left) left = x;
+            if (x >= right) right = x + 1;
+            if (page < firstPage) firstPage = page;
+            endPage = page + 1;
+            buffer_back[pos] = buffer[pos];
           }
-          buffer_back[pos] = buffer[pos];
         }
         yield();
-       }
-
-       // If the minBoundY wasn't updated
-       // we can savely assume that buffer_back[pos] == buffer[pos]
-       // holdes true for all values of pos
-       if (minBoundY == UINT16_MAX) return;
-
-		  set_CS(LOW);
-		  _spi->beginTransaction(_spiSettings);
-
-          for (y = minBoundY; y <= maxBoundY; y++)
-          {
-            for(int temp = 0; temp<8;temp++)
-            {
-              //setAddrWindow(minBoundX,y*8+temp,maxBoundX-minBoundX+1,1);
-              setAddrWindow(minBoundX,y*8+temp,maxBoundX-minBoundX+1,1);
-              //setAddrWindow(y*8+temp,minBoundX,1,maxBoundX-minBoundX+1);
-              uint32_t const pixbufcount = maxBoundX-minBoundX+1;
-              uint16_t *pixbuf = (uint16_t *)rtos_malloc(2 * pixbufcount);
-              for (x = minBoundX; x <= maxBoundX; x++)
-              {
-                pixbuf[x-minBoundX] = ((buffer[x + y * displayWidth]>>temp)&0x01)==1?_RGB:0;
-              }
-#ifdef ESP_PLATFORM
-              _spi->transferBytes((uint8_t *)pixbuf, NULL, 2 * pixbufcount);
-#else
-              _spi->transfer(pixbuf, NULL, 2 * pixbufcount);
+      }
+      if (right == 0) { rtos_free(pixels); return; }
 #endif
-              rtos_free(pixbuf);
-            }
-          }
-	  _spi->endTransaction();
-	  set_CS(HIGH);
-
-     #else
-		  set_CS(LOW);
-		  _spi->beginTransaction(_spiSettings);
-		uint8_t x, y;
-          for (y = 0; y < _buffheight; y++)
-          {
-            for(int temp = 0; temp<8;temp++)
-            {
-              //setAddrWindow(minBoundX,y*8+temp,maxBoundX-minBoundX+1,1);
-              //setAddrWindow(minBoundX,y*8+temp,maxBoundX-minBoundX+1,1);
-              setAddrWindow(y*8+temp,0,1,displayWidth);
-              uint32_t const pixbufcount = displayWidth;
-              uint16_t *pixbuf = (uint16_t *)rtos_malloc(2 * pixbufcount);
-              for (x = 0; x < displayWidth; x++)
-              {
-                pixbuf[x] = ((buffer[x + y * displayWidth]>>temp)&0x01)==1?_RGB:0;
-              }
-#ifdef ESP_PLATFORM
-              _spi->transferBytes((uint8_t *)pixbuf, NULL, 2 * pixbufcount);
+      const uint16_t width = right - left;
+      const uint16_t endRow = min(int(endPage) * 8, int(displayHeight));
+      // The M9 shares SPI with the LR1110. Other panels keep one transaction.
+      const uint16_t rowsPerStrip = _serviceRadio ? max(1, 960 / int(width)) : endRow;
+      for (uint16_t row = firstPage * 8; row < endRow;) {
+        const uint16_t stripEnd = min(int(row) + rowsPerStrip, int(endRow));
+        _spi->beginTransaction(_spiSettings);
+        set_CS(LOW);
+        for (; row < stripEnd; ++row) {
+#if defined(OLEDDISPLAY_DOUBLE_BUFFER) || defined(THINKNODE_M9)
+          setAddrWindow(left, row, width, 1);
 #else
-              _spi->transfer(pixbuf, NULL, 2 * pixbufcount);
+          setAddrWindow(row, 0, 1, width);
 #endif
-              rtos_free(pixbuf);
-            }
-          }
-	  _spi->endTransaction();
-	  set_CS(HIGH);
-
-     #endif
+          const uint8_t* page = buffer + size_t(row / 8) * displayWidth;
+          const uint8_t mask = 1U << (row % 8);
+          for (uint16_t x = left; x < right; ++x)
+            pixels[x - left] = (page[x] & mask) ? _RGB : 0;
+#ifdef ESP_PLATFORM
+          _spi->transferBytes(reinterpret_cast<uint8_t*>(pixels), nullptr, width * 2);
+#else
+          _spi->transfer(pixels, nullptr, width * 2);
+#endif
+        }
+        set_CS(HIGH);
+        _spi->endTransaction();
+        if (_serviceRadio) _serviceRadio();
+      }
+      rtos_free(pixels);
     }
 
  virtual void resetOrientation() {

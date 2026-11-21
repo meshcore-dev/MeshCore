@@ -1,6 +1,6 @@
 #include "ST7789LCDDisplay.h"
 
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
 #include <esp_heap_caps.h>
 #include <new>
 #include <string.h>
@@ -80,7 +80,7 @@ bool ST7789LCDDisplay::prepareCanvas() {
   if (!_canvas || !_canvas->pixels()) {
     delete _canvas;
     _canvas = nullptr;
-    Serial.println("WARN: T-Deck display PSRAM allocation failed; using direct redraw");
+    Serial.println("WARN: display PSRAM allocation failed");
     return false;
   }
   return true;
@@ -183,7 +183,7 @@ ColorVal UIColor::corp_blue = 0x001A;
 
 bool ST7789LCDDisplay::begin() {
   if (!_isOn) {
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
     if (_panel_ready) {
       if (_peripher_power) _peripher_power->claim();
       if (PIN_TFT_LEDA_CTL != -1) digitalWrite(PIN_TFT_LEDA_CTL, HIGH);
@@ -203,7 +203,13 @@ bool ST7789LCDDisplay::begin() {
       displaySPI.begin(PIN_TFT_SCL, PIN_TFT_MISO, PIN_TFT_SDA, PIN_TFT_CS);
     #endif
 
+#ifdef LILYGO_TLORA_PAGER
+    // The 222-pixel glass is centered in the controller's 320-column RAM.
+    display.init(222, 480, 0, 49, ST7796S_BGR);
+    display.invertDisplay(true);
+#else
     display.init(DISPLAY_WIDTH, DISPLAY_HEIGHT);
+#endif
     display.setRotation(DISPLAY_ROTATION);
 
     display.setSPISpeed(40e6);
@@ -214,9 +220,17 @@ bool ST7789LCDDisplay::begin() {
     display.cp437(true); // Use full 256 char 'Code Page 437' font
   
     _isOn = true;
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
     _panel_ready = true;
+#ifdef LILYGO_TLORA_PAGER
+    if (!prepareCanvas()) {
+      turnOff();
+      _panel_ready = false;
+      return false;
+    }
+#else
     if (_buffered_rendering) prepareCanvas();
+#endif
 #endif
   }
 
@@ -245,7 +259,7 @@ void ST7789LCDDisplay::turnOff() {
 }
 
 void ST7789LCDDisplay::clear() {
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   if (!_isOn) return;
   if (isBufferedRendering()) {
     _canvas->fillScreen(ST77XX_BLACK);
@@ -257,7 +271,7 @@ void ST7789LCDDisplay::clear() {
 }
 
 void ST7789LCDDisplay::startFrame(ColorVal bkg) {
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   if (!_isOn) return;
   if (isBufferedRendering()) {
     _frame_active = true;
@@ -276,7 +290,7 @@ void ST7789LCDDisplay::startFrame(ColorVal bkg) {
 }
 
 void ST7789LCDDisplay::setTextSize(int sz) {
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   if (!_isOn) return;
   if (isBufferedRendering()) {
     _canvas->setTextSize(sz * DISPLAY_SCALE_X);
@@ -287,7 +301,7 @@ void ST7789LCDDisplay::setTextSize(int sz) {
 }
 
 void ST7789LCDDisplay::setColor(ColorVal c) {
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   if (!_isOn) return;
   if (isBufferedRendering()) {
     _canvas->setTextColor(_color = c);
@@ -298,7 +312,7 @@ void ST7789LCDDisplay::setColor(ColorVal c) {
 }
 
 void ST7789LCDDisplay::setCursor(int x, int y) {
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   if (!_isOn) return;
   if (isBufferedRendering()) {
     _canvas->setCursor(x * DISPLAY_SCALE_X, y * DISPLAY_SCALE_Y);
@@ -309,7 +323,7 @@ void ST7789LCDDisplay::setCursor(int x, int y) {
 }
 
 void ST7789LCDDisplay::print(const char* str) {
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   if (!_isOn) return;
   if (isBufferedRendering()) {
     int16_t x, y;
@@ -324,7 +338,7 @@ void ST7789LCDDisplay::print(const char* str) {
 }
 
 void ST7789LCDDisplay::fillRect(int x, int y, int w, int h) {
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   if (!_isOn) return;
   if (isBufferedRendering()) {
     x *= DISPLAY_SCALE_X; y *= DISPLAY_SCALE_Y;
@@ -338,7 +352,7 @@ void ST7789LCDDisplay::fillRect(int x, int y, int w, int h) {
 }
 
 void ST7789LCDDisplay::drawRect(int x, int y, int w, int h) {
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   if (!_isOn) return;
   if (isBufferedRendering()) {
     x *= DISPLAY_SCALE_X; y *= DISPLAY_SCALE_Y;
@@ -352,7 +366,7 @@ void ST7789LCDDisplay::drawRect(int x, int y, int w, int h) {
 }
 
 void ST7789LCDDisplay::drawXbm(int x, int y, const uint8_t* bits, int w, int h) {
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   if (!_isOn) return;
   Adafruit_GFX& target = isBufferedRendering() ? static_cast<Adafruit_GFX&>(*_canvas) : display;
 #else
@@ -374,14 +388,14 @@ void ST7789LCDDisplay::drawXbm(int x, int y, const uint8_t* bits, int w, int h) 
       }
     }
   }
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   if (isBufferedRendering()) finishCanvasPrimitive(x * DISPLAY_SCALE_X, y * DISPLAY_SCALE_Y,
       w * DISPLAY_SCALE_X + 1, h * DISPLAY_SCALE_X + 1);
 #endif
 }
 
 uint16_t ST7789LCDDisplay::getTextWidth(const char* str) {
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   if (!_isOn) return 0;
   if (isBufferedRendering()) {
     int16_t x, y;
@@ -398,7 +412,7 @@ uint16_t ST7789LCDDisplay::getTextWidth(const char* str) {
 }
 
 void ST7789LCDDisplay::endFrame() {
-#ifdef LILYGO_TDECK
+#ifdef MESHCORE_BUFFERED_SPI_DISPLAY
   _frame_active = false;
   if (isBufferedRendering()) flushCanvas(0, 0, display.width(), display.height());
 #endif
