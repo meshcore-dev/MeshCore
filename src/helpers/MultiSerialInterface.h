@@ -26,6 +26,7 @@ private:
 
   bool _enabled = false;
   RegisteredInterface _interfaces[MAX_INTERFACES] = {};
+  BaseSerialInterface* _replyInterface = nullptr;
 
 public:
   bool addInterface(InterfaceType type, BaseSerialInterface* iface) {
@@ -56,6 +57,7 @@ public:
     // find and remove interface
     for(int i = 0; i < MAX_INTERFACES; i++){
       if(_interfaces[i].instance == iface){
+        if (_replyInterface == iface) _replyInterface = nullptr;
         _interfaces[i] = {};
         return true;
       }
@@ -103,6 +105,7 @@ public:
   // disable all interfaces
   void disable() override {
     _enabled = false;
+    _replyInterface = nullptr;
     for(auto iface : _interfaces){
       if(iface.instance){
         iface.instance->disable();
@@ -177,7 +180,13 @@ public:
     return allSuccessful ? len : 0; 
   }
 
+  size_t writeReplyFrame(const uint8_t src[], size_t len) override {
+    if (!_enabled || !_replyInterface || !_replyInterface->isEnabled() || len == 0) return 0;
+    return _replyInterface->writeFrame(src, len);
+  }
+
   size_t checkRecvFrame(uint8_t dest[]) override {
+    _replyInterface = nullptr;
     // don't read when disabled
     if(!_enabled){
       return 0;
@@ -188,6 +197,7 @@ public:
       if(iface.instance && iface.instance->isEnabled()){
         size_t frameSize = iface.instance->checkRecvFrame(dest);
         if(frameSize > 0){
+          _replyInterface = iface.instance;
           return frameSize; 
         }
       }

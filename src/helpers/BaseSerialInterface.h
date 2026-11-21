@@ -18,5 +18,7 @@ public:
 
   virtual bool isWriteBusy() const = 0;
   virtual size_t writeFrame(const uint8_t src[], size_t len) = 0;
+  // Reply to the request most recently returned by checkRecvFrame().
+  virtual size_t writeReplyFrame(const uint8_t src[], size_t len) { return writeFrame(src, len); }
   virtual size_t checkRecvFrame(uint8_t dest[]) = 0;
 };

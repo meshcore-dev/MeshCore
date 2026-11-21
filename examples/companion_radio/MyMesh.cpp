@@ -245,18 +245,21 @@ void MyMesh::addToOfflineQueue(const uint8_t frame[], int len) {
   }
 }
 
-int MyMesh::getFromOfflineQueue(uint8_t frame[]) {
-  if (offline_queue_len > 0) {         // check offline queue
-    size_t len = offline_queue[0].len; // take from top of queue
-    memcpy(frame, offline_queue[0].buf, len);
-
-    offline_queue_len--;
-    for (int i = 0; i < offline_queue_len; i++) { // delete top item from queue
-      offline_queue[i] = offline_queue[i + 1];
-    }
-    return len;
+void MyMesh::syncNextOfflineMessage() {
+  if (offline_queue_len == 0) {
+    const uint8_t response[] = {RESP_CODE_NO_MORE_MESSAGES};
+    _serial->writeReplyFrame(response, sizeof(response));
+    return;
   }
-  return 0; // queue is empty
+
+  const Frame& message = offline_queue[0];
+  if (_serial->writeReplyFrame(message.buf, message.len) != message.len) return;
+
+  --offline_queue_len;
+  for (int i = 0; i < offline_queue_len; ++i) {
+    offline_queue[i] = offline_queue[i + 1];
+  }
+  if (_listener) _listener->onQueueSizeChanged(offline_queue_len);
 }
 
 float MyMesh::getAirtimeBudgetFactor() const {
@@ -1403,14 +1406,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     }
   } else if (cmd_frame[0] == CMD_SYNC_NEXT_MESSAGE) {
-    int out_len;
-    if ((out_len = getFromOfflineQueue(out_frame)) > 0) {
-      _serial->writeFrame(out_frame, out_len);
-      if (_listener) _listener->onQueueSizeChanged(offline_queue_len);
-    } else {
-      out_frame[0] = RESP_CODE_NO_MORE_MESSAGES;
-      _serial->writeFrame(out_frame, 1);
-    }
+    syncNextOfflineMessage();
   } else if (cmd_frame[0] == CMD_SET_RADIO_PARAMS) {
     int i = 1;
     uint32_t freq;
