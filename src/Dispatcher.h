@@ -4,6 +4,7 @@
 #include <Identity.h>
 #include <Packet.h>
 #include <Utils.h>
+#include <RadioProfiles.h>
 #include <string.h>
 
 namespace mesh {
@@ -22,6 +23,25 @@ public:
 class Radio {
 public:
   virtual void begin() { }
+  virtual RadioProfiles* profiles() { return nullptr; }
+  virtual const RadioProfiles* profiles() const { return nullptr; }
+  virtual bool validateProfile(const RadioProfileParams&) const { return false; }
+  virtual uint8_t receiveProfile() const { return 0; }
+  virtual uint32_t receiveProfileGeneration() const {
+    const auto* p = profiles();
+    return p ? p->generation[receiveProfile()] : 0;
+  }
+  virtual RadioParamApplyResult prepareTransmitProfile(uint8_t profile) {
+    return profile == 0 ? RadioParamApplyResult::APPLIED : RadioParamApplyResult::FAILED;
+  }
+  virtual RadioParamApplyResult trySetPrimaryParams(const RadioProfileParams&, bool = false,
+                                                   const uint32_t* = nullptr) {
+    return RadioParamApplyResult::FAILED;
+  }
+  virtual uint16_t profilePreamble(uint8_t) const { return 0; }
+  virtual uint32_t getProfileAirtime(uint8_t, int len_bytes, uint8_t = 0) {
+    return getEstAirtimeFor(len_bytes);
+  }
 
   /**
    * \brief  polls for incoming raw packet.
@@ -89,7 +109,10 @@ public:
   virtual Packet* allocNew() = 0;
   virtual void free(Packet* packet) = 0;
 
-  virtual void queueOutbound(Packet* packet, uint8_t priority, uint32_t scheduled_for) = 0;
+  // On rejection the caller retains ownership of the packet.
+  virtual bool queueOutbound(Packet* packet, uint8_t priority, uint32_t scheduled_for) = 0;
+  virtual Packet* peekNextOutbound(uint32_t now) const = 0;
+  virtual bool deferOutbound(Packet* packet, uint32_t scheduled_for) = 0;
   virtual Packet* getNextOutbound(uint32_t now) = 0;    // by priority
   virtual int getOutboundCount(uint32_t now) const = 0;
   virtual int getOutboundTotal() const = 0;
@@ -128,11 +151,39 @@ class Dispatcher {
   unsigned long tx_budget_ms;
   unsigned long last_budget_update;
   unsigned long duty_cycle_window_ms;
+  uint8_t receive_context_profile = 0;
+  uint32_t receive_context_generation = 0;
+  bool receive_context_active = false;
+  uint32_t profile_cad_busy_start[2] = {};
+  uint32_t profile_cad_generation[2] = {};
+  bool profile_cad_busy_active[2] = {};
+  uint32_t next_transmit_token = 0;
 
   void processRecvPacket(Packet* pkt);
   void updateTxBudget();
 
 protected:
+  class ReceiveProfileScope {
+    Dispatcher& owner;
+    uint8_t old_profile;
+    uint32_t old_generation;
+    bool old_active;
+  public:
+    ReceiveProfileScope(Dispatcher& dispatcher, uint8_t profile, uint32_t generation)
+        : owner(dispatcher), old_profile(owner.receive_context_profile),
+          old_generation(owner.receive_context_generation), old_active(owner.receive_context_active) {
+      owner.receive_context_profile = profile;
+      owner.receive_context_generation = generation;
+      owner.receive_context_active = true;
+    }
+    ~ReceiveProfileScope() {
+      owner.receive_context_profile = old_profile;
+      owner.receive_context_generation = old_generation;
+      owner.receive_context_active = old_active;
+    }
+    ReceiveProfileScope(const ReceiveProfileScope&) = delete;
+    ReceiveProfileScope& operator=(const ReceiveProfileScope&) = delete;
+  };
   PacketManager* _mgr;
   Radio* _radio;
   MillisecondClock* _ms;
@@ -161,6 +212,9 @@ protected:
   virtual void logRx(Packet* packet, int len, float score) { }   // hooks for custom logging
   virtual void logTx(Packet* packet, int len) { }
   virtual void logTxFail(Packet* packet, int len) { }
+  // One result per physical copy. A crossed response can fail on one profile
+  // and succeed on the other; callers commit only after an observed success.
+  virtual void onTransmitResult(uint32_t token, bool success) { }
   virtual const char* getLogDateTime() { return ""; }
 
   virtual float getAirtimeBudgetFactor() const;
@@ -175,6 +229,17 @@ protected:
 public:
   void begin();
   void loop();
+  Radio* getProfileRadio() { return _radio; }
+  bool isDualRadioActive() const { return _radio->profiles() && _radio->profiles()->enabled(); }
+  bool hasOutbound() const { return outbound != nullptr; }
+  bool hasPendingTransmissions() const { return outbound != nullptr || _mgr->getOutboundTotal() != 0; }
+  uint32_t reserveTransmitToken() {
+    if (++next_transmit_token == 0) ++next_transmit_token;
+    return next_transmit_token;
+  }
+  void setTransmitToken(Packet* packet, uint32_t token) {
+    if (packet) packet->transmit_token = token;
+  }
 
   Packet* obtainNewPacket();
   void releasePacket(Packet* packet);
@@ -199,6 +264,7 @@ public:
   bool tryParsePacket(Packet* pkt, const uint8_t* raw, int len);
 
 private:
+  bool isPacketRadioCurrent(const Packet* packet) const;
   void checkRecv();
   void checkSend();
 };

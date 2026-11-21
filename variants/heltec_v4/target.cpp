@@ -1,11 +1,19 @@
 #include <Arduino.h>
 #include "target.h"
+#if defined(USE_SX1262)
+#include <helpers/radiolib/ESP32BufferedRadioHal.h>
+#endif
 
 HeltecV4Board board;
 
 #if defined(P_LORA_SCLK)
   static SPIClass spi;
+#if defined(USE_SX1262)
+  static ESP32BufferedRadioHal radio_hal(spi);
+  RADIO_CLASS radio = new Module(&radio_hal, P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
+#else
   RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
+#endif
 #else
   RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 #endif

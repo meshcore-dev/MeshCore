@@ -750,6 +750,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         temp[4] = (TXT_TYPE_CLI_DATA << 2); // NOTE: legacy was: TXT_TYPE_PLAIN
 
         auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
+        _prefs.getRadioPrefs()->profileCLI().attachReply(reply);
         if (reply) {
           if (client->out_path_len == OUT_PATH_UNKNOWN) {
             sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
@@ -979,6 +980,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
 #endif
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+  _prefs.getRadioPrefs()->profileCLI().begin(*_prefs.getRadioPrefs(), radio_driver, *getRTCClock(), this);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
 
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
@@ -1292,7 +1294,10 @@ void MyMesh::loop() {
   bridge.loop();
 #endif
 
+  auto& profiles = _prefs.getRadioPrefs()->profileCLI();
+  profiles.loop(!hasPendingTransmissions());
   mesh::Mesh::loop();
+  if (profiles.saveDue()) savePrefs();
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
@@ -1334,6 +1339,8 @@ void MyMesh::loop() {
 
 // To check if there is pending work
 bool MyMesh::hasPendingWork() const {
+  if (_prefs.getRadioPrefs()->profileCLI().needsService()) return true;
+  if (radio_driver.profiles() && radio_driver.profiles()->enabled()) return true;
 #if defined(WITH_BRIDGE)
   if (bridge.isRunning()) return true;  // bridge needs WiFi radio, can't sleep
 #endif

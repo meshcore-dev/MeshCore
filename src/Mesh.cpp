@@ -15,7 +15,10 @@ bool Mesh::allowPacketForward(const mesh::Packet* packet) {
   return false;  // by default, Transport NOT enabled
 }
 uint32_t Mesh::getRetransmitDelay(const mesh::Packet* packet) { 
-  uint32_t t = (_radio->getEstAirtimeFor(packet->getRawLength()) * 52 / 50) / 2;
+  uint32_t airtime = _radio->profiles()
+      ? _radio->getProfileAirtime(packet->radio_profile, packet->getRawLength())
+      : _radio->getEstAirtimeFor(packet->getRawLength());
+  uint32_t t = (airtime * 52 / 50) / 2;
 
   return _rng->nextInt(0, 5)*t;
 }

@@ -49,6 +49,11 @@ public:
   uint8_t path[MAX_PATH_SIZE];
   uint8_t payload[MAX_PACKET_PAYLOAD];
   int8_t _snr;
+  // Local routing/session metadata; deliberately absent from the wire format.
+  uint32_t radio_generation = 0, radio_origin_generation = 0;
+  uint8_t radio_profile = 0, radio_origin = 0;
+  bool radio_bound = false;  // queued copies retain one target, without fanout
+  uint32_t transmit_token = 0;  // local completion tag, also shared by fanout copies
 
   /**
    * \brief calculate the hash of payload + type

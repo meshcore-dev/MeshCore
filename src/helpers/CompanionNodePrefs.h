@@ -104,6 +104,7 @@ private:
     NodePrefs* _parent;
   protected:
     void structure() override {
+      CommonRadioPrefs::structure();
       def("freq", _parent->freq);
       def("bw", _parent->bw);
       def("sf", _parent->sf);
@@ -317,6 +318,7 @@ public:
   void setRepeatEn(bool en) { repeat.disable_fwd = en ? 0 : 1; }
 
   CommonRadioPrefs* getRadioPrefs() { return &radio; }
+  const CommonRadioPrefs* getRadioPrefs() const { return &radio; }
   CommonGpsPrefs* getGpsPrefs() { return &gps; }
   KeyValueStore* getCustom() { return &custom; }
 
