@@ -1759,7 +1759,7 @@ void MyMesh::handleCmdFrame(size_t len) {
   } else if (cmd_frame[0] == CMD_SET_CHANNEL && len >= 2 + 32 + 16) {
     uint8_t channel_idx = cmd_frame[1];
     ChannelDetails channel;
-    StrHelper::strncpy(channel.name, (char *)&cmd_frame[2], 32);
+    StrHelper::strzcpy(channel.name, (char *)&cmd_frame[2], 32);
     memset(channel.channel.secret, 0, sizeof(channel.channel.secret));
     memcpy(channel.channel.secret, &cmd_frame[2 + 32], 16); // NOTE: only 128-bit supported
     if (setChannel(channel_idx, channel)) {
