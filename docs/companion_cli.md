@@ -80,6 +80,20 @@ Since version 1.18 meshcore companion radio firmware has a CLI interface, which 
 
 ---
 
+#### View or change the buzzer state
+**Usage:**
+- `get buzzer`
+- `set buzzer <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `on`
+
+**Note:** Only available on boards with a buzzer (`PIN_BUZZER`). This is the same setting as the buzzer toggle in the device UI.
+
+---
+
 ### Radio
 
 Radio parameters are common to all roles and handled by `CommonRadioPrefs`.
