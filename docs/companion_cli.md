@@ -591,6 +591,21 @@ When screen is blanked, the controller is also put into hibernation, which shoul
 
 ---
 
+#### Keep message previews when the eink screen turns off
+**Usage:**
+- `set ui.auto_off_keep_msgs <state>`
+- `get ui.auto_off_keep_msgs`
+
+**Parameters:**
+- `state`: `0` (disable) or `1` (enable)
+
+**Default:** `1`
+
+**Note:**
+Only has an effect when `ui.auto_off_blank` is enabled. If the message preview screen is showing when the screen turns off, it is left on screen instead of being blanked.
+
+---
+
 #### Maximum number of partial refreshes
 **Usage:**
 - `set ui.max_partial <value>`
