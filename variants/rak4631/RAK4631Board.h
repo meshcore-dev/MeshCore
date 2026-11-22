@@ -10,6 +10,7 @@
 
 class RAK4631Board : public NRF52BoardDCDC {
 protected:
+  uint32_t btn_press_start = 0;
 #ifdef NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
 #endif
@@ -17,6 +18,7 @@ protected:
 public:
   RAK4631Board() : NRF52Board("RAK4631_OTA") {}
   void begin();
+  void loop() override;
 
   #define BATTERY_SAMPLES 8
 
@@ -35,4 +37,6 @@ public:
   const char* getManufacturerName() const override {
     return "RAK 4631";
   }
+
+  void powerOff() override;
 };
