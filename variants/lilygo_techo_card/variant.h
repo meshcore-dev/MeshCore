@@ -118,8 +118,6 @@
 // examples switch the GPS on/off by driving GPS_WAKE_UP and GPS_RF_EN together.
 // TODO: MAYBE? migrate to board based sensor manager / add GPS_WAKE_UP to ESM
 
-#define GPS_L76K                     // Quectel L76K: applies GPS+BDS+GLONASS config on start
-
 #define PIN_GPS_RX              (21) // GPS_UART_RX in lilygo pin defs
 #define PIN_GPS_TX              (19) // GPS_UART_TX in lilygo pin defs
 #define PIN_GPS_EN              (25) // GPS_WAKE_UP in lilygo pin defs
