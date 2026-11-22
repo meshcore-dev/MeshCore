@@ -1,11 +1,17 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <SPI.h>
 #include "nrf_gpio.h"
 
 #include "RAK4631Board.h"
+#include "target.h"
 
 #if __has_include(<bluefruit.h>)
 #include <bluefruit.h>
+#endif
+
+#ifdef USE_CC310_HW_CRYPTO
+#include <Adafruit_nRFCrypto.h>
 #endif
 
 #ifdef ETHERNET_ENABLED
@@ -112,6 +118,23 @@ void RAK4631Board::initiateShutdown(uint8_t reason) {
   Wire.endTransmission();
 #endif
 
+  Wire.end();
+
+  // Put SX1262 LoRa radio into deep sleep mode
+#ifdef P_LORA_NSS
+  pinMode(P_LORA_NSS, OUTPUT);
+  digitalWrite(P_LORA_NSS, HIGH);
+#endif
+  radio_driver.powerOff();
+
+  // SX126x stays in sleep only while NSS is held HIGH.
+  // Leaving NSS floating or pulling it low would wake the radio.
+#ifdef P_LORA_NSS
+  digitalWrite(P_LORA_NSS, HIGH);
+#endif
+
+  SPI.end();
+
   // Disconnect LoRa pins and detach RadioLib interrupts before powering down
   // Otherwise, the collapsing power rail on the SX1262 triggers a false DETECT wakeup
   detachInterrupt(digitalPinToInterrupt(P_LORA_DIO_1));
@@ -122,13 +145,25 @@ void RAK4631Board::initiateShutdown(uint8_t reason) {
 #ifdef P_LORA_RESET
   nrf_gpio_cfg_default(g_ADigitalPinMap[P_LORA_RESET]);
 #endif
-#ifdef P_LORA_NSS
-  nrf_gpio_cfg_default(g_ADigitalPinMap[P_LORA_NSS]);
-#endif
   nrf_gpio_cfg_default(g_ADigitalPinMap[P_LORA_DIO_1]);
 
-  // Disable LoRa module power before shutdown
+  // Disable LoRa RF switch power before shutdown
   digitalWrite(SX126X_POWER_EN, LOW);
+
+  // Power off GPS if active
+  if (sensors.getLocationProvider() != NULL) {
+    sensors.getLocationProvider()->stop();
+  }
+
+  // Turn off WisBlock 3V3_S peripheral slot rail (powers slot modules, GPS, sensors)
+#if defined(WB_IO2)
+  pinMode(WB_IO2, OUTPUT);
+  digitalWrite(WB_IO2, LOW);
+#endif
+
+#ifdef USE_CC310_HW_CRYPTO
+  nRFCrypto.end();
+#endif
 
 #if defined(BOARD_BUTTON_PIN)
 #if defined(PIN_USER_BTN_ANA) && (PIN_USER_BTN_ANA >= 0)
