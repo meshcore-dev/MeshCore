@@ -20,6 +20,7 @@ Once you have a working app/project, you need to be able to demonstrate it exist
 | 0120            | MCO Advanced                | most.original.address@gmail.com — https://hdden.ru/MCOa/          |
 | 0130 - 013F     | StreamSensor                | william@housedillon.com - https://housedillon.com/blog/lora-e5-with-seeed-fusion |
 | 0140            | Nelos                       | support@nelos.app — https://nelos.app                             |
+| 0150            | Road Events                 | juraj@bednar.io — https://github.com/jooray/roadbeacon/blob/main/nips/road-events.md |
 | FF00 - FFFF     | -reserved for testing/dev-  |                                                                   |
 
 (add rows, inside the range 0100 - FEFF for custom apps)

@@ -12,6 +12,7 @@
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/NullDisplayDriver.h>
   #include <helpers/ui/MomentaryButton.h>
+  #include <UITask.h>
 #endif
 
 extern MinewsemiME25LS01Board board;
@@ -21,6 +22,7 @@ extern EnvironmentSensorManager sensors;
 #ifdef DISPLAY_CLASS
   extern DISPLAY_CLASS display;
   extern MomentaryButton user_btn;
+  extern UITask ui_task;
 #endif
 
 bool radio_init();

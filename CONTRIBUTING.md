@@ -18,6 +18,15 @@ Thanks for considering contributing to this project!
 
 ### 3. Submitting Code Changes (Pull Requests)
 
+The project receives far more code than it is able to process.
+To increase the likelihood of your PR being accepted, please consider
+the following:
+
+- **Keep it small.** Changes of about 10 lines or fewer were merged 64% of the time; changes over 1000 lines, 10%.
+- **Keep the description short.** A few sentences on what changed and why is enough. Longer descriptions were merged less often.
+- **Build a track record with small fixes first.** First-time contributors were merged 31% of the time, rising to 74% after 10 merged PRs.
+- **Open the PR when it is ready for review, not as a draft.**
+
 #### Small fixes (typos, comments, examples, small bug fixes)
 → Just open a pull request — no prior issue needed
 
@@ -51,6 +60,15 @@ Please follow the existing C++ style (per the .clang-format)
 - Keep lines < ~100 characters when reasonable
 
 (But consistency with existing code is more important than strict rules)
+
+## LLM Agent Specific Advice
+
+- **Have a human read and understand every line before opening the PR.** Check every claim in the description against the code.
+- **Search open PRs first** so you don't duplicate one that's already waiting.
+- **Pick a subsystem maintainers are actively merging in.** If several PRs for the same board or feature have sat for weeks with no response, a new one will likely sit too.
+- **Prefer low-risk changes.** Build fixes and documentation fixes merge most often (about 61% and 64%). Changes to protocol or behavior, and crash or overflow fixes, get much more scrutiny.
+- **Make a minimal diff in the existing style.** Don't reformat, rename, or "tidy" code next to your change.
+- **Don't use a templated description.** Lots of headings and boilerplate on a small change reads as generated. Just say what changed, why, and what hardware you tested on.
 
 ## Thank You!
 

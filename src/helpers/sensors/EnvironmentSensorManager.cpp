@@ -160,56 +160,6 @@ static Adafruit_VL53L0X VL53L0X;
 static RAK12035_SoilMoisture RAK12035;
 #endif
 
-#if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
-#define RAK_WISBLOCK_GPS
-#endif
-
-#ifdef RAK_WISBLOCK_GPS
-static uint32_t gpsResetPin = 0;
-static bool i2cGPSFlag = false;
-static bool serialGPSFlag = false;
-#ifndef TELEM_RAK12500_ADDRESS
-#define TELEM_RAK12500_ADDRESS   0x42     //RAK12500 Ublox GPS via i2c
-#endif
-#include <SparkFun_u-blox_GNSS_Arduino_Library.h>
-static SFE_UBLOX_GNSS ublox_GNSS;
-
-class RAK12500LocationProvider : public LocationProvider {
-  long _lat = 0;
-  long _lng = 0;
-  long _alt = 0;
-  int _sats = 0;
-  long _epoch = 0;
-  bool _fix = false;
-public:
-  long getLatitude() override { return _lat; }
-  long getLongitude() override { return _lng; }
-  long getAltitude() override { return _alt; }
-  long satellitesCount() override { return _sats; }
-  bool isValid() override { return _fix; }
-  long getTimestamp() override { return _epoch; }
-  void sendSentence(const char * sentence) override { }
-  void reset() override { }
-  void begin() override { }
-  void stop() override { }
-  void loop() override {
-    if (ublox_GNSS.getGnssFixOk(8)) {
-      _fix = true;
-      _lat = ublox_GNSS.getLatitude(2) / 10;
-      _lng = ublox_GNSS.getLongitude(2) / 10;
-      _alt = ublox_GNSS.getAltitude(2);
-      _sats = ublox_GNSS.getSIV(2);
-    } else {
-      _fix = false;
-    }
-    _epoch = ublox_GNSS.getUnixEpoch(2);
-  }
-  bool isEnabled() override { return true; }
-};
-
-static RAK12500LocationProvider RAK12500_provider;
-#endif
-
 // ============================================================
 // I2C bus scanner
 // Probes every valid address and records which ones ACK.
@@ -375,14 +325,17 @@ static void query_ina3221(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
 #endif
 
 #if ENV_INCLUDE_INA219
-static uint8_t init_ina219(TwoWire* wire, uint8_t) {
-  // INA219 static instance was constructed with the address; begin() uses it.
-  return INA219.begin(wire) ? 1 : 0;
+static Adafruit_INA219 INA219_ALT((TELEM_INA219_ADDRESS == 0x40) ? 0x41 : 0x40);
+static Adafruit_INA219* active_ina219 = &INA219;
+
+static uint8_t init_ina219(TwoWire* wire, uint8_t addr) {
+  active_ina219 = (addr == TELEM_INA219_ADDRESS) ? &INA219 : &INA219_ALT;
+  return active_ina219->begin(wire) ? 1 : 0;
 }
 static void query_ina219(uint8_t ch, uint8_t, CayenneLPP& lpp) {
-  lpp.addVoltage(ch, INA219.getBusVoltage_V());
-  lpp.addCurrent(ch, INA219.getCurrent_mA() / 1000.0f);
-  lpp.addPower(ch, INA219.getPower_mW() / 1000.0f);
+  lpp.addVoltage(ch, active_ina219->getBusVoltage_V());
+  lpp.addCurrent(ch, active_ina219->getCurrent_mA() / 1000.0f);
+  lpp.addPower(ch, active_ina219->getPower_mW() / 1000.0f);
 }
 #endif
 
@@ -554,6 +507,7 @@ struct SensorDef {
 };
 
 #define TELEM_BOSCH_ALT_ADDR(addr) ((uint8_t)((addr) == 0x76 ? 0x77 : 0x76))
+#define TELEM_INA219_ALT_ADDR(addr) ((uint8_t)((addr) == 0x40 ? 0x41 : 0x40))
 
 static const SensorDef SENSOR_TABLE[] = {
 #if ENV_INCLUDE_AHTX0
@@ -589,6 +543,7 @@ static const SensorDef SENSOR_TABLE[] = {
 #endif
 #if ENV_INCLUDE_INA219
   { TELEM_INA219_ADDRESS,  "INA219",       init_ina219,   query_ina219   },
+  { TELEM_INA219_ALT_ADDR(TELEM_INA219_ADDRESS), "INA219", init_ina219, query_ina219 },
 #endif
 #if ENV_INCLUDE_INA260
   { TELEM_INA260_ADDRESS,  "INA260",       init_ina260,   query_ina260   },
@@ -612,6 +567,7 @@ static const SensorDef SENSOR_TABLE[] = {
 };
 
 #undef TELEM_BOSCH_ALT_ADDR
+#undef TELEM_INA219_ALT_ADDR
 
 static const size_t SENSOR_TABLE_SIZE = (sizeof(SENSOR_TABLE) / sizeof(SENSOR_TABLE[0])) - 1;
 
@@ -624,11 +580,7 @@ static const size_t SENSOR_TABLE_SIZE = (sizeof(SENSOR_TABLE) / sizeof(SENSOR_TA
 
 bool EnvironmentSensorManager::begin() {
   #if ENV_INCLUDE_GPS
-  #ifdef RAK_WISBLOCK_GPS
-  rakGPSInit();
-  #else
   initBasicGPS();
-  #endif
   #endif
 
   #if ENV_PIN_SDA && ENV_PIN_SCL
@@ -684,9 +636,11 @@ bool EnvironmentSensorManager::begin() {
 bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) {
   next_available_channel = TELEM_CHANNEL_SELF + 1;
 
-  if (requester_permissions & TELEM_PERM_LOCATION && gps_active) {
+  #if ENV_INCLUDE_GPS
+  if (requester_permissions & TELEM_PERM_LOCATION && _location->isGpsOn()) {
     telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude);
   }
+  #endif
 
   if (requester_permissions & TELEM_PERM_ENVIRONMENT) {
     for (int i = 0; i < _active_sensor_count; i++) {
@@ -702,7 +656,7 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 int EnvironmentSensorManager::getNumSettings() const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
-    if (gps_detected) settings++;  // only show GPS setting if GPS is detected
+    if (gps_detected) settings += 1;  // GPS enablement
   #endif
   return settings;
 }
@@ -721,7 +675,7 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
     if (gps_detected && i == settings++) {
-      return gps_active ? "1" : "0";
+      return _location->isGpsOn() ? "1" : "0";
     }
   #endif
   return NULL;
@@ -748,157 +702,16 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
 
 #if ENV_INCLUDE_GPS
 void EnvironmentSensorManager::initBasicGPS() {
-
-  Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
-
-  #ifdef GPS_BAUD_RATE
-  Serial1.begin(GPS_BAUD_RATE);
-  #else
-  Serial1.begin(9600);
-  #endif
-
-  // Try to detect if GPS is physically connected to determine if we should expose the setting
-  _location->begin();
-  _location->reset();
-
   #ifndef PIN_GPS_EN
     MESH_DEBUG_PRINTLN("No GPS wake/reset pin found for this board. Continuing on...");
   #endif
 
-  // Give the GPS time to power up and emit its first NMEA sentence. Cold-start
-  // modules can take several seconds, so poll for up to ~5s instead of checking
-  // once after a fixed 1s delay -- returning as soon as any data appears, so
-  // fast modules add no boot delay (issue #2258).
-#ifdef ENV_SKIP_GPS_DETECT
-  gps_detected = true;
-#else
-  gps_detected = false;
-  for (int i = 0; i < 20 && !gps_detected; i++) {
-    delay(250);
-    gps_detected = (Serial1.available() > 0);
-  }
-#endif
-
-  if (gps_detected) {
-    MESH_DEBUG_PRINTLN("GPS detected");
-    #ifdef PERSISTANT_GPS
-      gps_active = true;
-      return;
-    #endif
-  } else {
-    MESH_DEBUG_PRINTLN("No GPS detected");
-  }
-  _location->stop();
-  gps_active = false; //Set GPS visibility off until setting is changed
+  gps_detected = _location->autoDetect();
+  MESH_DEBUG_PRINTLN("%s", gps_detected ? "GPS detected" : "No GPS detected");
 }
-
-// gps code for rak might be moved to MicroNMEALoactionProvider
-// or make a new location provider ...
-#ifdef RAK_WISBLOCK_GPS
-void EnvironmentSensorManager::rakGPSInit(){
-
-  Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
-
-  #ifdef GPS_BAUD_RATE
-  Serial1.begin(GPS_BAUD_RATE);
-  #else
-  Serial1.begin(9600);
-  #endif
-
-  //search for the correct IO standby pin depending on socket used
-  if(gpsIsAwake(WB_IO2)){
-  }
-  else if(gpsIsAwake(WB_IO4)){
-  }
-  else if(gpsIsAwake(WB_IO5)){
-  }
-  else{
-    MESH_DEBUG_PRINTLN("No GPS found");
-    gps_active = false;
-    gps_detected = false;
-    Serial1.end();
-    return;
-  }
-
-  #ifndef FORCE_GPS_ALIVE // for use with repeaters, until GPS toggle is implimented
-  //Now that GPS is found and set up, set to sleep for initial state
-  stop_gps();
-  #endif
-}
-
-bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
-
-  #if defined(ETHERNET_ENABLED) && defined(RAK_BOARD)
-    if (ioPin == WB_IO2) {
-      // WB_IO2 powers the Ethernet module on RAK baseboards.
-      return false;
-    }
-  #endif
-
-  #ifndef RAK_3401
-  //set initial waking state
-  pinMode(ioPin,OUTPUT);
-  digitalWrite(ioPin,LOW);
-  delay(500);
-  digitalWrite(ioPin,HIGH);
-  #endif
-
-  // give gps time to power up
-  delay(500);
-
-  //Try to init RAK12500 on I2C
-  if (ublox_GNSS.begin(Wire) == true){
-    MESH_DEBUG_PRINTLN("RAK12500 GPS init correctly with pin %i",ioPin);
-    ublox_GNSS.setI2COutput(COM_TYPE_UBX);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GPS);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GALILEO);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GLONASS);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_SBAS);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_BEIDOU);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_IMES);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_QZSS);
-    ublox_GNSS.setMeasurementRate(1000);
-    ublox_GNSS.saveConfigSelective(VAL_CFG_SUBSEC_IOPORT);
-    gpsResetPin = ioPin;
-    i2cGPSFlag = true;
-    gps_active = true;
-    gps_detected = true;
-
-    _location = &RAK12500_provider;
-    return true;
-  } else if (Serial1.available()) {
-    MESH_DEBUG_PRINTLN("Serial GPS init correctly and is turned on");
-#ifdef PIN_GPS_EN
-    if(PIN_GPS_EN){
-      gpsResetPin = PIN_GPS_EN;
-    }
-#endif
-    serialGPSFlag = true;
-    gps_active = true;
-    gps_detected = true;
-    return true;
-  }
-
-  #ifndef RAK_3401
-  pinMode(ioPin, INPUT);
-  #endif
-  MESH_DEBUG_PRINTLN("GPS did not init with this IO pin... try the next");
-  return false;
-}
-#endif
 
 void EnvironmentSensorManager::start_gps() {
-  gps_active = true;
-  #ifdef RAK_WISBLOCK_GPS
-    #ifndef RAK_3401
-    pinMode(gpsResetPin, OUTPUT);
-    digitalWrite(gpsResetPin, HIGH);
-    #endif
-    return;
-  #endif
-
-  _location->begin();
-  _location->reset();
+  _location->setGpsOn(true);
 
 #ifndef PIN_GPS_EN
   MESH_DEBUG_PRINTLN("Start GPS is N/A on this board. Actual GPS state unchanged");
@@ -906,20 +719,11 @@ void EnvironmentSensorManager::start_gps() {
 }
 
 void EnvironmentSensorManager::stop_gps() {
-  gps_active = false;
-  #ifdef RAK_WISBLOCK_GPS
-    #ifndef RAK_3401 // rak3401 shouldn't turn off WB_IO2 as it powers the PA
-    pinMode(gpsResetPin, OUTPUT);
-    digitalWrite(gpsResetPin, LOW);
-    #endif
-    return;
-  #endif
+  _location->setGpsOn(false);
 
-  _location->stop();
-
-  #ifndef PIN_GPS_EN
+#ifndef PIN_GPS_EN
   MESH_DEBUG_PRINTLN("Stop GPS is N/A on this board. Actual GPS state unchanged");
-  #endif
+#endif
 }
 #endif // ENV_INCLUDE_GPS
 
@@ -928,29 +732,15 @@ void EnvironmentSensorManager::loop() {
 
   #if ENV_INCLUDE_GPS
   static unsigned long next_gps_update = 0;
-  if (gps_active) {
-    _location->loop();
-  }
+  _location->loop();
   if ((long)(millis() - next_gps_update) > 0) {
 
-    if(gps_active){
-    #ifdef RAK_WISBLOCK_GPS
-    if ((i2cGPSFlag || serialGPSFlag) && _location->isValid()) {
+    if (_location->isGpsOn() && _location->hasValidFix()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
       MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
-    }
-    #else
-    if (_location->isValid()) {
-      node_lat = ((double)_location->getLatitude())/1000000.;
-      node_lon = ((double)_location->getLongitude())/1000000.;
-      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
-      node_altitude = ((double)_location->getAltitude()) / 1000.0;
-      MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
-    }
-    #endif
     }
     next_gps_update = millis() + (gps_update_interval_sec * 1000);
   }

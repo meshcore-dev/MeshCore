@@ -13,17 +13,19 @@ VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #ifdef ENV_INCLUDE_GPS
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
+NmeaGpsDriver gps_driver(Serial1);
+MicroNMEALocationProvider nmea(gps_driver, &rtc_clock);
 EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
 #else
 EnvironmentSensorManager sensors = EnvironmentSensorManager();
 #endif
 
-
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
   MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
   MomentaryButton back_btn(PIN_BUTTON2, 1000, true);
+
+  UITask ui_task(&board, &display);
 #endif
 
 bool radio_init() {

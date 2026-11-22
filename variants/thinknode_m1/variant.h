@@ -146,3 +146,5 @@ extern const int SCK;
 #define PIN_GPS_PPS             (36)
 #define PIN_GPS_STANDBY         (34)
 #define PIN_GPS_SWITCH          (33)
+#define GPS_SWITCH_IS_HARDWARE  (0)
+#define GPS_SWITCH_TURNS_GPS_ON (1)

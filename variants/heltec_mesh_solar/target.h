@@ -11,10 +11,10 @@
 #include <helpers/ExternalWatchdogManager.h>
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/ST7789Display.h>
+  #include <UITask.h>
 #endif
 
 class SolarSensorManager : public SensorManager {
-  bool gps_active = false;
   bool gps_detected = false;
   LocationProvider* _location;
 
@@ -48,6 +48,7 @@ extern SolarExternalWatchdog external_watchdog;
 
 #ifdef DISPLAY_CLASS
   extern DISPLAY_CLASS display;
+  extern UITask ui_task;
 #endif
 
 bool radio_init();

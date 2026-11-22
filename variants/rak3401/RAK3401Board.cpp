@@ -2,6 +2,7 @@
 #include <Wire.h>
 
 #include "RAK3401Board.h"
+#include "OnboardRadioSleep.h"
 
 #ifdef NRF52_POWER_MANAGEMENT
 // Static configuration for power management
@@ -30,6 +31,8 @@ void RAK3401Board::initiateShutdown(uint8_t reason) {
 
 void RAK3401Board::begin() {
   NRF52BoardDCDC::begin();
+  // Voltage protection can enter SYSTEMOFF before radio_init() is reached.
+  rak3401::sleepOnboardRadio();
   pinMode(PIN_VBAT_READ, INPUT);
 #ifdef PIN_USER_BTN
   pinMode(PIN_USER_BTN, INPUT_PULLUP);
