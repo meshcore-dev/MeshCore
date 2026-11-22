@@ -21,6 +21,15 @@ protected:
   uint16_t _num_floor_samples;
   int32_t _floor_sample_sum;
   uint8_t _preamble_sf;
+  static volatile uint8_t state;
+
+  static constexpr int STATE_IDLE      = 0;
+  static constexpr int STATE_RX        = 1;
+  static constexpr int STATE_TX_WAIT   = 3;
+  static constexpr int STATE_TX_DONE   = 4;
+  static constexpr int STATE_INT_READY = 16;
+
+  static void setFlag(void);   // ISR
 
   void idle();
   void startRecv();

@@ -12,6 +12,9 @@
 #endif
 
 class CustomLR2021Wrapper : public RadioLibWrapper {
+  float snr, rssi;
+  uint8_t last_rx_packet_sf;
+
 public:
   CustomLR2021Wrapper(CustomLR2021& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
 
@@ -34,6 +37,48 @@ public:
     r->setPreambleMillis(pm.preambleMillis);      // pure in-memory setters, no standby needed
     r->setMaxPayloadMillis(pm.payloadMillis);
 
+  }
+
+  int recvRaw(uint8_t* bytes, int sz) override {
+    int len = 0;
+    if (state & STATE_INT_READY) {
+      uint8_t cr;
+      bool crc = false;;
+      uint8_t packetLen = 0;
+      uint8_t detector = 0;
+      ((CustomLR2021 *)_radio)->getLoRaPacketStatus(&cr, &crc, &packetLen, &snr, &rssi, NULL, &detector);
+      if (packetLen > 0) {
+        len = (packetLen > sz) ? sz : (int) packetLen;
+        int err = _radio->readData(bytes, len);
+        if (err == RADIOLIB_ERR_NONE && !crc) {
+          err = RADIOLIB_ERR_LORA_HEADER_DAMAGED;  // header says no CRC, so the payload was never checked
+        }
+        if (err != RADIOLIB_ERR_NONE) {
+          MESH_DEBUG_PRINTLN("RadioLibWrapper: error: readData(%d)", err);
+          len = 0;
+          n_recv_errors++;
+        } else {
+          //  Serial.print("  readData() -> "); Serial.println(len);
+          n_recv++;
+          if (detector == 0) {
+            last_rx_packet_sf = getSpreadingFactor();
+          } else {
+            last_rx_packet_sf = _sideDet[detector - 1].sf;
+          }
+        }
+      }
+      state = STATE_RX;     // LR2021 stays in Rx after readData, calling startReceive while still in Rx throws -706 errors
+    }
+
+    if (state != STATE_RX) {
+      int err = _radio->startReceive();
+      if (err == RADIOLIB_ERR_NONE) {
+        state = STATE_RX;
+      } else {
+        MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startReceive(%d)", err);
+      }
+    }
+    return len;
   }
 
   bool configSideDetectors(const uint8_t* sideDetSFs, uint8_t num, float bw) override {
@@ -101,8 +146,10 @@ public:
     _radio->setPreambleLength(preambleLengthForSF(getSpreadingFactor())); // overcomes weird issues with small and big pkts
   }
 
-  float getLastRSSI() const override { return ((CustomLR2021 *)_radio)->getRSSI(); }
-  float getLastSNR() const override { return ((CustomLR2021 *)_radio)->getSNR(); }
+  float getLastRSSI() const override { return rssi; }
+  float getLastSNR() const override { return snr; }
+
+  uint8_t getLastRxSpreadingFactor() const { return last_rx_packet_sf; }
 
   uint8_t getSpreadingFactor() const override { return ((CustomLR2021 *)_radio)->getSpreadingFactor(); }
   
