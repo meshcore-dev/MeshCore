@@ -429,11 +429,14 @@ void UITask::userLedHandler() {
   }
 #elif defined(PIN_STATUS_LED)
   static int state = 0;
-  static int next_change = 0;
-  static int last_increment = 0;
+  static unsigned long last_change = 0;
+  static unsigned long interval = 0;
+  static unsigned long last_increment = 0;
 
-  int cur_time = millis();
-  if (cur_time > next_change) {
+  unsigned long cur_time = millis();
+  // The unsigned difference stays correct when millis() overflows (after 49.7 days).
+  if (cur_time - last_change >= interval) {
+    last_change = cur_time;
     if (state == 0) {
       state = 1;
       if (_msgcount > 0) {
@@ -441,10 +444,10 @@ void UITask::userLedHandler() {
       } else {
         last_increment = LED_ON_MILLIS;
       }
-      next_change = cur_time + last_increment;
+      interval = last_increment;
     } else {
       state = 0;
-      next_change = cur_time + LED_CYCLE_MILLIS - last_increment;
+      interval = LED_CYCLE_MILLIS - last_increment;
     }
     digitalWrite(PIN_STATUS_LED, state == LED_STATE_ON);
   }

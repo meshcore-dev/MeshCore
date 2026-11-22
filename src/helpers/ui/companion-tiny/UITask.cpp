@@ -581,8 +581,10 @@ void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
 
 void UITask::userLedHandler() {
 #ifdef PIN_STATUS_LED
-  int cur_time = millis();
-  if (cur_time > next_led_change) {
+  unsigned long cur_time = millis();
+  // The unsigned difference stays correct when millis() overflows (after 49.7 days).
+  if (cur_time - last_led_change >= led_interval) {
+    last_led_change = cur_time;
     if (led_state == 0) {
       led_state = 1;
       if (_msgcount > 0) {
@@ -590,10 +592,10 @@ void UITask::userLedHandler() {
       } else {
         last_led_increment = LED_ON_MILLIS;
       }
-      next_led_change = cur_time + last_led_increment;
+      led_interval = last_led_increment;
     } else {
       led_state = 0;
-      next_led_change = cur_time + LED_CYCLE_MILLIS - last_led_increment;
+      led_interval = LED_CYCLE_MILLIS - last_led_increment;
     }
     digitalWrite(PIN_STATUS_LED, led_state == LED_STATE_ON);
   }

@@ -48,8 +48,9 @@ class UITask : public AbstractUITask {
   uint16_t _cached_batt_mv;
 #ifdef PIN_STATUS_LED
   int led_state = 0;
-  int next_led_change = 0;
-  int last_led_increment = 0;
+  unsigned long last_led_change = 0;
+  unsigned long led_interval = 0;
+  unsigned long last_led_increment = 0;
 #endif
 
 #ifdef PIN_USER_BTN_ANA
