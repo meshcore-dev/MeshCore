@@ -227,6 +227,10 @@ Flags stay set until the node reboots or `clear stats` is run.
 
 **Note:** Requires reboot to apply
 
+**Notes:** These settings control the setup of the radio parameters.
+Refer to the node's manual for the correct settings to use.
+**Setting a value too high or too low may violate the laws in your country.**
+
 ---
 
 #### View or change this node's transmit power
@@ -241,7 +245,9 @@ Flags stay set until the node reboots or `clear stats` is run.
 
 **Default:** Varies by board
 
-**Notes:** This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output. Refer to the node's manual for the correct setting to use. **Setting a value too high may violate the laws in your country.**
+**Notes:** This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output.
+Refer to the node's manual for the correct setting to use.
+**Setting a value too high may violate the laws in your country.**
 
 ---
 
@@ -255,6 +261,10 @@ Flags stay set until the node reboots or `clear stats` is run.
 - `sf`: Spreading factor (5-12)
 - `cr`: Coding rate (5-8)
 - `timeout_mins`: Duration in minutes (must be > 0)
+
+**Notes:** These settings control the setup of the radio parameters.
+Refer to the node's manual for the correct settings to use.
+**Setting a value too high or too low may violate the laws in your country.**
 
 **Note:** This is not saved to preferences and will clear on reboot
 
@@ -586,6 +596,9 @@ Flags stay set until the node reboots or `clear stats` is run.
 - `set dutycycle 1` — 1% duty cycle (strictest EU requirement)
 
 > **Note:** Added in firmware v1.15.0
+
+**Notes:** Refer to the node's manual for the correct settings to use.
+**Setting a value too high may violate the laws in your country.**
 
 ---
 
