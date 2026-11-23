@@ -12,6 +12,8 @@
 #define PIN_VBAT_READ     BATTERY_PIN
 #define REAL_VBAT_MV_PER_LSB (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
 
+#define M6_WATCHDOG_SECS            90
+
 class ThinkNodeM6Board : public NRF52BoardDCDC {
 protected:
 #if NRF52_POWER_MANAGEMENT
@@ -21,6 +23,7 @@ protected:
 public:
   ThinkNodeM6Board() : NRF52Board("THINKNODE_M6_OTA") {}
   void begin();
+  void loop() override;
   uint16_t getBattMilliVolts() override;
 
 #if defined(P_LORA_TX_LED)
