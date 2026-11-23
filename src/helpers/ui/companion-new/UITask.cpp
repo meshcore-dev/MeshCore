@@ -754,11 +754,10 @@ public:
 
     display.drawRect(0, 11, display.width(), 1);  // horiz line
 
-    display.setCursor(0, 14);
     display.setColor(UIColor::secondary_txt);
     char filtered_origin[sizeof(p->origin)];
     display.translateUTF8ToBlocks(filtered_origin, p->origin, sizeof(filtered_origin));
-    display.print(filtered_origin);
+    display.drawTextEllipsized(0, 14, display.width(), filtered_origin);
 
     display.setCursor(0, 25);
     display.setColor(UIColor::primary_txt);

@@ -108,7 +108,9 @@ uint16_t SH1106Display::getTextWidth(const char *str)
 {
   int16_t x1, y1;
   uint16_t w, h;
+  display.setTextWrap(false);
   display.getTextBounds(str, 0, 0, &x1, &y1, &w, &h);
+  display.setTextWrap(true);
   return w;
 }
 

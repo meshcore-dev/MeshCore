@@ -234,9 +234,11 @@ void GxEPDDisplay::drawXbm(int x, int y, const uint8_t* bits, int w, int h) {
 }
 
 uint16_t GxEPDDisplay::getTextWidth(const char* str) {
+  display.setTextWrap(false);
   int16_t x1, y1;
   uint16_t w, h;
   display.getTextBounds(str, 0, 0, &x1, &y1, &w, &h);
+  display.setTextWrap(true);
   return ceil((w + 1) / scale_x);
 }
 
