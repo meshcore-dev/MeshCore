@@ -364,7 +364,9 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
 
       MESH_DEBUG_PRINTLN("Login success!");
       client->last_timestamp = sender_timestamp;
-      client->extra.room.sync_since = sender_sync_since;
+      // a 'sync since' ahead of our clock (eg. we rebooted without an RTC) would hide every new post
+      uint32_t login_now = getRTCClock()->getCurrentTime();
+      client->extra.room.sync_since = sender_sync_since > login_now ? login_now : sender_sync_since;
       client->extra.room.pending_ack = 0;
       client->extra.room.push_failures = 0;
 
@@ -557,7 +559,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
           memcpy(&data[5], &forceSince, 4); // make sure there are zeroes in payload (for ack_hash calc below)
         }
         if (forceSince > 0) {
-          client->extra.room.sync_since = forceSince; // force-update the 'sync since'
+          client->extra.room.sync_since = forceSince > now ? now : forceSince; // force-update the 'sync since' (never ahead of our clock)
         }
 
         client->extra.room.pending_ack = 0;
