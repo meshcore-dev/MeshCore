@@ -61,6 +61,9 @@ bool GxEPDDisplay::begin() {
 void GxEPDDisplay::turnOn() {
   if (!_init) begin();
   if (!_isOn) {
+#ifdef THINKNODE_M1
+    _force_full_refresh = true;
+#endif
     _isOn = true;
   }
 }
@@ -94,12 +97,12 @@ void GxEPDDisplay::drawSleepIcon() {
 }
 
 void GxEPDDisplay::turnOff(bool blank) {
+  _isOn = false;
   if (blank) {
     blankScreen();
   } else {
     drawSleepIcon();
   }
-  _isOn = false;
   last_display_crc_value=0;
   display.hibernate();
 }
