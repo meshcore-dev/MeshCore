@@ -92,11 +92,14 @@ void ThinkNodeM6Board::checkPowerOnPress() {
   }
   while (millis() < M6_POWERON_HOLD_MILLIS) {
     if (digitalRead(PIN_USER_BTN) == HIGH) {
-      // Released too early. The radio still sleeps since the power off, but
-      // initVariant() powered the GPS on again.
-      digitalWrite(PIN_GPS_EN, LOW);
-      prepareWakeUp();
-      NRF_POWER->SYSTEMOFF = POWER_SYSTEMOFF_SYSTEMOFF_Enter;
+      delay(20);
+      if (digitalRead(PIN_USER_BTN) == HIGH) {   // still released, not a bounce
+        // initVariant() powered the GPS on again, and the reset may have woken
+        // the radio: the normal power-off path puts the radio back to sleep.
+        digitalWrite(PIN_GPS_EN, LOW);
+        prepareWakeUp();
+        NRF52Board::powerOff();
+      }
     }
     delay(10);
   }
@@ -108,11 +111,11 @@ void ThinkNodeM6Board::begin() {
   pinMode(EXT_PWR_DETECT, INPUT);
   pinMode(EXT_CHRG_DETECT, INPUT);
   pinMode(PIN_USER_BTN, INPUT_PULLUP);
+  startWatchdog();   // first, so that a hang later in the boot is caught too
   checkPowerOnPress();
 
   digitalWrite(PIN_LED_RED, HIGH);   // power-on sign, see loop()
 
-  startWatchdog();   // first, so that a hang later in the boot is caught too
   recoverI2cBus();
   Wire.begin();
 

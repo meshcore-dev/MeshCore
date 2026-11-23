@@ -19,7 +19,10 @@
 #define M6_DFU_MAGIC_SKIP           0x6D    // tells the bootloader to start the firmware at once
 #define M6_RX_FLASH_MILLIS          400     // blue flashing after each received packet
 #define M6_POWERON_HOLD_MILLIS      3000    // Elecrow: hold 3 s to power on
-#define M6_POWEROFF_MARK            0x4D    // in GPREGRET2: the board was powered off by powerOff()
+#ifndef SHUTDOWN_REASON_USER
+  #define SHUTDOWN_REASON_USER      0x55    // same value as NRF52Board power management
+#endif
+#define M6_POWEROFF_MARK            SHUTDOWN_REASON_USER   // in GPREGRET2: powerOff() put the board to sleep
 
 class ThinkNodeM6Board : public NRF52BoardDCDC {
   bool _red_led_on = true;
