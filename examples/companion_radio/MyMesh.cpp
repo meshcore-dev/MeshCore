@@ -715,8 +715,9 @@ void MyMesh::queueGpsDemand(const ContactInfo &contact, uint32_t tag, uint8_t pe
     gps_od_start_ts = loc ? loc->getTimestamp() : 0;
     gps_od_running = true;
     gps_od_have_fix = false;
-    gps_od_deadline = futureMillis((int)constrain(_prefs.gps_od_timeout, 10, 600) * 1000);
   }
+  // every new request gets a full search window, also when GPS is already searching
+  gps_od_deadline = futureMillis((int)constrain(_prefs.gps_od_timeout, 10, 600) * 1000);
   gps_od_off_at = 0; // cancel any pending power-down while a request is waiting
 }
 
