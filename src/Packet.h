@@ -47,6 +47,8 @@ namespace mesh {
 #define PAYLOAD_VER_3       0x02   // FUTURE
 #define PAYLOAD_VER_4       0x03   // FUTURE
 
+#define INITIAL_PATH_SCORE   0x0F    // initially path score set to maximum value
+
 /**
  * \brief  The fundamental transmission unit.
 */
@@ -55,6 +57,7 @@ public:
   Packet();
 
   uint8_t header;
+  uint8_t path_hdr;
   uint16_t payload_len, path_len;
   uint16_t transport_codes[2];
   uint8_t path[MAX_PATH_SIZE];
@@ -87,11 +90,22 @@ public:
    */
   uint8_t getPayloadVer() const { return (header >> PH_VER_SHIFT) & PH_VER_MASK; }
 
-  uint8_t getPathHashSize() const { return (path_len >> 6) + 1; }
+  uint8_t getPathHashSize() const {
+    uint8_t path_mode = path_len >> 6;
+    if (path_mode == 3) return (path_hdr >> 6) + 1;
+    return path_mode + 1;
+  }
   uint8_t getPathHashCount() const { return path_len & 63; }
   uint8_t getPathByteLen() const { return getPathHashCount() * getPathHashSize(); }
   void setPathHashCount(uint8_t n) { path_len &= ~63; path_len |= n; }
   void setPathHashSizeAndCount(uint8_t sz, uint8_t n) { path_len = ((sz - 1) << 6) | (n & 63); }
+  void setNewPathHashSizeAndCount(uint8_t sz, uint8_t n, uint8_t min_score) {
+    path_hdr = ((sz - 1) << 6) | (min_score & 0x0F);
+    path_len = (3 << 6) | (n & 63);  // new path-mode 3
+  }
+
+  uint8_t getPathMinScore() const { return path_hdr & 0x0F; }
+  void setPathMinScore(uint8_t score) { path_hdr &= ~0x0F; path_hdr |= (score & 0x0F); }
 
   bool isPathAtEnd() const;
 

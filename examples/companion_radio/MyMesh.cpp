@@ -508,10 +508,14 @@ mesh::Packet* MyMesh::obtainPacketFor(ContactInfo& contact) {
         pkt->transport_codes[0] = (((uint16_t)dm_mode) << 14) | contact.next_seq_no++;  // implicit, cursor = 0
         pkt->transport_codes[1] = (contact.curr_session_id & ~(3u << 14));
         pkt->transport_codes[1] |= (CRYPTO_NEW_V1 << 14);
+
+        uint8_t path_len = mesh::Packet::copyPath(pkt->path, contact.out_path, contact.out_path_len);
+        pkt->path_hdr = (path_len & (3 << 6)) | INITIAL_PATH_SCORE;
+        pkt->path_len = (3 << 6) | (path_len & 63);  // use new path-mode 3
       } else {
         pkt->header |= ROUTE_TYPE_DIRECT;
+        pkt->path_len = mesh::Packet::copyPath(pkt->path, contact.out_path, contact.out_path_len);
       }
-      pkt->path_len = mesh::Packet::copyPath(pkt->path, contact.out_path, contact.out_path_len);
     }
   }
   return pkt;
@@ -536,7 +540,7 @@ void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, ui
 
   if (pkt->transport_codes[1] != 0) {   // has a new CRYPTO_* encoding
     pkt->transport_codes[0] = send_unscoped ? 0 : (scope->isNull() ? 0 : scope->calcTransportCode(pkt));
-    pkt->setPathHashSizeAndCount(_prefs.path_hash_mode + 1, 0);
+    pkt->setNewPathHashSizeAndCount(_prefs.path_hash_mode + 1, 0, INITIAL_PATH_SCORE);
     send(pkt, delay_millis);
   } else {
     if (send_unscoped) {
@@ -554,7 +558,7 @@ void MyMesh::sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pk
 
   if (pkt->transport_codes[1] != 0) {   // has a new CRYPTO_* encoding
     pkt->transport_codes[0] = send_unscoped ? 0 : (scope->isNull() ? 0 : scope->calcTransportCode(pkt));
-    pkt->setPathHashSizeAndCount(_prefs.path_hash_mode + 1, 0);
+    pkt->setNewPathHashSizeAndCount(_prefs.path_hash_mode + 1, 0, INITIAL_PATH_SCORE);
     send(pkt, delay_millis);
   } else {
     if (send_unscoped) {

@@ -122,10 +122,14 @@ mesh::Packet* SensorMesh::obtainPacketFor(ClientInfo& client, const uint8_t* out
         pkt->transport_codes[0] = (((uint16_t)dm_mode) << 14) | client.next_seq_no++;  // implicit, cursor = 0
         pkt->transport_codes[1] = (client.curr_session_id & ~(3u << 14));
         pkt->transport_codes[1] |= (CRYPTO_NEW_V1 << 14);
+
+        uint8_t path_len = mesh::Packet::copyPath(pkt->path, out_path, out_path_len);
+        pkt->path_hdr = (path_len & (3 << 6)) | INITIAL_PATH_SCORE;
+        pkt->path_len = (3 << 6) | (path_len & 63);  // use new path-mode 3
       } else {
         pkt->header |= ROUTE_TYPE_DIRECT;
+        pkt->path_len = mesh::Packet::copyPath(pkt->path, out_path, out_path_len);
       }
-      pkt->path_len = mesh::Packet::copyPath(pkt->path, out_path, out_path_len);
     }
   }
   return pkt;
@@ -305,6 +309,10 @@ void SensorMesh::sendAlert(ClientInfo* c, Trigger* t) {
   if (pkt) {
     encodeDatagram(pkt, PAYLOAD_TYPE_TXT_MSG, c->id, c->shared_secret, data, 5 + text_len);
     if (pkt->isRouteDirect()) {
+      send(pkt);
+    } else if (pkt->transport_codes[1] != 0) {   // has new CRYPTO_* encoding
+      pkt->transport_codes[0] = default_scope.isNull() ? 0 : default_scope.calcTransportCode(pkt);
+      pkt->setNewPathHashSizeAndCount(_prefs.path_hash_mode + 1, 0, INITIAL_PATH_SCORE);
       send(pkt);
     } else {
       unsigned long delay_millis = 0;
@@ -1008,7 +1016,7 @@ void SensorMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis
 
   if (packet->transport_codes[1] != 0) {   // has new CRYPTO_* encoding
     packet->transport_codes[0] = (scope && !scope->isNull()) ? scope->calcTransportCode(packet) : 0;
-    packet->setPathHashSizeAndCount(path_hash_size, 0);
+    packet->setNewPathHashSizeAndCount(path_hash_size, 0, INITIAL_PATH_SCORE);
     send(packet, delay_millis);
   } else {
     if (scope) {
@@ -1140,6 +1148,10 @@ void SensorMesh::loop() {
           if (reply) {
             encodeDatagram(reply, PAYLOAD_TYPE_RESPONSE, c->id, c->shared_secret, reply_data, 8 + tlen);
             if (reply->isRouteDirect()) {
+              send(reply);
+            } else if (reply->transport_codes[1] != 0) {   // has new CRYPTO_* encoding
+              reply->transport_codes[0] = default_scope.isNull() ? 0 : default_scope.calcTransportCode(reply);
+              reply->setNewPathHashSizeAndCount(_prefs.path_hash_mode + 1, 0, INITIAL_PATH_SCORE);
               send(reply);
             } else {
               sendFloodScoped(scope, reply, 0, _prefs.path_hash_mode + 1);

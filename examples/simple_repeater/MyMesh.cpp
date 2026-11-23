@@ -93,10 +93,14 @@ mesh::Packet* MyMesh::obtainPacketFor(ClientInfo& client, const uint8_t* out_pat
         pkt->transport_codes[0] = (((uint16_t)dm_mode) << 14) | client.next_seq_no++;  // implicit, cursor = 0
         pkt->transport_codes[1] = (client.curr_session_id & ~(3u << 14));
         pkt->transport_codes[1] |= (CRYPTO_NEW_V1 << 14);
+
+        uint8_t path_len = mesh::Packet::copyPath(pkt->path, out_path, out_path_len);
+        pkt->path_hdr = (path_len & (3 << 6)) | INITIAL_PATH_SCORE;
+        pkt->path_len = (3 << 6) | (path_len & 63);  // use new path-mode 3
       } else {
         pkt->header |= ROUTE_TYPE_DIRECT;
+        pkt->path_len = mesh::Packet::copyPath(pkt->path, out_path, out_path_len);
       }
-      pkt->path_len = mesh::Packet::copyPath(pkt->path, out_path, out_path_len);
     }
   }
   return pkt;
@@ -587,7 +591,7 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 
   if (packet->transport_codes[1] != 0) {   // has new CRYPTO_* encoding
     packet->transport_codes[0] = (scope && !scope->isNull()) ? scope->calcTransportCode(packet) : 0;
-    packet->setPathHashSizeAndCount(path_hash_size, 0);
+    packet->setNewPathHashSizeAndCount(path_hash_size, 0, INITIAL_PATH_SCORE);
     send(packet, delay_millis);
   } else {
     if (scope) {
