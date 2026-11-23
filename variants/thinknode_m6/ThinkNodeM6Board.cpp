@@ -1,5 +1,7 @@
 #include "ThinkNodeM6Board.h"
+#include "StatusLed.h"
 #include <Arduino.h>
+#include <target.h>
 
 #ifdef THINKNODE_M6
 
@@ -40,6 +42,8 @@ static void startWatchdog() {
 void ThinkNodeM6Board::begin() {
   NRF52Board::begin();
 
+  digitalWrite(PIN_LED_RED, HIGH);   // power-on sign, see loop()
+
   startWatchdog();   // first, so that a hang later in the boot is caught too
   recoverI2cBus();
   Wire.begin();
@@ -51,12 +55,55 @@ void ThinkNodeM6Board::begin() {
 
   pinMode(EXT_PWR_DETECT, INPUT);
   pinMode(EXT_CHRG_DETECT, INPUT);
+  pinMode(PIN_USER_BTN, INPUT_PULLUP);
 
   delay(10); // give sx1262 some time to power up
 }
 
 void ThinkNodeM6Board::loop() {
+  uint32_t now = millis();
+
   NRF_WDT->RR[0] = WDT_RR_RR_Reload;   // feed the watchdog
+
+  // Like Meshtastic, power off when the button is released after a long hold.
+  // Presses that start during boot are ignored: a floating pin could fake one.
+  if (digitalRead(PIN_USER_BTN) == LOW) {
+    if (_btn_down_at == 0) {
+      _btn_down_at = now;
+    }
+  } else {
+    bool long_press = _btn_down_at > M6_BTN_BOOT_HOLDOFF_MILLIS
+                      && now - _btn_down_at >= M6_POWEROFF_HOLD_MILLIS;
+    if (long_press) {
+      powerOff();  // does not return
+    }
+    _btn_down_at = 0;
+  }
+
+  if (_batt_read_at == 0 || now - _batt_read_at >= M6_BATT_READ_MILLIS) {
+    _batt_mv = getBattMilliVolts();
+    _batt_read_at = now;
+  }
+  bool red_on = m6RedLed(now, isChargerActive(), _batt_mv);
+  if (red_on != _red_led_on) {
+    digitalWrite(PIN_LED_RED, red_on ? HIGH : LOW);
+    _red_led_on = red_on;
+  }
+
+#ifdef P_LORA_TX_LED
+  uint32_t rx_count = radio_driver.getPacketsRecv();
+  if (rx_count != _rx_count) {
+    _rx_count = rx_count;
+    _rx_at = now;
+    _data_started_at = now;
+  }
+  bool data_active = _tx_active || now - _rx_at < M6_RX_FLASH_MILLIS;
+  bool blue_on = m6BlueLed(data_active, now - _data_started_at);
+  if (blue_on != _blue_led_on) {
+    digitalWrite(P_LORA_TX_LED, blue_on ? HIGH : LOW);
+    _blue_led_on = blue_on;
+  }
+#endif
 }
 
 uint16_t ThinkNodeM6Board::getBattMilliVolts() {

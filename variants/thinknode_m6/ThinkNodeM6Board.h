@@ -12,9 +12,24 @@
 #define PIN_VBAT_READ     BATTERY_PIN
 #define REAL_VBAT_MV_PER_LSB (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
 
+#define M6_POWEROFF_HOLD_MILLIS     3900    // Meshtastic: hold time before power off
+#define M6_BTN_BOOT_HOLDOFF_MILLIS  30000   // Meshtastic: ignore presses that start earlier
+#define M6_BATT_READ_MILLIS         30000
 #define M6_WATCHDOG_SECS            90
+#define M6_DFU_MAGIC_SKIP           0x6D    // tells the bootloader to start the firmware at once
+#define M6_RX_FLASH_MILLIS          400     // blue flashing after each received packet
 
 class ThinkNodeM6Board : public NRF52BoardDCDC {
+  bool _red_led_on = true;
+  bool _blue_led_on = false;
+  bool _tx_active = false;
+  uint32_t _data_started_at = 0;
+  uint32_t _rx_count = 0;
+  uint32_t _rx_at = 0;
+  uint32_t _batt_read_at = 0;
+  uint16_t _batt_mv = 0;
+  uint32_t _btn_down_at = 0;
+
 protected:
 #if NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
@@ -26,14 +41,14 @@ public:
   void loop() override;
   uint16_t getBattMilliVolts() override;
 
-#if defined(P_LORA_TX_LED)
+  // loop() flashes the blue LED while _tx_active is set
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    _tx_active = true;
+    _data_started_at = millis();
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    _tx_active = false;
   }
-#endif
 
   const char* getManufacturerName() const override {
     return "Elecrow ThinkNode M6";
@@ -69,11 +84,35 @@ public:
   }
 
   void powerOff() override {
+    // Elecrow: the red LED flashes 5 times before power off
+    for (int i = 0; i < 5; i++) {
+      digitalWrite(PIN_LED_RED, HIGH);
+      delay(250);
+      digitalWrite(PIN_LED_RED, LOW);
+      delay(250);
+    }
 
     // turn off all leds, sd_power_system_off will not do this for us
     #ifdef P_LORA_TX_LED
     digitalWrite(P_LORA_TX_LED, LOW);
     #endif
+
+    // Like Meshtastic, wake on the button or when the charger starts.
+    // If the charger is already active, the board wakes again at once.
+    nrf_gpio_cfg_sense_input(g_ADigitalPinMap[PIN_USER_BTN], NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+    nrf_gpio_cfg_sense_input(g_ADigitalPinMap[EXT_CHRG_DETECT], NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+
+    // The bootloader enters its update mode (blue LED pulsing) when the button
+    // is held at boot, and the button is what wakes the board. Like Meshtastic,
+    // ask it to skip that check on the next boot.
+    uint8_t sd_enabled = 0;
+    sd_softdevice_is_enabled(&sd_enabled);
+    if (sd_enabled) {
+      sd_power_gpregret_clr(0, 0xFF);
+      sd_power_gpregret_set(0, M6_DFU_MAGIC_SKIP);
+    } else {
+      NRF_POWER->GPREGRET = M6_DFU_MAGIC_SKIP;
+    }
 
     // power off board
     NRF52Board::powerOff();
