@@ -1,0 +1,84 @@
+name: Auto Label Issues
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  auto-label:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Apply labels from issue form selections
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const body = issue.body || "";
+
+            const labels = new Set();
+
+            labels.add("needs-triage");
+
+            // Area / component labels
+            if (body.includes("Firmware - Community")) {
+              labels.add("area:firmware");
+              labels.add("firmware:community");
+            }
+
+            if (body.includes("Firmware - Ripple")) {
+              labels.add("area:firmware");
+              labels.add("firmware:ripple");
+            }
+
+            if (body.includes("Client - MeshCore App")) {
+              labels.add("area:client");
+            }
+
+            if (body.includes("UI - TDeck / Ripple GUI")) {
+              labels.add("area:ui");
+            }
+
+            if (body.includes("CLI / Tooling")) {
+              labels.add("area:tooling");
+            }
+
+            if (body.includes("New Hardware Support")) {
+              labels.add("area:hardware");
+            }
+
+            if (body.includes("Protocol / Routing")) {
+              labels.add("area:protocol");
+              labels.add("area:routing");
+            }
+
+            if (body.includes("Documentation")) {
+              labels.add("area:documentation");
+            }
+
+            if (body.includes("Unsure")) {
+              labels.add("needs-review");
+            }
+
+            // Platform labels
+            if (body.includes("ESP32")) {
+              labels.add("platform:esp32");
+            }
+
+            if (body.includes("nRF52")) {
+              labels.add("platform:nrf52");
+            }
+
+            // Apply labels
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              labels: Array.from(labels)
+            });
