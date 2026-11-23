@@ -610,7 +610,7 @@ bool MyMesh::isHashNeighbor(const uint8_t* hash, uint8_t hash_size) {
   return false;
 }
 
-bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
+bool MyMesh::allowPacketForward(mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
   if (packet->isRouteFlood()
       && mesh::isFloodHopLimitExceeded(packet, _prefs.flood_max, _prefs.flood_max_unscoped, _prefs.flood_max_advert)) {
@@ -632,6 +632,18 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     if (isLooped(packet, maximums)) {
       MESH_DEBUG_PRINTLN("allowPacketForward: FLOOD packet loop detected!");
       return false;
+    }
+  }
+
+  if (packet->isNewPathType()) {   // modify the minimum-score if packet being forwarded scores worse
+    uint8_t prev_score = packet->getPathMinScore();
+    uint8_t score;
+    {
+      int s = (((int)packet->_snr) + 48) / 6;   // range -12 to +12 ->  0 to 15
+      score = s < 0 ? 0 : (s > 15 ? 15 : s);   // constrain
+    }
+    if (score < prev_score) {
+      packet->setPathMinScore(score);
     }
   }
   return true;

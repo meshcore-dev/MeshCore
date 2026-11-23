@@ -54,7 +54,7 @@ protected:
    * \brief  Check whether this packet should be forwarded (re-transmitted) or not.
    *     Is sub-classes responsibility to make sure given packet is only transmitted ONCE (by this node)
    */
-  virtual bool allowPacketForward(const Packet* packet);
+  virtual bool allowPacketForward(Packet* packet);
 
   /**
    * \returns  number of milliseconds delay to apply to retransmitting the given packet.

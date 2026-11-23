@@ -11,7 +11,7 @@ void Mesh::loop() {
   Dispatcher::loop();
 }
 
-bool Mesh::allowPacketForward(const mesh::Packet* packet) { 
+bool Mesh::allowPacketForward(mesh::Packet* packet) { 
   return false;  // by default, Transport NOT enabled
 }
 uint32_t Mesh::getRetransmitDelay(const mesh::Packet* packet) { 

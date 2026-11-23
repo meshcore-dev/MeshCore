@@ -483,7 +483,7 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
   return false;
 }
 
-bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
+bool MyMesh::allowPacketForward(mesh::Packet* packet) {
   return _prefs.isRepeatEn();
 }
 

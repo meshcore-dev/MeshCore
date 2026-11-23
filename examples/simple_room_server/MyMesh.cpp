@@ -60,14 +60,11 @@ mesh::Packet* MyMesh::obtainPacketFor(ClientInfo& client, const uint8_t* out_pat
         pkt->transport_codes[0] = (((uint16_t)dm_mode) << 14) | client.next_seq_no++;  // implicit, cursor = 0
         pkt->transport_codes[1] = (client.curr_session_id & ~(3u << 14));
         pkt->transport_codes[1] |= (CRYPTO_NEW_V1 << 14);
-
-        uint8_t path_len = mesh::Packet::copyPath(pkt->path, out_path, out_path_len);
-        pkt->path_hdr = (path_len & (3 << 6)) | INITIAL_PATH_SCORE;
-        pkt->path_len = (3 << 6) | (path_len & 63);  // use new path-mode 3
+        pkt->setPathMinScore(INITIAL_PATH_SCORE); // also marks as new path-mode 3
       } else {
         pkt->header |= ROUTE_TYPE_DIRECT;
-        pkt->path_len = mesh::Packet::copyPath(pkt->path, out_path, out_path_len);
       }
+      pkt->path_len = mesh::Packet::copyPath(pkt->path, out_path, out_path_len);
     }
   }
   return pkt;
@@ -337,7 +334,7 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   return getRNG()->nextInt(0, 5*t + 1);
 }
 
-bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
+bool MyMesh::allowPacketForward(mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
   if (packet->isRouteFlood()
       && mesh::isFloodHopLimitExceeded(packet, _prefs.flood_max, _prefs.flood_max_unscoped, _prefs.flood_max_advert)) {

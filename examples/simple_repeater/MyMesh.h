@@ -136,7 +136,7 @@ protected:
   // sets up an outgoing Packet with appropriate route_type, transport codes and path
   mesh::Packet* obtainPacketFor(ClientInfo& client, const uint8_t* out_path, uint8_t out_path_len);
 
-  bool allowPacketForward(const mesh::Packet* packet) override;
+  bool allowPacketForward(mesh::Packet* packet) override;
   const char* getLogDateTime() override;
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
 

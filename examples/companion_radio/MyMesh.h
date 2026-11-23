@@ -120,7 +120,7 @@ protected:
   uint32_t getDirectRetransmitDelay(const mesh::Packet *packet) override;
   uint8_t getExtraAckTransmitCount() const override;
   bool filterRecvFloodPacket(mesh::Packet* packet) override;
-  bool allowPacketForward(const mesh::Packet* packet) override;
+  bool allowPacketForward(mesh::Packet* packet) override;
 
   mesh::Packet* obtainPacketFor(ContactInfo& contact) override;
 

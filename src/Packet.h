@@ -103,6 +103,8 @@ public:
     path_len = ((sz - 1) << 6) | (n & 63);
   }
 
+  bool isNewPathType() const { return (path_hdr & 0x80) != 0; }
+
   uint8_t getPathMinScore() const { return path_hdr & 0x0F; }
   void setPathMinScore(uint8_t score) { path_hdr = 0x80 | (score & 0x0F); }
 

@@ -198,7 +198,7 @@ protected:
     return 0;  // disable rxdelay
   }
 
-  bool allowPacketForward(const mesh::Packet* packet) override {
+  bool allowPacketForward(mesh::Packet* packet) override {
     return true;
   }
 

@@ -51,6 +51,7 @@ mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name) {
   uint8_t app_data_len;
   {
     AdvertDataBuilder builder(ADV_TYPE_CHAT, name);
+    builder.setFeat1((1 << CRYPTO_LEGACY) | (1 << CRYPTO_NEW_V1)); // indicate which CRYPTO_* modes are supported
     app_data_len = builder.encodeTo(app_data);
   }
 
@@ -62,6 +63,7 @@ mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name, double lat, doubl
   uint8_t app_data_len;
   {
     AdvertDataBuilder builder(ADV_TYPE_CHAT, name, lat, lon);
+    builder.setFeat1((1 << CRYPTO_LEGACY) | (1 << CRYPTO_NEW_V1)); // indicate which CRYPTO_* modes are supported
     app_data_len = builder.encodeTo(app_data);
   }
 

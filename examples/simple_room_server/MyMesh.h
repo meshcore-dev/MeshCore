@@ -159,7 +159,7 @@ protected:
   // sets up an outgoing Packet with appropriate route_type, transport codes and path
   mesh::Packet* obtainPacketFor(ClientInfo& client, const uint8_t* out_path, uint8_t out_path_len);
 
-  bool allowPacketForward(const mesh::Packet* packet) override;
+  bool allowPacketForward(mesh::Packet* packet) override;
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len, uint8_t crypto_type) override;
   int searchPeersByHash(const uint8_t* hash) override ;
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;
