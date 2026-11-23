@@ -162,18 +162,23 @@ bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
     pkt->transport_codes[0] = pkt->transport_codes[1] = 0;
   }
 
-  pkt->path_len = raw[i++];
-  uint8_t path_mode = pkt->path_len >> 6;  // upper 2 bits (legacy firmware: 00)
+  uint8_t path_len = raw[i++];
+  uint8_t path_mode = path_len >> 6;  // upper 2 bits (legacy firmware: 00)
   if (path_mode == 3) {   // New scheme
-    pkt->path_hdr = raw[i++];   // new path header byte
-    uint8_t reserved = (pkt->path_hdr >> 4) & 3;
+    uint8_t path_hdr = raw[i++];   // new path header byte
+    uint8_t reserved = (path_hdr >> 4) & 3;
     if (reserved != 0) {
       MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): unsupported reserved bits, val=%u", getLogDateTime(), (uint32_t)reserved);
       return false;
     }
+    pkt->path_len = (path_hdr & (3 << 6)) | (path_len & 63);  // hash-size is now in path_hdr, but hash-count is still in path_len
+    pkt->path_hdr = 0x80 | (path_hdr & 0x0F);  // set high-bit so we now it was in path-mode 3
+  } else {
+    pkt->path_hdr = 0;
+    pkt->path_len = path_len;
   }
 
-  uint8_t path_byte_len = (pkt->path_len & 63) * pkt->getPathHashSize();
+  uint8_t path_byte_len = pkt->getPathByteLen();
   if (path_byte_len > MAX_PATH_SIZE || i + path_byte_len > len) {
     MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): partial or corrupt packet received, len=%d", getLogDateTime(), len);
     return false;
@@ -317,14 +322,13 @@ void Dispatcher::checkSend() {
       memcpy(&raw[len], &outbound->transport_codes[0], 2); len += 2;
       memcpy(&raw[len], &outbound->transport_codes[1], 2); len += 2;
     }
-    raw[len++] = outbound->path_len;
-    if ((outbound->path_len >> 6) == 3) {   // new path encoding
-      raw[len++] = outbound->path_hdr;
-      uint8_t path_len = (outbound->path_hdr & (3 << 6)) | (outbound->path_len & 63);  // hash-size is now in path_hdr, but hash-count is still in path_len
-      len += Packet::writePath(&raw[len], outbound->path, path_len);
+    if (outbound->path_hdr & 0x80) {   // new path encoding
+      raw[len++] = (3 << 6) | (outbound->path_len & 63);   // path_len, with new path-mode 3
+      raw[len++] = (outbound->path_len & (3 << 6)) | (outbound->path_hdr & 0x0F);  // new path header byte
     } else {
-      len += Packet::writePath(&raw[len], outbound->path, outbound->path_len);
+      raw[len++] = outbound->path_len;
     }
+    len += Packet::writePath(&raw[len], outbound->path, outbound->path_len);
 
     if (len + outbound->payload_len > MAX_TRANS_UNIT) {
       MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): FATAL: Invalid packet queued... too long, len=%d", getLogDateTime(), len + outbound->payload_len);
