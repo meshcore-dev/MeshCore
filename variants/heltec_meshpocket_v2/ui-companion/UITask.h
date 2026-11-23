@@ -23,6 +23,8 @@
 
 #include <helpers/ui/AbstractUITask.h>
 #include <helpers/CompanionNodePrefs.h>
+#include "HeltecMeshPocketV2Board.h"
+#include "PowerBankUi.h"
 
 #ifdef UI_NO_DISCOVER_SCREEN
   #error "UI_NO_DISCOVER_SCREEN is obsolete - use -D UI_DISCOVER_SCREEN=0 instead"
@@ -49,6 +51,7 @@ struct DiscoveredNode {
 #endif
 
 class UITask : public AbstractUITask {
+  PowerBankUi powerUi;
   DisplayDriver* _display;
   SensorManager* _sensors;
   BaseChatMesh* the_mesh;
@@ -96,8 +99,8 @@ class UITask : public AbstractUITask {
 
 public:
 
-  UITask(mesh::MainBoard* board, DisplayDriver* display = NULL) :
-      AbstractUITask(board), _display(display), _sensors(NULL) {
+  UITask(HeltecMeshPocketV2Board& board, DisplayDriver* display = NULL) :
+      AbstractUITask(&board), powerUi(board), _display(display), _sensors(NULL) {
     next_batt_chck = _next_refresh = 0;
     ui_started_at = 0;
     curr = NULL;

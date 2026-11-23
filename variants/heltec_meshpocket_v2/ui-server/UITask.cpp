@@ -31,6 +31,7 @@ static const uint8_t meshcore_logo [] PROGMEM = {
 };
 
 void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version, const char* role_lbl) {
+  powerUi.begin();
 #ifdef MESHPOCKET_V2_ROOM_SERVER
   _prevBtnState = HIGH;
   _started_at = 0;  // The Room Server's splash starts at power-on.
@@ -62,7 +63,7 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
 
 long UITask::renderCurrScreen() {
   if (!_powering_off_at && _power_page_selected) {
-    const long interval = board.powerUi.render(::display, _power_page_full_refresh);
+    const long interval = powerUi.render(::display, _power_page_full_refresh);
     _power_page_full_refresh = false;
     return interval;
   }
@@ -145,7 +146,7 @@ void UITask::showPowerPage() {
 
 void UITask::loop() {
   if (!_display->isOn()) _power_page_full_refresh = true;
-  const uint8_t events = board.powerUi.pollEvents();
+  const uint8_t events = powerUi.pollEvents();
   const bool canChangePage = !_powering_off_at && millis() - _started_at >= BOOT_SCREEN_MILLIS;
   bool handlingInput = false;
   if (canChangePage && (events & PowerBankUi::EVENT_SHOW_PAGE)) {
@@ -153,7 +154,7 @@ void UITask::loop() {
     handlingInput = true;
   } else if (canChangePage && (events & PowerBankUi::EVENT_PAGE_ACTION) &&
              _display->isOn() && _power_page_selected) {
-    board.powerUi.handlePageAction();
+    powerUi.handlePageAction();
     _next_refresh = 0;
     _auto_off = millis() + AUTO_OFF_MILLIS;
     handlingInput = true;

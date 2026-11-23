@@ -148,6 +148,7 @@ class HomeScreen : public UIScreen {
   };
 
   UITask* _task;
+  PowerBankUi& powerUi;
   mesh::RTCClock* _rtc;
   SensorManager* _sensors;
   NodePrefs* _node_prefs;
@@ -243,8 +244,8 @@ class HomeScreen : public UIScreen {
   }
 
 public:
-  HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
-     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0),
+  HomeScreen(UITask* task, PowerBankUi& powerUi, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
+     : _task(task), powerUi(powerUi), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0),
        _shutdown_init(false), powerPageFullRefresh(true), sensors_lpp(200)
   {
     memset(recent, 0, sizeof(recent));
@@ -316,7 +317,7 @@ public:
 
   int render(DisplayDriver& display) override {
     if (isPowerPage()) {
-      const int interval = board.powerUi.render(::display, powerPageFullRefresh);
+      const int interval = powerUi.render(::display, powerPageFullRefresh);
       powerPageFullRefresh = false;
       return interval;
     }
@@ -821,6 +822,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   the_mesh = mesh;
   _ble_pin = ble_pin;
 
+  powerUi.begin();
 #if defined(PIN_USER_BTN)
   user_btn.begin();
 #endif
@@ -853,7 +855,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   _alert_expiry = 0;
 
   splash = new SplashScreen(this, ver, build_date);
-  home = new HomeScreen(this, &rtc_clock, sensors, node_prefs);
+  home = new HomeScreen(this, powerUi, &rtc_clock, sensors, node_prefs);
   msg_preview = new MsgPreviewScreen(this, &rtc_clock);
   setCurrScreen(splash);
 }
@@ -1092,7 +1094,7 @@ void UITask::loop() {
     }
   }
 #endif
-  const uint8_t powerEvents = board.powerUi.pollEvents();
+  const uint8_t powerEvents = powerUi.pollEvents();
   HomeScreen* homeScreen = static_cast<HomeScreen*>(home);
   if ((powerEvents & PowerBankUi::EVENT_SHOW_PAGE) && c == 0 &&
       curr == home && homeScreen->showPowerPage()) {
@@ -1102,7 +1104,7 @@ void UITask::loop() {
   else if ((powerEvents & PowerBankUi::EVENT_PAGE_ACTION) && c == 0 &&
            _display && _display->isOn() && curr == home && homeScreen->isPowerPage() &&
            millis() >= _alert_expiry) {
-    board.powerUi.handlePageAction();
+    powerUi.handlePageAction();
     _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;
     _next_refresh = 0;
     powerInputHandled = true;

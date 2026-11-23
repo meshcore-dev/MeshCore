@@ -1,3 +1,3 @@
 #include "target.h"
 
-UITask ui_task(&board);
+UITask ui_task(board);

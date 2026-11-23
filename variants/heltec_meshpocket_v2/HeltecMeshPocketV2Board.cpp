@@ -5,7 +5,6 @@ void HeltecMeshPocketV2Board::begin() {
   NRF52Board::begin();
   powerBank.begin();
   pinMode(PIN_USER_BTN, INPUT_PULLUP);
-  powerUi.begin();
 }
 
 uint16_t HeltecMeshPocketV2Board::getBattMilliVolts() {

@@ -3,8 +3,11 @@
 
 #include <helpers/ui/BaseUITask.h>
 #include <helpers/CommonCLI.h>
+#include "HeltecMeshPocketV2Board.h"
+#include "PowerBankUi.h"
 
 class UITask : public BaseUITask {
+  PowerBankUi powerUi;
   bool _power_page_selected = false;
   bool _power_page_full_refresh = true;
 #ifdef MESHPOCKET_V2_ROOM_SERVER
@@ -24,7 +27,7 @@ protected:
   long renderCurrScreen() override;
 
 public:
-  UITask(mesh::MainBoard* board, DisplayDriver* display) : BaseUITask(board, display) {}
+  UITask(HeltecMeshPocketV2Board& board, DisplayDriver* display) : BaseUITask(&board, display), powerUi(board) {}
   void begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version, const char* role_lbl);
 
   void loop() override;

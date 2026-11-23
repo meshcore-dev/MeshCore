@@ -2,13 +2,11 @@
 
 #include <helpers/NRF52Board.h>
 #include "PowerBank.h"
-#include "PowerBankUi.h"
 
 class HeltecMeshPocketV2Board : public NRF52Board {
 public:
   HeltecMeshPocketV2Board() : NRF52Board("MeshPocket_V2_OTA") {}
   PowerBank powerBank;
-  PowerBankUi powerUi{*this};
   void begin() override;
   void loop() override { powerBank.poll(); }
   uint16_t getBattMilliVolts() override;
