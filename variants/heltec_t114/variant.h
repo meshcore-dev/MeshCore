@@ -61,8 +61,8 @@
 #define PIN_WIRE_SDA            (26) // P0.26
 #define PIN_WIRE_SCL            (27) // P0.27
 
-#define PIN_WIRE1_SDA            (7) // P0.8
-#define PIN_WIRE1_SCL            (8) // P0.7
+#define PIN_WIRE1_SDA            (7) // P0.07
+#define PIN_WIRE1_SCL            (8) // P0.08
 
 ////////////////////////////////////////////////////////////////////////////////
 // SPI pin definition
