@@ -807,7 +807,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #endif
 
   _node_prefs = node_prefs;
-  _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;
+  lastDisplayActivity = millis();
   _backlight_off = millis() + _node_prefs->ui_backlight_delay * 1000;
 
   if (_display != NULL) {
@@ -880,7 +880,7 @@ void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t t
       _display->turnOn(_node_prefs->ui_max_partial);
     }
     if (_display->isOn()) {
-      _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;  // extend the auto-off timer
+      lastDisplayActivity = millis();  // extend the auto-off timer
       _next_refresh = 100;  // trigger refresh
       if (_node_prefs->ui_backlight_on_msgs) {
         _backlight_off = millis() + _node_prefs->ui_backlight_delay * 1000;
@@ -903,7 +903,7 @@ void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_det
       _display->turnOn(_node_prefs->ui_max_partial);
     }
     if (_display->isOn()) {
-    _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;  // extend the auto-off timer
+    lastDisplayActivity = millis();  // extend the auto-off timer
     _next_refresh = 100;  // trigger refresh
     }
   }
@@ -1081,7 +1081,7 @@ void UITask::loop() {
         _display->turnOn(_node_prefs->ui_max_partial);
         _next_refresh = 0;
       }
-      _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;   // extend auto-off timer
+      lastDisplayActivity = millis();   // extend auto-off timer
       _backlight_off = millis() + _node_prefs->ui_backlight_delay * 1000; // extend auto_off for backlight
     }
     next_backlight_btn_check = millis() + 100;
@@ -1118,7 +1118,7 @@ void UITask::loop() {
 
   if (c != 0 && curr) {
     curr->handleInput(c);
-    _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;   // extend auto-off timer
+    lastDisplayActivity = millis();
     _next_refresh = 100;  // trigger refresh
   }
 
@@ -1157,10 +1157,10 @@ void UITask::loop() {
       // because OLED panels burn in quickly; only enable for LCD targets or
       // where the display is replaceable.
       if (board.isExternalPowered()) {
-        _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;
+        lastDisplayActivity = millis();
       }
 #endif
-      if (millis() > _auto_off) {
+      if ((millis() - lastDisplayActivity) / 1000 >= _node_prefs->ui_auto_off_delay) {
         if (_node_prefs->ui_auto_off_blank &&
               !(_node_prefs->ui_auto_off_keep_msgs 
                           && curr == msg_preview)) { 
@@ -1205,7 +1205,7 @@ char UITask::checkDisplayOn(char c) {
       _display->turnOn(_node_prefs->ui_max_partial);   // turn display on and consume event
       c = 0;
     }
-    _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;   // extend auto-off timer
+    lastDisplayActivity = millis();
     if (_node_prefs->ui_backlight_on_keys) {
       _backlight_off = millis() + _node_prefs->ui_backlight_delay * 1000;
     }
