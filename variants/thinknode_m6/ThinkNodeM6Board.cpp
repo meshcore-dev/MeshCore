@@ -39,8 +39,76 @@ static void startWatchdog() {
   NRF_WDT->TASKS_START = 1;
 }
 
+// index 0 is GPREGRET, read by the bootloader; index 1 is GPREGRET2
+static void writeGpregret(uint8_t index, uint8_t value) {
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+  if (sd_enabled) {
+    sd_power_gpregret_clr(index, 0xFF);
+    sd_power_gpregret_set(index, value);
+  } else if (index == 0) {
+    NRF_POWER->GPREGRET = value;
+  } else {
+    NRF_POWER->GPREGRET2 = value;
+  }
+}
+
+// Turns the LEDs off and sets what the next wake-up needs. Like Meshtastic,
+// the button or the charger starting wakes the board; if the charger is
+// already active, it wakes again at once.
+static void prepareWakeUp() {
+  digitalWrite(PIN_LED_RED, LOW);
+  digitalWrite(PIN_LED_BLUE, LOW);
+  nrf_gpio_cfg_sense_input(g_ADigitalPinMap[PIN_USER_BTN], NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+  nrf_gpio_cfg_sense_input(g_ADigitalPinMap[EXT_CHRG_DETECT], NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+
+  // The bootloader enters its update mode (blue LED pulsing) when the button
+  // is held at boot, and the button is what wakes the board: ask it to skip
+  // that check, as Meshtastic does.
+  writeGpregret(0, M6_DFU_MAGIC_SKIP);
+  writeGpregret(1, M6_POWEROFF_MARK);   // see checkPowerOnPress()
+}
+
+void ThinkNodeM6Board::powerOff() {
+  // Elecrow: the red LED flashes 5 times before power off
+  for (int i = 0; i < 5; i++) {
+    digitalWrite(PIN_LED_RED, HIGH);
+    delay(250);
+    digitalWrite(PIN_LED_RED, LOW);
+    delay(250);
+  }
+  prepareWakeUp();
+  NRF52Board::powerOff();
+}
+
+// Elecrow manual: after a power off, the button must be held 3 s to power
+// on, and the red LED then lights. A shorter press puts the board back to
+// sleep. A wake-up by the charger boots at once.
+void ThinkNodeM6Board::checkPowerOnPress() {
+  bool after_power_off = NRF_POWER->GPREGRET2 == M6_POWEROFF_MARK;   // SoftDevice not started yet
+  writeGpregret(1, 0);
+  if (!after_power_off || isChargerActive()) {
+    return;
+  }
+  while (millis() < M6_POWERON_HOLD_MILLIS) {
+    if (digitalRead(PIN_USER_BTN) == HIGH) {
+      // Released too early. The radio still sleeps since the power off, but
+      // initVariant() powered the GPS on again.
+      digitalWrite(PIN_GPS_EN, LOW);
+      prepareWakeUp();
+      NRF_POWER->SYSTEMOFF = POWER_SYSTEMOFF_SYSTEMOFF_Enter;
+    }
+    delay(10);
+  }
+}
+
 void ThinkNodeM6Board::begin() {
   NRF52Board::begin();
+
+  pinMode(EXT_PWR_DETECT, INPUT);
+  pinMode(EXT_CHRG_DETECT, INPUT);
+  pinMode(PIN_USER_BTN, INPUT_PULLUP);
+  checkPowerOnPress();
 
   digitalWrite(PIN_LED_RED, HIGH);   // power-on sign, see loop()
 
@@ -52,10 +120,6 @@ void ThinkNodeM6Board::begin() {
   pinMode(P_LORA_TX_LED, OUTPUT);
   digitalWrite(P_LORA_TX_LED, LOW);
 #endif
-
-  pinMode(EXT_PWR_DETECT, INPUT);
-  pinMode(EXT_CHRG_DETECT, INPUT);
-  pinMode(PIN_USER_BTN, INPUT_PULLUP);
 
   delay(10); // give sx1262 some time to power up
 }

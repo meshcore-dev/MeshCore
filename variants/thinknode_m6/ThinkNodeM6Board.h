@@ -18,6 +18,8 @@
 #define M6_WATCHDOG_SECS            90
 #define M6_DFU_MAGIC_SKIP           0x6D    // tells the bootloader to start the firmware at once
 #define M6_RX_FLASH_MILLIS          400     // blue flashing after each received packet
+#define M6_POWERON_HOLD_MILLIS      3000    // Elecrow: hold 3 s to power on
+#define M6_POWEROFF_MARK            0x4D    // in GPREGRET2: the board was powered off by powerOff()
 
 class ThinkNodeM6Board : public NRF52BoardDCDC {
   bool _red_led_on = true;
@@ -29,6 +31,8 @@ class ThinkNodeM6Board : public NRF52BoardDCDC {
   uint32_t _batt_read_at = 0;
   uint16_t _batt_mv = 0;
   uint32_t _btn_down_at = 0;
+
+  void checkPowerOnPress();
 
 protected:
 #if NRF52_POWER_MANAGEMENT
@@ -83,38 +87,5 @@ public:
     return isSolarChargerActive() || isUsbPowered();
   }
 
-  void powerOff() override {
-    // Elecrow: the red LED flashes 5 times before power off
-    for (int i = 0; i < 5; i++) {
-      digitalWrite(PIN_LED_RED, HIGH);
-      delay(250);
-      digitalWrite(PIN_LED_RED, LOW);
-      delay(250);
-    }
-
-    // turn off all leds, sd_power_system_off will not do this for us
-    #ifdef P_LORA_TX_LED
-    digitalWrite(P_LORA_TX_LED, LOW);
-    #endif
-
-    // Like Meshtastic, wake on the button or when the charger starts.
-    // If the charger is already active, the board wakes again at once.
-    nrf_gpio_cfg_sense_input(g_ADigitalPinMap[PIN_USER_BTN], NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
-    nrf_gpio_cfg_sense_input(g_ADigitalPinMap[EXT_CHRG_DETECT], NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
-
-    // The bootloader enters its update mode (blue LED pulsing) when the button
-    // is held at boot, and the button is what wakes the board. Like Meshtastic,
-    // ask it to skip that check on the next boot.
-    uint8_t sd_enabled = 0;
-    sd_softdevice_is_enabled(&sd_enabled);
-    if (sd_enabled) {
-      sd_power_gpregret_clr(0, 0xFF);
-      sd_power_gpregret_set(0, M6_DFU_MAGIC_SKIP);
-    } else {
-      NRF_POWER->GPREGRET = M6_DFU_MAGIC_SKIP;
-    }
-
-    // power off board
-    NRF52Board::powerOff();
-  }
+  void powerOff() override;
 };
