@@ -5,9 +5,28 @@
 
 #include <Wire.h>
 
+// A reset in the middle of an RTC read can leave the RTC holding SDA low,
+// and the RTC probe at boot then hangs forever. Up to nine clock pulses let
+// it finish its byte and release the bus.
+static void recoverI2cBus() {
+  pinMode(PIN_WIRE_SDA, INPUT_PULLUP);
+  pinMode(PIN_WIRE_SCL, INPUT_PULLUP);
+  MESH_DEBUG_PRINTLN("I2C at boot: SDA=%d SCL=%d", digitalRead(PIN_WIRE_SDA), digitalRead(PIN_WIRE_SCL));
+  pinMode(PIN_WIRE_SCL, OUTPUT);
+  digitalWrite(PIN_WIRE_SCL, HIGH);
+  for (int i = 0; i < 9 && digitalRead(PIN_WIRE_SDA) == LOW; i++) {
+    digitalWrite(PIN_WIRE_SCL, LOW);
+    delayMicroseconds(5);
+    digitalWrite(PIN_WIRE_SCL, HIGH);
+    delayMicroseconds(5);
+  }
+  pinMode(PIN_WIRE_SCL, INPUT_PULLUP);
+}
+
 void ThinkNodeM6Board::begin() {
   NRF52Board::begin();
 
+  recoverI2cBus();
   Wire.begin();
 
 #ifdef P_LORA_TX_LED
