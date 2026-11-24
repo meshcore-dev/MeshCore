@@ -2342,6 +2342,16 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     sprintf(reply, "> %s", _prefs.ui_gps_action ? "once" : "toggle");
     return true;
   }
+  if (memcmp(command, "set ui.button_lock", 18) == 0) {
+    _prefs.ui_button_lock = atoi(&command[18]) ? 1 : 0;
+    savePrefs();
+    sprintf(reply, "> now %d", _prefs.ui_button_lock);
+    return true;
+  }
+  if (memcmp(command, "get ui.button_lock", 18) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_button_lock);
+    return true;
+  }
   if (memcmp(command, "get ui.show_clock", 17) == 0) {
     sprintf(reply, "> %d", _prefs.ui_show_clock);
     return true;

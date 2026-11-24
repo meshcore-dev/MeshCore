@@ -75,6 +75,9 @@ class UITask : public AbstractUITask {
 #ifdef PIN_USER_BTN_ANA
   unsigned long _analogue_pin_read_millis = millis();
 #endif
+#if UI_HAS_JOYSTICK
+  unsigned long _unlock_until = 0;
+#endif
 
   UIScreen* splash;
   UIScreen* home;
@@ -88,6 +91,10 @@ class UITask : public AbstractUITask {
   char handleLongPress(char c);
   char handleDoubleClick(char c);
   char handleTripleClick(char c);
+#if UI_HAS_JOYSTICK
+  int handleLocked(int ev, char key);
+  void lockButtons(bool lock);
+#endif
 
   void setCurrScreen(UIScreen* c);
 
