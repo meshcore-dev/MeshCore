@@ -1036,7 +1036,8 @@ void UITask::loop() {
     c = handleLongPress(KEY_RIGHT);
   }
   ev = back_btn.check();
-  if (_node_prefs->ui_button_lock && ev != BUTTON_EVENT_NONE) {
+  if (_node_prefs->ui_button_lock && ev != BUTTON_EVENT_NONE
+      && ev != BUTTON_EVENT_TRIPLE_CLICK) {   // buzzer toggle still works while locked
     checkDisplayOn(0);
     if (ev == BUTTON_EVENT_DOUBLE_CLICK) {   // unlock needs a joystick press within 3 sec
       _unlock_until = millis() + 3000;
