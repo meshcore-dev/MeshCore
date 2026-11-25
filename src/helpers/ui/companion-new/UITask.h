@@ -75,6 +75,10 @@ class UITask : public AbstractUITask {
 #ifdef PIN_USER_BTN_ANA
   unsigned long _analogue_pin_read_millis = millis();
 #endif
+#if UI_HAS_JOYSTICK
+  bool _locked = false;
+  unsigned long _unlock_until = 0;
+#endif
 
   UIScreen* splash;
   UIScreen* home;
@@ -88,6 +92,10 @@ class UITask : public AbstractUITask {
   char handleLongPress(char c);
   char handleDoubleClick(char c);
   char handleTripleClick(char c);
+#if UI_HAS_JOYSTICK
+  int handleLocked(int ev, char key);
+  void lockButtons(bool lock);
+#endif
 
   void setCurrScreen(UIScreen* c);
 
@@ -106,6 +114,9 @@ public:
   int  getMsgCount() const { return _msgcount; }
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
+#if UI_HAS_JOYSTICK
+  bool isLocked() const { return _locked; }
+#endif
 
   BaseChatMesh* getMesh() const { return the_mesh; }
   uint32_t getBLEPin() const  { return _ble_pin; }

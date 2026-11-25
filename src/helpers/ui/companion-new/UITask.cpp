@@ -211,6 +211,18 @@ class HomeScreen : public UIScreen {
       display.drawXbm(iconX - (charging ? 18 : 9), iconY + 1, muted_icon, 8, 8);
     }
 #endif
+
+#if UI_HAS_JOYSTICK
+    // show lock icon left of the other icons when buttons are locked
+    if (_task->isLocked()) {
+      int x = iconX - (charging ? 18 : 9);
+  #ifdef PIN_BUZZER
+      if (_task->isBuzzerQuiet()) x -= 9;
+  #endif
+      display.setColor(UIColor::title_txt);
+      display.drawXbm(x, iconY + 1, lock_icon, 8, 8);
+    }
+#endif
   }
 
   CayenneLPP sensors_lpp;
@@ -1003,25 +1015,39 @@ void UITask::loop() {
   char c = 0;
 #if UI_HAS_JOYSTICK
   int ev = user_btn.check();
+  if (_locked) ev = handleLocked(ev, KEY_ENTER);
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
     c = handleLongPress(KEY_ENTER);  // REVISIT: could be mapped to different key code
   }
   ev = joystick_left.check();
+  if (_locked) ev = handleLocked(ev, KEY_LEFT);
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_LEFT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
     c = handleLongPress(KEY_LEFT);
   }
   ev = joystick_right.check();
+  if (_locked) ev = handleLocked(ev, KEY_RIGHT);
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_RIGHT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
     c = handleLongPress(KEY_RIGHT);
   }
   ev = back_btn.check();
-  if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
+  if (_locked && ev != BUTTON_EVENT_NONE
+      && ev != BUTTON_EVENT_TRIPLE_CLICK) {   // buzzer toggle still works while locked
+    checkDisplayOn(0);
+    if (ev == BUTTON_EVENT_DOUBLE_CLICK) {   // unlock needs a joystick press within 3 sec
+      _unlock_until = millis() + 3000;
+      showAlert("Now press joystick", 3000);
+    } else {
+      showAlert("Locked: Menu x2", 1200);
+    }
+  } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
+    lockButtons(true);
+  } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
     c = handleTripleClick(KEY_SELECT);
   }
 #elif defined(PIN_USER_BTN)
@@ -1235,6 +1261,31 @@ char UITask::handleTripleClick(char c) {
   c = 0;
   return c;
 }
+
+#if UI_HAS_JOYSTICK
+// buttons locked: ignore the joystick, except a press just after Menu double-click (unlock)
+int UITask::handleLocked(int ev, char key) {
+  if (ev == BUTTON_EVENT_NONE) return ev;
+  if (ev == BUTTON_EVENT_LONG_PRESS && millis() - ui_started_at < 8000) return ev;  // keep CLI/rescue
+
+  if (_display != NULL && _display->isOn()) {   // if screen is off, leave it off
+    if (key == KEY_ENTER && ev == BUTTON_EVENT_CLICK && millis() < _unlock_until) {
+      lockButtons(false);
+    } else {
+      checkDisplayOn(0);
+      showAlert("Locked: Menu x2", 1200);
+    }
+  }
+  return BUTTON_EVENT_NONE;
+}
+
+void UITask::lockButtons(bool lock) {
+  _locked = lock;
+  _unlock_until = 0;
+  checkDisplayOn(0);
+  showAlert(lock ? "Keys locked" : "Unlocked", 800);
+}
+#endif
 
 bool UITask::getGPSState() {
   if (_sensors != NULL) {
