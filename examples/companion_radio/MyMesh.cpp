@@ -692,7 +692,19 @@ bool MyMesh::gpsOnDemandApplies(uint8_t permissions) {
          _prefs.gps_period == 0 && sensors.getLocationProvider() != NULL;
 }
 
+bool MyMesh::gpsOnDemandCanWake() {
+  // no wake-up during the backoff after a timeout, and at most one wake-up per GPS_OD_MIN_WAKE_MILLIS
+  if (gps_od_backoff_until && !millisHasNowPassed(gps_od_backoff_until)) return false;
+  if (gps_od_next_wake && !millisHasNowPassed(gps_od_next_wake)) return false;
+  return true;
+}
+
 void MyMesh::queueGpsDemand(const ContactInfo &contact, uint32_t tag, uint8_t permissions) {
+  if (!gps_od_running && !gpsOnDemandCanWake()) {
+    MESH_DEBUG_PRINTLN("GPS on demand: wake-up suppressed (backoff / rate limit)");
+    return; // requester still gets the immediate (base) reply
+  }
+
   int slot = -1;
   for (int i = 0; i < MAX_GPS_DEMANDS; i++) {
     if (gps_demands[i].active && memcmp(gps_demands[i].pub_key, contact.id.pub_key, PUB_KEY_SIZE) == 0) {
@@ -708,16 +720,19 @@ void MyMesh::queueGpsDemand(const ContactInfo &contact, uint32_t tag, uint8_t pe
   gps_demands[slot].permissions = permissions;
   gps_demands[slot].active = true;
 
+  const int timeout_ms = (int)constrain(_prefs.gps_od_timeout, 10, 600) * 1000;
   if (!gps_od_running) {
     MESH_DEBUG_PRINTLN("GPS on demand: powering up");
     sensors.setSettingValue("gps", "1");
-    LocationProvider *loc = sensors.getLocationProvider();
-    gps_od_start_ts = loc ? loc->getTimestamp() : 0;
     gps_od_running = true;
     gps_od_have_fix = false;
+    gps_od_started_at = millis();
+    gps_od_session_end = futureMillis(2 * timeout_ms);
+    gps_od_next_wake = futureMillis(GPS_OD_MIN_WAKE_MILLIS);
   }
-  // every new request gets a full search window, also when GPS is already searching
-  gps_od_deadline = futureMillis((int)constrain(_prefs.gps_od_timeout, 10, 600) * 1000);
+  // a new request restarts the search window, but one wake-up never searches longer than 2 x timeout
+  gps_od_deadline = futureMillis(timeout_ms);
+  if ((long)(gps_od_deadline - gps_od_session_end) > 0) gps_od_deadline = gps_od_session_end;
   gps_od_off_at = 0; // cancel any pending power-down while a request is waiting
 }
 
@@ -743,9 +758,15 @@ void MyMesh::checkGpsOnDemand() {
   }
 
   LocationProvider *loc = sensors.getLocationProvider();
-  if (!gps_od_have_fix && loc && loc->isValid() && loc->getTimestamp() > gps_od_start_ts) {
-    gps_od_have_fix = true;
-    gps_od_fix_at = futureMillis(GPS_OD_SETTLE_MILLIS);
+  if (!gps_od_have_fix && loc) {
+    // a real fix stored during this wake-up: enough satellites and not "no fix" in GSA.
+    // Some receivers report estimated epochs (GGA quality 6, RMC mode E) as valid indoors.
+    const LocationProvider::LastFix f = loc->getLastFix();
+    if (f.valid && (long)(f.acquiredAt - gps_od_started_at) >= 0 && f.satellites >= GPS_OD_MIN_SATS &&
+        f.fixMode != 1) {
+      gps_od_have_fix = true;
+      gps_od_fix_at = futureMillis(GPS_OD_SETTLE_MILLIS);
+    }
   }
 
   bool any_pending = false;
@@ -770,12 +791,14 @@ void MyMesh::checkGpsOnDemand() {
       }
     }
     gps_od_off_at = futureMillis(GPS_OD_HOLD_MILLIS);
+    gps_od_backoff_until = 0;
     any_pending = false;
   }
 
   if (any_pending && millisHasNowPassed(gps_od_deadline)) {
-    MESH_DEBUG_PRINTLN("GPS on demand: no fix before timeout");
+    MESH_DEBUG_PRINTLN("GPS on demand: no fix before timeout, backing off");
     stopGpsOnDemand(); // requesters already got the base reply; no location to add
+    gps_od_backoff_until = futureMillis(GPS_OD_BACKOFF_MILLIS);
     return;
   }
 
@@ -1012,7 +1035,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   memset(gps_demands, 0, sizeof(gps_demands));
   gps_od_running = gps_od_have_fix = false;
   gps_od_deadline = gps_od_fix_at = gps_od_off_at = 0;
-  gps_od_start_ts = 0;
+  gps_od_started_at = gps_od_session_end = gps_od_next_wake = gps_od_backoff_until = 0;
 #endif
   memset(send_scope.key, 0, sizeof(send_scope.key));
   send_unscoped = false;
