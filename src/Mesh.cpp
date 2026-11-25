@@ -167,6 +167,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 uint8_t hash_size = (path_len >> 6) + 1;
                 uint8_t hash_count = path_len & 63;
                 uint8_t* path = &data[k]; k += hash_size*hash_count;
+                if (k >= len) {
+                  MESH_DEBUG_PRINTLN("%s PAYLOAD_TYPE_PATH, set path_len %u exceeds amount of available payload %u", 
+                    getLogDateTime(), (uint32_t)path_len, (uint32_t)len);
+                }
                 uint8_t extra_type = data[k++] & 0x0F;   // upper 4 bits reserved for future use
                 uint8_t* extra = &data[k];
                 uint8_t extra_len = len - k;   // remainder of packet (may be padded with zeroes!)
