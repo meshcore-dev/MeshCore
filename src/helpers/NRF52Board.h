@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <MeshCore.h>
+#include <helpers/KeyValueStore.h>
 
 #if defined(NRF52_PLATFORM)
 
@@ -25,15 +26,15 @@ struct PowerMgtConfig {
 #endif
 
 class NRF52Board : public mesh::MainBoard {
-#ifdef NRF52_POWER_MANAGEMENT
-  void initPowerMgr();
-#endif
+private:
+  bool pwrmgt_initialised = false;
 
 protected:
   uint8_t startup_reason;
   char *ota_name;
 
 #ifdef NRF52_POWER_MANAGEMENT
+  void pwrmgtInit();
   uint32_t reset_reason;              // RESETREAS register value
   uint8_t shutdown_reason;            // GPREGRET value (why we entered last SYSTEMOFF)
   uint16_t boot_voltage_mv;           // Battery voltage at boot (millivolts)
@@ -41,6 +42,7 @@ protected:
   bool checkBootVoltage(const PowerMgtConfig* config);
   void enterSystemOff(uint8_t reason);
   void configureVoltageWake(uint8_t ain_channel, uint8_t refsel);
+  void pwrmgtWakeArmVbus();
   virtual void initiateShutdown(uint8_t reason);
 #endif
 
@@ -57,12 +59,18 @@ public:
   virtual void sleep(uint32_t secs) override;
   bool isExternalPowered() override;
 
+  void attachDynamicPrefs(KeyValueStore* prefs) { }  // no-op
+
 #ifdef NRF52_POWER_MANAGEMENT
   uint16_t getBootVoltage() override { return boot_voltage_mv; }
   virtual uint32_t getResetReason() const override { return reset_reason; }
   uint8_t getShutdownReason() const override { return shutdown_reason; }
   const char* getResetReasonString(uint32_t reason) override;
   const char* getShutdownReasonString(uint8_t reason) override;
+  bool isPwrMgtInitialised() const override { return pwrmgt_initialised; }
+  #ifdef PWRMGT_LPCOMP_AIN
+    bool getWakeLpcompSupported() const override { return true; }
+  #endif
 #endif
 };
 

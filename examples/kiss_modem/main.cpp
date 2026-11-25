@@ -113,7 +113,7 @@ void setup() {
   uint32_t start = millis();
   while (!Serial && millis() - start < 3000) delay(10);
   delay(100);
-#if defined(ESP32) && ARDUINO_USB_MODE
+#if defined(ESP32) && defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
   Serial.setTxTimeoutMs(USB_TX_TIMEOUT_MS);
   Serial.setTxBufferSize(USB_TX_BUFFER_SIZE);
 #endif
@@ -148,6 +148,8 @@ void loop() {
       modem->onPacketReceived(snr, rssi, rx_buf, rx_len);
     }
   }
+
+  board.loop();
 
   if ((uint32_t)(millis() - next_noise_floor_calib_ms) >= NOISE_FLOOR_CALIB_INTERVAL_MS) {
     radio_driver.triggerNoiseFloorCalibrate(0);

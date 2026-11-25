@@ -108,7 +108,7 @@
 #define PIN_DISPLAY_DC                 (31)
 #define PIN_DISPLAY_RST                (32 + 4)
 
-#define PIN_SPI1_MISO           (-1)
+#define PIN_SPI1_MISO           (0)  // 0 maps to 0xff on this device which is NRFX_SPIM_PIN_NOT_USED
 #define PIN_SPI1_MOSI           (20)
 #define PIN_SPI1_SCK            (22)
 

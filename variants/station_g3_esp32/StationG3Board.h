@@ -3,45 +3,21 @@
 #include <Arduino.h>
 #include <helpers/ESP32Board.h>
 #include <driver/rtc_io.h>
-
-#ifndef P_PRIMARY_LNA_EN_ACTIVE
-#define P_PRIMARY_LNA_EN_ACTIVE LOW
-#endif
-
-#ifndef P_PA1_EN_ACTIVE
-#define P_PA1_EN_ACTIVE HIGH
-#endif
+#include "LoRaFEMControl.h"
 
 class StationG3Board : public ESP32Board {
-  void setPAModeHigh(bool enabled) {
-#ifdef P_PA1_EN
-    // Station G3 PA PL1 mode: LOW/open is PA low, HIGH/short is PA high.
-    digitalWrite(P_PA1_EN, enabled ? P_PA1_EN_ACTIVE : !P_PA1_EN_ACTIVE);
-#endif
-  }
+  KeyValueStore* _prefs = NULL;
 
-  void setPrimaryLNAControl(bool enabled) {
-#ifdef P_PRIMARY_LNA_EN
-    // Station G3 primary LNA mode is active-low: LOW/open is LNA on, HIGH/short is LNA off.
-    digitalWrite(P_PRIMARY_LNA_EN, enabled ? P_PRIMARY_LNA_EN_ACTIVE : !P_PRIMARY_LNA_EN_ACTIVE);
-#endif
-  }
-
+  bool setLoRaFemLnaEnabled(bool enable);
+  bool isLoRaFemLnaEnabled() const;
+  bool setLoRaFemPaGainEnabled(bool enable);
+  bool isLoRaFemPaGainEnabled() const;
 public:
+  LoRaFEMControl loRaFEMControl;
+
   void begin() {
     ESP32Board::begin();
-
-#ifdef P_PA1_EN
-    rtc_gpio_hold_dis((gpio_num_t)P_PA1_EN);
-    pinMode(P_PA1_EN, OUTPUT);
-    setPAModeHigh(false);
-#endif
-
-#ifdef P_PRIMARY_LNA_EN
-    rtc_gpio_hold_dis((gpio_num_t)P_PRIMARY_LNA_EN);
-    pinMode(P_PRIMARY_LNA_EN, OUTPUT);
-    setPrimaryLNAControl(true);
-#endif
+    loRaFEMControl.init();
 
     esp_reset_reason_t reason = esp_reset_reason();
     if (reason == ESP_RST_DEEPSLEEP) {
@@ -55,22 +31,26 @@ public:
     }
   }
 
+  void attachDynamicPrefs(KeyValueStore* prefs);
+
+  bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) override;
+
   void setPrimaryLNAEnable(bool enabled) {
-    setPrimaryLNAControl(enabled);
+    loRaFEMControl.setLNAEnable(enabled);
   }
 
   void setPrimaryPAHighPower(bool enabled) {
-    setPAModeHigh(enabled);
+    loRaFEMControl.setPAGainEnable(enabled);
   }
 
   void onBeforeTransmit() override {
     ESP32Board::onBeforeTransmit();
-    setPrimaryLNAControl(false);
+    loRaFEMControl.setTxModeEnable();
   }
 
   void onAfterTransmit() override {
     ESP32Board::onAfterTransmit();
-    setPrimaryLNAControl(true);
+    loRaFEMControl.setRxModeEnable();
   }
 
   void powerOff() override;

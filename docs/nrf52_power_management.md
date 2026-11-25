@@ -186,10 +186,18 @@ Power management status can be queried via the CLI:
 | `get pwrmgt.bootreason` | Returns reset and shutdown reason strings                             |
 | `get pwrmgt.bootmv`     | Returns boot voltage in millivolts                                    |
 
-On boards without power management enabled, all commands except `get pwrmgt.support` return:
+On boards without power management enabled, `get pwrmgt.source` and
+`get pwrmgt.bootmv` return:
 ```
 ERROR: Power management not supported
 ```
+
+`get pwrmgt.support` returns `unsupported`. `get pwrmgt.bootreason` is not
+compiled out at all and answers on every board: `getResetReason()` and
+`getShutdownReason()` are virtuals on the base board class, so a board that
+does not override them reports `Not available` rather than an error. ESP32
+boards override the reset half with `esp_reset_reason()`, so they return a real
+reset reason and `Not available` for the shutdown reason.
 
 ## Debug Output
 

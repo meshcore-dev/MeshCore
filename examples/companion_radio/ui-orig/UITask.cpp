@@ -6,10 +6,17 @@
 #define AUTO_OFF_MILLIS     15000   // 15 seconds
 #define BOOT_SCREEN_MILLIS   3000   // 3 seconds
 
-#ifdef PIN_STATUS_LED
+#if defined(PIN_STATUS_LED) || defined(PIN_STATUS_LED_R)
 #define LED_ON_MILLIS     20
 #define LED_ON_MSG_MILLIS 200
 #define LED_CYCLE_MILLIS  4000
+#endif
+
+#if defined(PIN_STATUS_LED_R) && defined(PIN_STATUS_LED_G) && defined(PIN_STATUS_LED_B)
+#define STATUS_LED_RGB 1
+#ifndef LOW_BATT_MILLIVOLTS
+#define LOW_BATT_MILLIVOLTS 3500
+#endif
 #endif
 
 #ifndef USER_BTN_PRESSED
@@ -58,6 +65,11 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   buzzer.begin();
   buzzer.quiet(_node_prefs->buzzer_quiet);
   buzzer.startup();
+#endif
+
+#ifdef HAS_DRV2605
+  vibration.begin();
+  vibration.quiet(_node_prefs->vibe_quiet);
 #endif
 
   // Initialize digital button if available
@@ -114,7 +126,7 @@ switch(t){
 //  Serial.println((int) t);
 }
 
-void UITask::msgRead(int msgcount) {
+void UITask::onQueueSizeChanged(int msgcount) {
   _msgcount = msgcount;
   if (msgcount == 0) {
     clearMsgPreview();
@@ -127,13 +139,19 @@ void UITask::clearMsgPreview() {
   _need_refresh = true;
 }
 
-void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) {
-  _msgcount = msgcount;
+void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, const char* text) {
+  // we only want to show text messages on display, not cli data
+  if (!(txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN)) return;
 
+#ifdef HAS_DRV2605
+  vibration.trigger();   // vibrate even while the app is connected (honors quiet + cooldown)
+#endif
+
+  uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
   if (path_len == 0xFF) {
-    sprintf(_origin, "(F) %s", from_name);
+    sprintf(_origin, "(F) %s", from.name);
   } else {
-    sprintf(_origin, "(%d) %s", (uint32_t) path_len, from_name);
+    sprintf(_origin, "(%d) %s", (uint32_t) path_len, from.name);
   }
   StrHelper::strncpy(_msg, text, sizeof(_msg));
 
@@ -142,9 +160,45 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
       _display->turnOn();
     }
     if (_display->isOn()) {
-    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
-    _need_refresh = true;
+      _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
+      _need_refresh = true;
     }
+  }
+  if (!hasConnection()) {
+    notify(UIEventType::contactMessage);
+  }
+}
+
+void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) {
+#ifdef HAS_DRV2605
+  vibration.trigger();   // vibrate even while the app is connected (honors quiet + cooldown)
+#endif
+
+  uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
+  if (path_len == 0xFF) {
+    sprintf(_origin, "(F) %s", channel_details.name);
+  } else {
+    sprintf(_origin, "(%d) %s", (uint32_t) path_len, channel_details.name);
+  }
+  StrHelper::strncpy(_msg, text, sizeof(_msg));
+
+  if (_display != NULL) {
+    if (!_display->isOn() && !hasConnection()) {
+      _display->turnOn();
+    }
+    if (_display->isOn()) {
+      _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
+      _need_refresh = true;
+    }
+  }
+  if (!hasConnection()) {
+    notify(UIEventType::channelMessage);
+  }
+}
+
+void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
+  if (!hasConnection()) {
+    notify(UIEventType::newContactMessage);
   }
 }
 
@@ -246,7 +300,7 @@ void UITask::renderCurrScreen() {
     _display->print(tmp);
 
     // BT pin
-    if (!_connected && the_mesh.getBLEPin() != 0) {
+    if (!hasConnection() && the_mesh.getBLEPin() != 0) {
       _display->setColor(UIColor::warning_txt);
       _display->setTextSize(2);
       _display->setCursor(0, 43);
@@ -260,8 +314,114 @@ void UITask::renderCurrScreen() {
   _need_refresh = false;
 }
 
+#ifdef STATUS_LED_RGB
+static void statusLedWrite(uint8_t r, uint8_t g, uint8_t b) {
+  analogWrite(PIN_STATUS_LED_R, r);
+  analogWrite(PIN_STATUS_LED_G, g);
+  analogWrite(PIN_STATUS_LED_B, b);
+}
+
+static void statusLedWheel(uint8_t pos) {   // smooth hue sweep, 0..255
+  if (pos < 85) {
+    statusLedWrite(255 - pos * 3, pos * 3, 0);
+  } else if (pos < 170) {
+    pos -= 85;
+    statusLedWrite(0, 255 - pos * 3, pos * 3);
+  } else {
+    pos -= 170;
+    statusLedWrite(pos * 3, 0, 255 - pos * 3);
+  }
+}
+#endif
+
 void UITask::userLedHandler() {
-#ifdef PIN_STATUS_LED
+#ifdef STATUS_LED_RGB
+  static bool booted = false;
+  static bool flourish_active = false;
+  static unsigned long flourish_until = 0;
+  static int prev_msgcount = 0;
+  static int state = 0;
+  static unsigned long next_change = 0;
+  static int last_increment = 0;
+  static unsigned long next_batt_check = 0;
+  static bool low_batt = false;
+
+  unsigned long cur_time = millis();
+
+  if (!booted) {   // color sweep on boot
+    booted = true;
+    flourish_until = cur_time + 1200;
+    flourish_active = true;
+  }
+  if (_msgcount > prev_msgcount) {   // color sweep when a new message arrives
+    flourish_until = cur_time + 800;
+    flourish_active = true;
+  }
+  prev_msgcount = _msgcount;
+
+  if (flourish_active) {
+    if (cur_time < flourish_until) {
+      statusLedWheel((cur_time % 1200) * 255 / 1200);
+      return;
+    }
+    statusLedWrite(0, 0, 0);
+    flourish_active = false;
+    state = 0;
+    next_change = cur_time;
+  }
+
+  if (cur_time > next_batt_check) {   // battery reads are not free, keep them rare
+    low_batt = _board->getBattMilliVolts() < LOW_BATT_MILLIVOLTS;
+    next_batt_check = cur_time + 60000;
+  }
+
+#ifdef EXT_CHRG_DETECT
+  // charge status display while docked (skipped when messages are waiting,
+  // so the unread indication is never masked)
+  static unsigned long next_pwr_check = 0;
+  static bool ext_powered = false, ext_charging = false;
+  if (cur_time > next_pwr_check) {
+    ext_powered = _board->isExternalPowered();
+    ext_charging = ext_powered && digitalRead(EXT_CHRG_DETECT) == LOW;
+    next_pwr_check = cur_time + 1000;
+  }
+  if (ext_powered && _msgcount == 0) {
+    if (ext_charging) {
+      // amber breathing while charging
+      int ph = cur_time % 2000;
+      int v = ph < 1000 ? ph : 2000 - ph;
+      uint8_t lvl = (uint8_t)(v * 255 / 1000);
+      statusLedWrite(lvl, (uint8_t)(lvl * 35 / 100), 0);
+    } else {
+      statusLedWrite(0, 40, 0);   // dim solid green: charge complete
+    }
+    state = 0;
+    next_change = cur_time;
+    return;
+  }
+#endif
+
+  if (cur_time > next_change) {
+    if (state == 0) {
+      state = 1;
+      last_increment = (_msgcount > 0) ? LED_ON_MSG_MILLIS : LED_ON_MILLIS;
+      next_change = cur_time + last_increment;
+      if (low_batt) {
+        statusLedWrite(255, 0, 0);      // red: battery low
+      } else if (_msgcount > 0) {
+        statusLedWrite(255, 90, 0);     // amber: unread messages
+      } else if (hasConnection()) {
+        statusLedWrite(0, 0, 255);      // blue: app connected
+      } else {
+        statusLedWrite(0, 255, 0);      // green: heartbeat
+      }
+    } else {
+      state = 0;
+      next_change = cur_time + LED_CYCLE_MILLIS - last_increment;
+      statusLedWrite(0, 0, 0);
+    }
+  }
+#elif defined(PIN_STATUS_LED)
   static int state = 0;
   static int next_change = 0;
   static int last_increment = 0;
@@ -406,8 +566,26 @@ void UITask::handleButtonDoublePress() {
 
 void UITask::handleButtonTriplePress() {
   MESH_DEBUG_PRINTLN("UITask: triple press triggered");
-  // Toggle buzzer quiet mode
-  #ifdef PIN_BUZZER
+#if defined(PIN_BUZZER) && defined(HAS_DRV2605)
+  // cycle alert modes: Buzz+Vibe -> Buzz only -> Vibe only -> Silent
+  int mode = (_node_prefs->buzzer_quiet ? 2 : 0) | (_node_prefs->vibe_quiet ? 1 : 0);
+  mode = (mode + 1) & 3;
+  _node_prefs->buzzer_quiet = (mode & 2) ? 1 : 0;
+  _node_prefs->vibe_quiet = (mode & 1) ? 1 : 0;
+  buzzer.quiet(_node_prefs->buzzer_quiet);
+  vibration.quiet(_node_prefs->vibe_quiet);
+  // audible/tactile confirmation of the new mode (no screen on some boards)
+  if (!_node_prefs->buzzer_quiet) notify(UIEventType::ack);
+  if (!_node_prefs->vibe_quiet) vibration.trigger(true);
+  switch (mode) {
+    case 0: sprintf(_alert, "Alerts: Buzz+Vibe"); break;
+    case 1: sprintf(_alert, "Alerts: Buzz only"); break;
+    case 2: sprintf(_alert, "Alerts: Vibe only"); break;
+    default: sprintf(_alert, "Alerts: Silent"); break;
+  }
+  the_mesh.savePrefs();
+  _need_refresh = true;
+#elif defined(PIN_BUZZER)
     if (buzzer.isQuiet()) {
       buzzer.quiet(false);
       notify(UIEventType::ack);
@@ -419,7 +597,7 @@ void UITask::handleButtonTriplePress() {
     _node_prefs->buzzer_quiet = buzzer.isQuiet();
     the_mesh.savePrefs();
     _need_refresh = true;
-  #endif
+#endif
 }
 
 void UITask::handleButtonQuadruplePress() {

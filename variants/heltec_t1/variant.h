@@ -9,6 +9,12 @@
 #define USE_LFXO
 #define VARIANT_MCK (64000000ul)
 
+// This board has no external RTC chip -- the ICM-42607-P IMU sits at 0x68,
+// the same I2C address DS3231 probing checks, so without this the IMU gets
+// misidentified as a DS3231 and its unrelated registers get read/written
+// as if they were time/status registers, producing a bogus, unfixable clock.
+#define DISABLE_DS3231_PROBE
+
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins
 
@@ -25,8 +31,8 @@
 #define ST7735_SDA              (0 + 24)
 #define ST7735_SCK              (32 + 0)
 #define ST7735_RESET            (0 + 20)
-#define ST7735_MISO             (-1)
-#define ST7735_BUSY             (-1)
+#define ST7735_MISO             (0) // 0 maps to 0xff on this device which is NRFX_SPIM_PIN_NOT_USED
+#define ST7735_BUSY             (0) // 0 maps to 0xff on this device which is NRFX_SPIM_PIN_NOT_USED
 #define ST7735_BL               (0 + 15)
 #define VTFT_CTRL               (0 + 13)
 
@@ -66,8 +72,7 @@
 // UART
 
 // No longer populated on PCB.
-#define PIN_SERIAL2_RX          (-1)
-#define PIN_SERIAL2_TX          (-1)
+// Removed the pin definitions to avoid potential issues with Uart.
 
 ////////////////////////////////////////////////////////////////////////////////
 // I2C
