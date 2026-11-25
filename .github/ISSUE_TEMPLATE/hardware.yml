@@ -1,0 +1,58 @@
+name: New Board/Hardware Request
+description: Request support for a new board/hardware.
+title: "[Hardware]: "
+labels: ["enhancement"]
+body:
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I have searched [existing issues](https://github.com/meshcore-dev/MeshCore/issues?q=label%3Aenhancement) for this hardware.
+          required: true
+
+  - type: dropdown
+    id: soc
+    attributes:
+      label: SoC / Platform
+      description: Which system-on-chip does this board/hardware use?
+      multiple: true
+      options:
+        - NRF52840
+        - ESP32
+        - ESP32-S3
+        - ESP32-C3
+        - ESP32-C6
+        - RP2040
+        - STM32WLE5
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: lora-ic
+    attributes:
+      label: LoRa IC
+      description: Which LoRa radio IC does this board/hardware use?
+      placeholder: "e.g., SX1262, SX1276, LR1110, LR1121"
+    validations:
+      required: true
+
+  - type: input
+    id: product-link
+    attributes:
+      label: Product Link
+      description: URL to the product page, store listing, or datasheet.
+      placeholder: "https://..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Board/Hardware Description
+      description: >-
+        Describe the board/hardware. Include pinout, schematic links, available
+        peripherals (display, GPS, sensors), and any other relevant details.
+    validations:
+      required: true
