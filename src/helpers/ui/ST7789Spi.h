@@ -103,9 +103,11 @@ class ST7789Spi : public OLEDDisplay {
       int             _mosi;
       int             _clk;
       SPIClass * _spi;
-      SPISettings 		    _spiSettings;
+      SPISettings          _spiSettings;
       uint16_t            _RGB=0xFFFF;
       uint8_t             _buffheight;
+      uint16_t*           _pixbuf = nullptr;
+      uint32_t            _pixbuf_capacity = 0;
   public:
     /* pass _cs as -1 to indicate "do not use CS pin", for cases where it is hard wired low */
     ST7789Spi(SPIClass *spiClass,uint8_t _rst, uint8_t _dc, uint8_t _cs, OLEDDISPLAY_GEOMETRY g = GEOMETRY_RAWMODE,uint16_t width=240,uint16_t height=135,int mosi=-1,int miso=-1,int clk=-1) {
@@ -121,9 +123,29 @@ class ST7789Spi : public OLEDDisplay {
       setGeometry(g,width,height);
     }
 
+    ~ST7789Spi() {
+      if (_pixbuf != nullptr) {
+        rtos_free(_pixbuf);
+        _pixbuf = nullptr;
+        _pixbuf_capacity = 0;
+      }
+    }
+
     bool connect(){
       this->_buffheight=displayHeight / 8;
       this->_buffheight+=displayHeight % 8 ? 1:0;
+      if (_pixbuf == nullptr || _pixbuf_capacity < displayWidth) {
+        uint16_t* new_pixbuf = (uint16_t *)rtos_malloc(sizeof(uint16_t) * displayWidth);
+        if (new_pixbuf == nullptr) {
+          _pixbuf_capacity = 0;
+          return false;
+        }
+        if (_pixbuf != nullptr) {
+          rtos_free(_pixbuf);
+        }
+        _pixbuf = new_pixbuf;
+        _pixbuf_capacity = displayWidth;
+      }
       pinMode(_cs, OUTPUT);
       pinMode(_dc, OUTPUT);
       //pinMode(_ledA, OUTPUT);
@@ -186,27 +208,25 @@ class ST7789Spi : public OLEDDisplay {
 		  set_CS(LOW);
 		  _spi->beginTransaction(_spiSettings);
 
-          for (y = minBoundY; y <= maxBoundY; y++)
-          {
-            for(int temp = 0; temp<8;temp++)
-            {
-              //setAddrWindow(minBoundX,y*8+temp,maxBoundX-minBoundX+1,1);
-              setAddrWindow(minBoundX,y*8+temp,maxBoundX-minBoundX+1,1);
-              //setAddrWindow(y*8+temp,minBoundX,1,maxBoundX-minBoundX+1);
-              uint32_t const pixbufcount = maxBoundX-minBoundX+1;
-              uint16_t *pixbuf = (uint16_t *)rtos_malloc(2 * pixbufcount);
-              for (x = minBoundX; x <= maxBoundX; x++)
-              {
-                pixbuf[x-minBoundX] = ((buffer[x + y * displayWidth]>>temp)&0x01)==1?_RGB:0;
-              }
+	          for (y = minBoundY; y <= maxBoundY; y++)
+	          {
+	            for(int temp = 0; temp<8;temp++)
+	            {
+	              //setAddrWindow(minBoundX,y*8+temp,maxBoundX-minBoundX+1,1);
+	              setAddrWindow(minBoundX,y*8+temp,maxBoundX-minBoundX+1,1);
+	              //setAddrWindow(y*8+temp,minBoundX,1,maxBoundX-minBoundX+1);
+	              uint32_t const pixbufcount = maxBoundX-minBoundX+1;
+	              for (x = minBoundX; x <= maxBoundX; x++)
+	              {
+	                _pixbuf[x-minBoundX] = ((buffer[x + y * displayWidth]>>temp)&0x01)==1?_RGB:0;
+	              }
 #ifdef ESP_PLATFORM
-              _spi->transferBytes((uint8_t *)pixbuf, NULL, 2 * pixbufcount);
+	              _spi->transferBytes((uint8_t *)_pixbuf, NULL, 2 * pixbufcount);
 #else
-              _spi->transfer(pixbuf, NULL, 2 * pixbufcount);
+	              _spi->transfer(_pixbuf, NULL, 2 * pixbufcount);
 #endif
-              rtos_free(pixbuf);
-            }
-          }
+	            }
+	          }
 	  _spi->endTransaction();
 	  set_CS(HIGH);
 
@@ -214,27 +234,25 @@ class ST7789Spi : public OLEDDisplay {
 		  set_CS(LOW);
 		  _spi->beginTransaction(_spiSettings);
 		uint8_t x, y;
-          for (y = 0; y < _buffheight; y++)
-          {
-            for(int temp = 0; temp<8;temp++)
-            {
-              //setAddrWindow(minBoundX,y*8+temp,maxBoundX-minBoundX+1,1);
-              //setAddrWindow(minBoundX,y*8+temp,maxBoundX-minBoundX+1,1);
-              setAddrWindow(y*8+temp,0,1,displayWidth);
-              uint32_t const pixbufcount = displayWidth;
-              uint16_t *pixbuf = (uint16_t *)rtos_malloc(2 * pixbufcount);
-              for (x = 0; x < displayWidth; x++)
-              {
-                pixbuf[x] = ((buffer[x + y * displayWidth]>>temp)&0x01)==1?_RGB:0;
-              }
+	          for (y = 0; y < _buffheight; y++)
+	          {
+	            for(int temp = 0; temp<8;temp++)
+	            {
+	              //setAddrWindow(minBoundX,y*8+temp,maxBoundX-minBoundX+1,1);
+	              //setAddrWindow(minBoundX,y*8+temp,maxBoundX-minBoundX+1,1);
+	              setAddrWindow(y*8+temp,0,1,displayWidth);
+	              uint32_t const pixbufcount = displayWidth;
+	              for (x = 0; x < displayWidth; x++)
+	              {
+	                _pixbuf[x] = ((buffer[x + y * displayWidth]>>temp)&0x01)==1?_RGB:0;
+	              }
 #ifdef ESP_PLATFORM
-              _spi->transferBytes((uint8_t *)pixbuf, NULL, 2 * pixbufcount);
+	              _spi->transferBytes((uint8_t *)_pixbuf, NULL, 2 * pixbufcount);
 #else
-              _spi->transfer(pixbuf, NULL, 2 * pixbufcount);
+	              _spi->transfer(_pixbuf, NULL, 2 * pixbufcount);
 #endif
-              rtos_free(pixbuf);
-            }
-          }
+	            }
+	          }
 	  _spi->endTransaction();
 	  set_CS(HIGH);
 
