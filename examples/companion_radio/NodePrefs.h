@@ -43,6 +43,7 @@ public:
   uint8_t path_hash_mode = 0;    // which path mode to use when sending
   uint8_t autoadd_max_hops = 0;  // 0 = no limit, 1 = direct (0 hops), N = up to N-1 hops (max 64)
   uint8_t cad_enabled = 0;
+  uint8_t cad_wait_packets = 4;   // full-size packet airtimes to wait for CAD busy to clear
   uint8_t interference_threshold = 0;
   uint8_t agc_reset_interval = 0;  // secs / 4
   char default_scope_name[31];
@@ -69,6 +70,7 @@ private:
       def("sf", _parent->sf);
       def("cr", _parent->cr);
       def("cad", _parent->cad_enabled);
+      def("cad_wait_pkts", _parent->cad_wait_packets);
       def("int_thr", _parent->interference_threshold);
       def("rxgain", _parent->rx_boosted_gain);
       def("fem_rxgain", _parent->radio_fem_rxgain);   // fem_rxgain WAS mapped to wrong JSON property previously
@@ -98,6 +100,8 @@ private:
     void setAirtimeFactor(float af) override { _parent->airtime_factor = af; markDirty(); }
     bool isCadEnabled() const override { return _parent->cad_enabled; }
     void setCadEnabled(bool en) override { _parent->cad_enabled = en; markDirty(); }
+    uint8_t getCADWaitPackets() const override { return _parent->cad_wait_packets; }
+    void setCADWaitPackets(uint8_t num_packets) override { _parent->cad_wait_packets = num_packets; markDirty(); }
     uint8_t getIntThresh() const override { return _parent->interference_threshold; }
     void setIntThresh(uint8_t t) override { _parent->interference_threshold = t; markDirty(); }
     uint8_t getRxGain() const override { return _parent->rx_boosted_gain; }
@@ -220,6 +224,7 @@ public:
   void setRepeatEn(bool en) { repeat.disable_fwd = en ? 0 : 1; }
 
   CommonRadioPrefs* getRadioPrefs() { return &radio; }
+  const CommonRadioPrefs* getRadioPrefs() const { return &radio; }
   KeyValueStore* getCustom() { return &custom; }
 
   bool isDirty() const override { return ConfigSerializer::isDirty() || radio.isDirty() || custom.isDirty(); }

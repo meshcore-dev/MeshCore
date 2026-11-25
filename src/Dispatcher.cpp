@@ -9,6 +9,8 @@
 namespace mesh {
 
 #define MAX_RX_DELAY_MILLIS        32000  // 32 seconds
+#define MAX_CAD_FAIL_DURATION_MS   300000  // 5 minutes - upper bound on CAD busy timeout
+#define DEFAULT_CAD_FAIL_PACKETS   4      // full-size packet airtimes (approx 4 secs at SF10/BW250)
 #define MIN_TX_BUDGET_RESERVE_MS   100    // min budget (ms) required before allowing next TX
 #define MIN_TX_BUDGET_AIRTIME_DIV  2      // require at least 1/N of estimated airtime as budget before TX
 
@@ -59,8 +61,22 @@ int Dispatcher::calcRxDelay(float score, uint32_t air_time) const {
 uint32_t Dispatcher::getCADFailRetryDelay() const {
   return 200;
 }
+
+uint32_t Dispatcher::getCADFailWaitPackets() const {
+  return DEFAULT_CAD_FAIL_PACKETS;
+}
+
+uint32_t Dispatcher::calcCADFailMaxDuration(Radio& radio, uint32_t num_packets) {
+  if (num_packets == 0) num_packets = 1;   // never allow a zero-length wait
+  uint32_t packet_airtime = radio.getEstAirtimeFor(MAX_TRANS_UNIT);
+  if (packet_airtime > MAX_CAD_FAIL_DURATION_MS / num_packets) {
+    return MAX_CAD_FAIL_DURATION_MS;
+  }
+  return packet_airtime * num_packets;
+}
+
 uint32_t Dispatcher::getCADFailMaxDuration() const {
-  return 4000;   // 4 seconds
+  return calcCADFailMaxDuration(*_radio, getCADFailWaitPackets());
 }
 
 void Dispatcher::loop() {

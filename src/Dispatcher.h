@@ -166,6 +166,12 @@ protected:
   virtual float getAirtimeBudgetFactor() const;
   virtual int calcRxDelay(float score, uint32_t air_time) const;
   virtual uint32_t getCADFailRetryDelay() const;
+
+  /**
+   * \returns  number of full-size packet airtimes to wait for channel activity to clear before forcing a TX.
+   */
+  virtual uint32_t getCADFailWaitPackets() const;
+
   virtual uint32_t getCADFailMaxDuration() const;
   virtual int getInterferenceThreshold() const { return 0; }    // disabled by default
   virtual bool getCADEnabled() const { return false; }    // hardware CAD disabled by default
@@ -175,6 +181,11 @@ protected:
 public:
   void begin();
   void loop();
+
+  /**
+   * \returns  CAD busy timeout, in milliseconds, for 'num_packets' full-size packets on the given radio.
+   */
+  static uint32_t calcCADFailMaxDuration(Radio& radio, uint32_t num_packets);
 
   Packet* obtainNewPacket();
   void releasePacket(Packet* packet);

@@ -341,6 +341,9 @@ int SensorMesh::getInterferenceThreshold() const {
 bool SensorMesh::getCADEnabled() const {
   return _prefs.cad_enabled;
 }
+uint32_t SensorMesh::getCADFailMaxDuration() const {
+  return _prefs.getRadioPrefs()->getCADFailWaitMs();
+}
 int SensorMesh::getAGCResetInterval() const {
   return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
 }

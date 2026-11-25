@@ -29,6 +29,14 @@ public:
   virtual bool isCadEnabled() const = 0;
   virtual void setCadEnabled(bool en) = 0;
 
+  virtual uint8_t getCADWaitPackets() const = 0;
+  virtual void setCADWaitPackets(uint8_t num_packets) = 0;
+
+  /**
+   * \returns  CAD busy timeout in milliseconds, using the current radio settings.
+   */
+  uint32_t getCADFailWaitMs() const;
+
   virtual uint8_t getIntThresh() const = 0;
   virtual void setIntThresh(uint8_t t) = 0;
 
