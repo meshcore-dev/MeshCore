@@ -454,12 +454,14 @@ public:
       bool hw_gps_state = nmea != NULL && nmea->isHardwareEnabled();
       uint32_t period = nmea != NULL ? nmea->getGpsPeriod() : 0;
       char fix_buf[12] = "";
+      bool hasFix = false;
       if (nmea != NULL) {
         uint32_t fix_age = nmea->getLastFixAge();
         if (fix_age == UINT32_MAX) {
           strcpy(fix_buf, "no fix");
         } else {
           formatFixAge(fix_buf, sizeof(fix_buf), fix_age);
+          hasFix = true;
         }
       }
       if (nmea != NULL && nmea->hasHardwareEnableState() && gps_state != hw_gps_state) {
@@ -488,6 +490,7 @@ public:
         display.setColor(UIColor::primary_txt);
         sprintf(buf, "%d", nmea->satellitesCount());
         display.drawTextRightAlign(display.width()-1, y, buf);
+        if (!hasFix) return 5000;
         y = y + 12;
         display.setColor(UIColor::secondary_txt);
         display.drawTextLeftAlign(0, y, "pos");
