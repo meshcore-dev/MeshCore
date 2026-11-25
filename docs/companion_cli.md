@@ -520,20 +520,6 @@ Radio parameters are common to all roles and handled by `CommonRadioPrefs`.
 
 ---
 
-#### Button lock
-**Usage:**
-- `set ui.button_lock <state>`
-- `get ui.button_lock`
-
-**Parameters:**
-- `state`: `1` (locked) or `0` (unlocked)
-
-**Default:** `0`
-
-**Note:** Only on boards with a joystick (e.g. Wio Tracker L1). Double-click the Menu button to lock, so the joystick can't be pressed by mistake in a pocket. While locked, a lock icon is shown and the joystick is ignored. To unlock, double-click Menu then press the joystick within 3 seconds. The lock is kept when the screen turns off and after a reboot.
-
----
-
 #### Auto-off screen
 **Usage:**
 - `set ui.auto_off_delay <delay>`

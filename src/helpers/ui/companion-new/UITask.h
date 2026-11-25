@@ -76,6 +76,7 @@ class UITask : public AbstractUITask {
   unsigned long _analogue_pin_read_millis = millis();
 #endif
 #if UI_HAS_JOYSTICK
+  bool _locked = false;
   unsigned long _unlock_until = 0;
 #endif
 
@@ -113,6 +114,9 @@ public:
   int  getMsgCount() const { return _msgcount; }
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
+#if UI_HAS_JOYSTICK
+  bool isLocked() const { return _locked; }
+#endif
 
   BaseChatMesh* getMesh() const { return the_mesh; }
   uint32_t getBLEPin() const  { return _ble_pin; }

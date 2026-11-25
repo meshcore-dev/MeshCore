@@ -214,7 +214,7 @@ class HomeScreen : public UIScreen {
 
 #if UI_HAS_JOYSTICK
     // show lock icon left of the other icons when buttons are locked
-    if (_node_prefs->ui_button_lock) {
+    if (_task->isLocked()) {
       int x = iconX - (charging ? 18 : 9);
   #ifdef PIN_BUZZER
       if (_task->isBuzzerQuiet()) x -= 9;
@@ -1015,28 +1015,28 @@ void UITask::loop() {
   char c = 0;
 #if UI_HAS_JOYSTICK
   int ev = user_btn.check();
-  if (_node_prefs->ui_button_lock) ev = handleLocked(ev, KEY_ENTER);
+  if (_locked) ev = handleLocked(ev, KEY_ENTER);
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
     c = handleLongPress(KEY_ENTER);  // REVISIT: could be mapped to different key code
   }
   ev = joystick_left.check();
-  if (_node_prefs->ui_button_lock) ev = handleLocked(ev, KEY_LEFT);
+  if (_locked) ev = handleLocked(ev, KEY_LEFT);
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_LEFT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
     c = handleLongPress(KEY_LEFT);
   }
   ev = joystick_right.check();
-  if (_node_prefs->ui_button_lock) ev = handleLocked(ev, KEY_RIGHT);
+  if (_locked) ev = handleLocked(ev, KEY_RIGHT);
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_RIGHT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
     c = handleLongPress(KEY_RIGHT);
   }
   ev = back_btn.check();
-  if (_node_prefs->ui_button_lock && ev != BUTTON_EVENT_NONE
+  if (_locked && ev != BUTTON_EVENT_NONE
       && ev != BUTTON_EVENT_TRIPLE_CLICK) {   // buzzer toggle still works while locked
     checkDisplayOn(0);
     if (ev == BUTTON_EVENT_DOUBLE_CLICK) {   // unlock needs a joystick press within 3 sec
@@ -1280,9 +1280,8 @@ int UITask::handleLocked(int ev, char key) {
 }
 
 void UITask::lockButtons(bool lock) {
-  _node_prefs->ui_button_lock = lock;
+  _locked = lock;
   _unlock_until = 0;
-  the_mesh->savePrefs();   // keep the lock after a reboot
   checkDisplayOn(0);
   showAlert(lock ? "Keys locked" : "Unlocked", 800);
 }

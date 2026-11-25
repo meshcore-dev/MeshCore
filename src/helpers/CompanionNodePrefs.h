@@ -97,7 +97,6 @@ public:
 #else
   uint8_t ui_gps_action = 0;
 #endif
-  uint8_t ui_button_lock = 0;
 #endif
 
 private:
@@ -274,7 +273,6 @@ private:
   	def("off_keep_msgs", _parent->ui_auto_off_keep_msgs);
     def("nd_name", _parent->ui_nd_name);
     def("gps_act", _parent->ui_gps_action);
-    def("btn_lock", _parent->ui_button_lock);
     }
   public:
     UI_Prefs(NodePrefs* parent) : _parent(parent) {}
