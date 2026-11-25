@@ -1,4 +1,7 @@
 #include "SensorMesh.h"
+#if defined(ESP32)
+  #include <helpers/esp32/SPIFFSMount.h>
+#endif
 
 class MyMesh : public SensorMesh {
 public:
@@ -75,7 +78,7 @@ void setup() {
   fs = &InternalFS;
   IdentityStore store(InternalFS, "");
 #elif defined(ESP32)
-  SPIFFS.begin(true);
+  mountSPIFFS();
   fs = &SPIFFS;
   IdentityStore store(SPIFFS, "/identity");
 #elif defined(RP2040_PLATFORM)

@@ -42,6 +42,32 @@ static File openWrite(FILESYSTEM* fs, const char* filename) {
 #endif
 }
 
+// One contact record in /contacts3. A file whose size is not a multiple of this
+// was cut off mid-write and must not replace a good copy.
+static const size_t CONTACT_RECORD_SIZE = 152;
+static const size_t CHANNEL_RECORD_SIZE = 68;
+
+// Write the new file under tmpName, and only then swap it into place.
+// The previous file is kept as bakName so a reset during the swap can still load it.
+static bool commitReplacingFile(FILESYSTEM* fs, const char* finalName, const char* tmpName, const char* bakName) {
+  if (fs->exists(bakName)) {
+    fs->remove(bakName);
+  }
+  if (fs->exists(finalName)) {
+    if (!fs->rename(finalName, bakName)) {
+      fs->remove(tmpName);
+      return false;
+    }
+  }
+  if (!fs->rename(tmpName, finalName)) {
+    if (fs->exists(bakName)) {
+      fs->rename(bakName, finalName);
+    }
+    return false;
+  }
+  return true;
+}
+
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   static uint32_t _ContactsChannelsTotalBlocks = 0;
 #endif
@@ -256,50 +282,66 @@ bool DataStore::savePrefs(NodePrefs& _prefs) {
   return false;
 }
 
+static bool loadContactsFile(DataStore* store, FILESYSTEM* fs, const char* filename, DataStoreHost* host) {
+  if (!fs->exists(filename)) return false;
+  File file = store->openRead(fs, filename);
+  if (!file) return false;
+  // A short file is a save that died mid-record. Leave it unread so the caller
+  // can fall back to the previous complete copy.
+  if ((file.size() % CONTACT_RECORD_SIZE) != 0) {
+    file.close();
+    return false;
+  }
+  bool full = false;
+  while (!full) {
+    ContactInfo c;
+    uint8_t pub_key[32];
+    uint8_t unused;
+
+    bool success = (file.read(pub_key, 32) == 32);
+    success = success && (file.read((uint8_t *)&c.name, 32) == 32);
+    success = success && (file.read(&c.type, 1) == 1);
+    success = success && (file.read(&c.flags, 1) == 1);
+    success = success && (file.read(&unused, 1) == 1);
+    success = success && (file.read((uint8_t *)&c.sync_since, 4) == 4); // was 'reserved'
+    success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
+    success = success && (file.read((uint8_t *)&c.last_advert_timestamp, 4) == 4);
+    success = success && (file.read(c.out_path, 64) == 64);
+    success = success && (file.read((uint8_t *)&c.lastmod, 4) == 4);
+    success = success && (file.read((uint8_t *)&c.gps_lat, 4) == 4);
+    success = success && (file.read((uint8_t *)&c.gps_lon, 4) == 4);
+
+    if (!success) break; // EOF
+
+    c.id = mesh::Identity(pub_key);
+    if (!host->onContactLoaded(c)) full = true;
+  }
+  file.close();
+  return true;
+}
+
 void DataStore::loadContacts(DataStoreHost* host) {
-File file = openRead(_getContactsChannelsFS(), "/contacts3");
-    if (file) {
-      bool full = false;
-      while (!full) {
-        ContactInfo c;
-        uint8_t pub_key[32];
-        uint8_t unused;
-
-        bool success = (file.read(pub_key, 32) == 32);
-        success = success && (file.read((uint8_t *)&c.name, 32) == 32);
-        success = success && (file.read(&c.type, 1) == 1);
-        success = success && (file.read(&c.flags, 1) == 1);
-        success = success && (file.read(&unused, 1) == 1);
-        success = success && (file.read((uint8_t *)&c.sync_since, 4) == 4); // was 'reserved'
-        success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
-        success = success && (file.read((uint8_t *)&c.last_advert_timestamp, 4) == 4);
-        success = success && (file.read(c.out_path, 64) == 64);
-        success = success && (file.read((uint8_t *)&c.lastmod, 4) == 4);
-        success = success && (file.read((uint8_t *)&c.gps_lat, 4) == 4);
-        success = success && (file.read((uint8_t *)&c.gps_lon, 4) == 4);
-
-        if (!success) break; // EOF
-
-        c.id = mesh::Identity(pub_key);
-        if (!host->onContactLoaded(c)) full = true;
-      }
-      file.close();
-    }
+  FILESYSTEM* fs = _getContactsChannelsFS();
+  if (!loadContactsFile(this, fs, "/contacts3", host)) {
+    loadContactsFile(this, fs, "/contacts3.bak", host);
+  }
 }
 
 void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactInfo& c)) {
-  File file = openWrite(_getContactsChannelsFS(), "/contacts3");
+  FILESYSTEM* fs = _getContactsChannelsFS();
+  File file = openWrite(fs, "/contacts3.tmp");
   if (file) {
     uint32_t idx = 0;
     ContactInfo c;
     uint8_t unused = 0;
+    bool success = true;
 
-    while (host->getContactForSave(idx, c)) {
+    while (success && host->getContactForSave(idx, c)) {
       if (filter && !filter(c)) {
         idx++;  // advance to next contact
         continue;
       }
-      bool success = (file.write(c.id.pub_key, 32) == 32);
+      success = (file.write(c.id.pub_key, 32) == 32);
       success = success && (file.write((uint8_t *)&c.name, 32) == 32);
       success = success && (file.write(&c.type, 1) == 1);
       success = success && (file.write(&c.flags, 1) == 1);
@@ -312,56 +354,73 @@ void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactIn
       success = success && (file.write((uint8_t *)&c.gps_lat, 4) == 4);
       success = success && (file.write((uint8_t *)&c.gps_lon, 4) == 4);
 
-      if (!success) break; // write failed
-
-      idx++;  // advance to next contact
+      if (success) idx++;  // advance to next contact
     }
     file.close();
+    if (!success || !commitReplacingFile(fs, "/contacts3", "/contacts3.tmp", "/contacts3.bak")) {
+      fs->remove("/contacts3.tmp");
+    }
   }
 }
 
-void DataStore::loadChannels(DataStoreHost* host) {
-    File file = openRead(_getContactsChannelsFS(), "/channels2");
-    if (file) {
-      bool full = false;
-      uint8_t channel_idx = 0;
-      while (!full) {
-        ChannelDetails ch;
-        uint8_t unused[4];
+static bool loadChannelsFile(DataStore* store, FILESYSTEM* fs, const char* filename, DataStoreHost* host) {
+  if (!fs->exists(filename)) return false;
+  File file = store->openRead(fs, filename);
+  if (!file) return false;
+  if ((file.size() % CHANNEL_RECORD_SIZE) != 0) {
+    file.close();
+    return false;
+  }
+  bool full = false;
+  uint8_t channel_idx = 0;
+  while (!full) {
+    ChannelDetails ch;
+    uint8_t unused[4];
 
-        bool success = (file.read(unused, 4) == 4);
-        success = success && (file.read((uint8_t *)ch.name, 32) == 32);
-        success = success && (file.read((uint8_t *)ch.channel.secret, 32) == 32);
+    bool success = (file.read(unused, 4) == 4);
+    success = success && (file.read((uint8_t *)ch.name, 32) == 32);
+    success = success && (file.read((uint8_t *)ch.channel.secret, 32) == 32);
 
-        if (!success) break; // EOF
+    if (!success) break; // EOF
 
-        if (host->onChannelLoaded(channel_idx, ch)) {
-          channel_idx++;
-        } else {
-          full = true;
-        }
-      }
-      file.close();
+    if (host->onChannelLoaded(channel_idx, ch)) {
+      channel_idx++;
+    } else {
+      full = true;
     }
+  }
+  file.close();
+  return true;
+}
+
+void DataStore::loadChannels(DataStoreHost* host) {
+  FILESYSTEM* fs = _getContactsChannelsFS();
+  if (!loadChannelsFile(this, fs, "/channels2", host)) {
+    loadChannelsFile(this, fs, "/channels2.bak", host);
+  }
 }
 
 void DataStore::saveChannels(DataStoreHost* host) {
-  File file = openWrite(_getContactsChannelsFS(), "/channels2");
+  FILESYSTEM* fs = _getContactsChannelsFS();
+  File file = openWrite(fs, "/channels2.tmp");
   if (file) {
     uint8_t channel_idx = 0;
     ChannelDetails ch;
     uint8_t unused[4];
     memset(unused, 0, 4);
+    bool success = true;
 
-    while (host->getChannelForSave(channel_idx, ch)) {
-      bool success = (file.write(unused, 4) == 4);
+    while (success && host->getChannelForSave(channel_idx, ch)) {
+      success = (file.write(unused, 4) == 4);
       success = success && (file.write((uint8_t *)ch.name, 32) == 32);
       success = success && (file.write((uint8_t *)ch.channel.secret, 32) == 32);
 
-      if (!success) break; // write failed
-      channel_idx++;
+      if (success) channel_idx++;
     }
     file.close();
+    if (!success || !commitReplacingFile(fs, "/channels2", "/channels2.tmp", "/channels2.bak")) {
+      fs->remove("/channels2.tmp");
+    }
   }
 }
 
