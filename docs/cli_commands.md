@@ -256,7 +256,7 @@ Refer to the node's manual for the correct setting to use.
 - `tempradio <freq>,<bw>,<sf>,<cr>,<timeout_mins>`
 
 **Parameters:**
-- `freq`: Frequency in MHz (300-2500)
+- `freq`: Frequency in MHz (150-2500)
 - `bw`: Bandwidth in kHz (7.8-500)
 - `sf`: Spreading factor (5-12)
 - `cr`: Coding rate (5-8)
