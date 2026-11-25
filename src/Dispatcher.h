@@ -122,6 +122,7 @@ class Dispatcher {
   unsigned long cad_busy_start;
   unsigned long radio_nonrx_start;
   unsigned long next_floor_calib_time, next_agc_reset_time;
+  unsigned long last_rx_good_time, last_agc_reset_time;
   bool  prev_isrecv_mode;
   uint32_t n_sent_flood, n_sent_direct;
   uint32_t n_recv_flood, n_recv_direct;
@@ -146,6 +147,7 @@ protected:
     next_tx_time = ms.getMillis();
     cad_busy_start = 0;
     next_floor_calib_time = next_agc_reset_time = 0;
+    last_rx_good_time = last_agc_reset_time = 0;
     _err_flags = 0;
     radio_nonrx_start = 0;
     prev_isrecv_mode = true;
