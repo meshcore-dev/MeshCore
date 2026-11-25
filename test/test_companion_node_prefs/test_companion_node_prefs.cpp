@@ -77,6 +77,25 @@ TEST(CompanionNodePrefs, RxGainSettingsRoundTripIndependently) {
 }
 #endif
 
+TEST(CompanionNodePrefs, CADWaitPacketsRoundTripAndDefault) {
+  NodePrefs saved;
+  saved.cad_wait_packets = 7;
+
+  CaptureStream output;
+  ASSERT_TRUE(saved.saveSerial(output));
+  EXPECT_NE(std::string::npos, output.text().find("cad_wait_pkts:7"));
+
+  ReplayStream input("{radio:{cad_wait_pkts:9}}");
+  NodePrefs loaded;
+  ASSERT_TRUE(loaded.loadSerial(input));
+  EXPECT_EQ(9, loaded.cad_wait_packets);
+
+  ReplayStream empty("{}");
+  NodePrefs defaulted;
+  ASSERT_TRUE(defaulted.loadSerial(empty));
+  EXPECT_EQ(4, defaulted.cad_wait_packets);
+}
+
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

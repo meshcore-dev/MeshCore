@@ -150,6 +150,9 @@ protected:
   bool getCADEnabled() const override {
     return _prefs.cad_enabled;
   }
+  uint32_t getCADFailMaxDuration() const override {
+    return _prefs.getRadioPrefs()->getCADFailWaitMs();
+  }
   int getAGCResetInterval() const override {
     return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
   }

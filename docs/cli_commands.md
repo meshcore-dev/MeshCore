@@ -622,6 +622,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change the CAD busy wait, in full-size packets
+**Usage:**
+- `get cad.wait.packets`
+- `set cad.wait.packets <value>`
+
+**Description:** When the radio reports a busy channel, transmission is deferred until it clears, up to a maximum wait. That maximum is now calculated as `value` full-size (255-byte) packet airtimes, using the current LoRa settings (spreading factor, bandwidth and coding rate). `get cad.wait.packets` reports the resulting timeout in milliseconds, along with the packet count and per-packet airtime.
+
+**Parameters:**
+- `value`: number of full-size packet airtimes to wait, 1-16
+
+**Default:** `4` (approximately 4 seconds at SF10 / BW250)
+
+---
+
 #### View or change the AGC Reset Interval
 **Usage:**
 - `get agc.reset.interval`

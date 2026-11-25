@@ -2,6 +2,11 @@
 #include "TxtDataHelpers.h"
 #include "Utils.h"
 #include "target.h"
+#include <MeshCore.h>   // MAX_TRANS_UNIT
+
+uint32_t CommonRadioPrefs::getCADFailWaitMs() const {
+  return mesh::Dispatcher::calcCADFailMaxDuration(radio_driver, getCADWaitPackets());
+}
 
 bool CommonRadioPrefs::getByKey(const char* key, char* value, size_t max_len) {
   if (strcmp(key, "fem_rxgain") == 0) {
@@ -116,6 +121,24 @@ bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timest
   if (memcmp(command, "set cad ", 8) == 0) {
     setCadEnabled(memcmp(&command[8], "on", 2) == 0);
     strcpy(reply, "OK");
+    return true;
+  }
+
+  if (strcmp(command, "get cad.wait.packets") == 0) {
+    uint8_t num_packets = getCADWaitPackets();
+    if (num_packets == 0) num_packets = 1;   // matches Dispatcher's zero-count fallback
+    uint32_t packet_airtime = radio_driver.getEstAirtimeFor(MAX_TRANS_UNIT);
+    sprintf(reply, "> %lu ms (%u x %lu ms packets)", (unsigned long) getCADFailWaitMs(), (unsigned int) num_packets, (unsigned long) packet_airtime);
+    return true;
+  }
+  if (memcmp(command, "set cad.wait.packets ", 21) == 0) {
+    int num_packets = atoi(&command[21]);
+    if (num_packets < 1 || num_packets > 16) {
+      strcpy(reply, "ERROR: cad.wait.packets must be 1-16");
+    } else {
+      setCADWaitPackets((uint8_t) num_packets);
+      sprintf(reply, "OK - %u packets (%lu ms)", (unsigned int) num_packets, (unsigned long) getCADFailWaitMs());
+    }
     return true;
   }
 
