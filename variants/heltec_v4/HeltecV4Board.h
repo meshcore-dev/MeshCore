@@ -6,7 +6,7 @@
 #include "LoRaFEMControl.h"
 
 #ifndef ADC_MULTIPLIER
-  #define ADC_MULTIPLIER 5.42
+  #define ADC_MULTIPLIER 4.9  // (R1+R2)/R2 = (390k+100k)/100k
 #endif
 
 class HeltecV4Board : public ESP32Board {
