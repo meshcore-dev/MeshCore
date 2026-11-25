@@ -717,16 +717,16 @@ class MsgPreviewScreen : public UIScreen {
 public:
   MsgPreviewScreen(UITask* task, mesh::RTCClock* rtc) : _task(task), _rtc(rtc) { num_unread = 0; }
 
-  void addPreview(uint8_t path_len, const char* from_name, const char* msg) {
+  void addPreview(uint8_t path_count, const char* from_name, const char* msg) {
     head = (head + 1) % MAX_UNREAD_MSGS;
     if (num_unread < MAX_UNREAD_MSGS) num_unread++;
 
     auto p = &unread[head];
     p->timestamp = _rtc->getCurrentTime();
-    if (path_len == 0xFF) {
+    if (path_count == 0xFF) {
       sprintf(p->origin, "(D) %s:", from_name);
     } else {
-      sprintf(p->origin, "(%d) %s:", (uint32_t) path_len, from_name);
+      sprintf(p->origin, "(%d) %s:", (uint32_t) path_count, from_name);
     }
     StrHelper::strncpy(p->msg, msg, sizeof(p->msg));
   }
@@ -871,8 +871,8 @@ void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t t
   // we only want to show text messages on display, not cli data
   if (!(txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN)) return;
 
-  uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
-  ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, from.name, text);
+  uint8_t path_count = pkt->isRouteFlood() ? pkt->getPathHashCount() : 0xFF;
+  ((MsgPreviewScreen *) msg_preview)->addPreview(path_count, from.name, text);
   setCurrScreen(msg_preview);
 
   if (_display != NULL) {
@@ -894,8 +894,8 @@ void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t t
 }
 
 void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) {
-  uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
-  ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, channel_details.name, text);
+  uint8_t path_count = pkt->isRouteFlood() ? pkt->getPathHashCount() : 0xFF;
+  ((MsgPreviewScreen *) msg_preview)->addPreview(path_count, channel_details.name, text);
   setCurrScreen(msg_preview);
 
   if (_display != NULL) {
