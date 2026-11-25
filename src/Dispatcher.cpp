@@ -147,6 +147,7 @@ void Dispatcher::loop() {
 }
 
 bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
+  if (len < 1) return false;   // bad encoding
   int i = 0;
 
   pkt->header = raw[i++];
@@ -156,12 +157,14 @@ bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
   }
 
   if (pkt->hasTransportCodes()) {
+    if (i + 4 > len) return false;   // bad encoding
     memcpy(&pkt->transport_codes[0], &raw[i], 2); i += 2;
     memcpy(&pkt->transport_codes[1], &raw[i], 2); i += 2;
   } else {
     pkt->transport_codes[0] = pkt->transport_codes[1] = 0;
   }
 
+  if (i + 1 > len) return false;   // bad encoding
   pkt->path_len = raw[i++];
   uint8_t path_mode = pkt->path_len >> 6;  // upper 2 bits (legacy firmware: 00)
   if (path_mode == 3) {   // Reserved for future
