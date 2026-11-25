@@ -154,8 +154,9 @@ public:
   esp_deep_sleep_start();   // CPU halts here and never returns!
 }
 
-  uint16_t getBattMilliVolts(){
-    return PMU->getBattVoltage();
+  uint16_t getBattMilliVolts() override {
+    // PMU stays NULL when no AXP192/AXP2101 was found in power_init().
+    return PMU ? PMU->getBattVoltage() : ESP32Board::getBattMilliVolts();
   }
 
   const char* getManufacturerName() const{
