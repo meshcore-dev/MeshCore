@@ -81,14 +81,26 @@ static File openAppend(FILESYSTEM* _fs, const char* fname) {
 
 /* --------------------- Cayenne LPP helpers ----------------------------*/
 
+static const uint8_t* findTelemValueRaw(const uint8_t* buf, uint8_t size, uint8_t channel, uint8_t type) {
+  uint8_t i = 0;
+
+  while (i + 2 < size) {
+    uint8_t ch = buf[i++];  // Get channel #
+    uint8_t t = buf[i++];  // Get data type
+    uint8_t sz = LPPData::getDataSize(t);
+
+    if (ch == channel && t == type) return &buf[i];
+    i += sz;  // skip
+  }
+  return NULL;   // not found
+}
+
 static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, uint8_t type, float def_value) {
   uint8_t i = 0;
 
   while (i + 2 < size) {
-    // Get channel #
-    uint8_t ch = buf[i++];
-    // Get data type
-    uint8_t t = buf[i++];
+    uint8_t ch = buf[i++];  // Get channel #
+    uint8_t t = buf[i++];  // Get data type
     uint8_t sz = LPPData::getDataSize(t);
 
     if (ch == channel && t == type) {
@@ -101,6 +113,8 @@ static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, u
 
 /* ------------------ end Cayenne LPP helpers ----------------------*/
 
+#include <helpers/GPSLocHelper.h>
+
 bool SensorMesh::telemHasChanged(ClientInfo* c) {
   auto buf = telemetry.getBuffer();
   uint8_t size = telemetry.getSize();
@@ -112,11 +126,29 @@ bool SensorMesh::telemHasChanged(ClientInfo* c) {
     uint8_t t = c->extra.sensor.min_deltas[i + 1];     // Get data type
     uint8_t sz = LPPData::getDataSize(t);
 
-    float min_delta = LPPData::getFloat(&c->extra.sensor.min_deltas[i + 2], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
-    float pv = LPPData::getFloat(&c->extra.sensor.prev_telem[i + 2], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
+    if (t == LPP_GPS) {  // special case for movement detection
+      // NOTE: actual min_delta is NOT LPP_GPS but should be a LPP_DISTANCE value (4 byte, unsigned)
+      float min_distance = LPPData::getFloat(&c->extra.sensor.min_deltas[i + 2], LPPData::getDataSize(LPP_DISTANCE), LPPData::getMultiplier(LPP_DISTANCE), false);
+      float prev_lat, prev_lon, _alt;
+      LPPData::readGPS(&c->extra.sensor.prev_telem[i + 2], prev_lat, prev_lon, _alt);
+      float curr_lat, curr_lon;
+      {
+        const uint8_t* curr = findTelemValueRaw(buf, size, ch, t);
+        if (curr) {
+          LPPData::readGPS(curr, curr_lat, curr_lon, _alt);
+        } else {
+          curr_lat = curr_lon = 0.0f;
+        }
+      }
+      float dist = GPSLocHelper::calcGreatArcMeters(prev_lat, prev_lon, curr_lat, curr_lon);
+      if (dist > min_distance) changed = true;   // Yes, has Moved!
+    } else {
+      float min_delta = LPPData::getFloat(&c->extra.sensor.min_deltas[i + 2], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
+      float pv = LPPData::getFloat(&c->extra.sensor.prev_telem[i + 2], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
 
-    float v = findTelemValue(buf, size, ch, t, 0.0f);
-    if (abs(v - pv) > min_delta) changed = true;   // Yes, has changed
+      float v = findTelemValue(buf, size, ch, t, 0.0f);
+      if (abs(v - pv) > min_delta) changed = true;   // Yes, has changed
+    }
 
     i += 2 + sz;  // skip
   }
@@ -130,10 +162,17 @@ bool SensorMesh::telemHasChanged(ClientInfo* c) {
 
       c->extra.sensor.prev_telem[i] = ch;
       c->extra.sensor.prev_telem[i + 1] = t;
-
-      float v = findTelemValue(buf, size, ch, t, 0.0f);
-      LPPData::putFloat(&c->extra.sensor.prev_telem[i + 2], v, sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
-
+      if (t == LPP_GPS) {  // special case for GPS data
+        const uint8_t* v_ptr = findTelemValueRaw(buf, size, ch, t);
+        if (v_ptr) {
+          memcpy(&c->extra.sensor.prev_telem[i + 2], v_ptr, 9);  // LPP_GPS format: 3 x 3 byte values
+        } else {
+          memset(&c->extra.sensor.prev_telem[i + 2], 0, 9);
+        }
+      } else {
+        float v = findTelemValue(buf, size, ch, t, 0.0f);
+        LPPData::putFloat(&c->extra.sensor.prev_telem[i + 2], v, sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
+      }
       i += 2 + sz;  // skip
     }
   }
