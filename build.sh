@@ -231,6 +231,7 @@ build_companion_firmwares() {
   # build all companion firmwares
   build_all_firmwares_by_suffix "_companion_radio_usb"
   build_all_firmwares_by_suffix "_companion_radio_ble"
+  build_all_firmwares_by_suffix "_companion_radio_wifi"
 
 }
 
