@@ -409,7 +409,26 @@ bool NRF52Board::getBootloaderVersion(char* out, size_t max_len) {
     return false;
 }
 
+static SoftwareTimer gdfu_reset_timer;
+static void gdfu_reset_cb(TimerHandle_t) { enterOTADfu(); }
+
 bool NRF52Board::startOTAUpdate(const char *id, char reply[]) {
+  // GDFU bootloader (https://github.com/jbrazio/gdfu-bootloader) receives firmware over an
+  // SX1262 GFSK radio link from a GDFU proxy (https://github.com/jbrazio/gdfu-proxy) instead
+  // of BLE. Its image ships a single OTA transport, so there is no BLE DFU to hand off to:
+  // the BLE DFU service below would never complete. Reboot straight into the bootloader,
+  // which then beacons over GFSK and waits for the proxy.
+  char bl_ver[32];
+  if (getBootloaderVersion(bl_ver, sizeof(bl_ver)) && strncmp(bl_ver, "gdfu-", 5) == 0) {
+    // Defer reset so the CLI reply can still go out.
+    gdfu_reset_timer.begin(2000, gdfu_reset_cb, NULL, false);
+    gdfu_reset_timer.start();
+    // Reply with the target_id the GDFU bootloader beacons (low 32 bits of the BLE MAC), so the
+    // user can pick this node out of the targets the GDFU client discovers.
+    sprintf(reply, "OK: 0x%08lx", (unsigned long)NRF_FICR->DEVICEADDR[0]);
+    return true;
+  }
+
   // Config the peripheral connection with maximum bandwidth
   // more SRAM required by SoftDevice
   // Note: All config***() function must be called before begin()
