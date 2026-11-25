@@ -12,6 +12,9 @@
   #include <helpers/ui/MomentaryButton.h>
   #include <UITask.h>
 #endif
+#ifdef ENV_INCLUDE_GPS
+    #include <helpers/sensors/MicroNMEALocationProvider.h>
+#endif
 #include "XiaoS3WIOBoard.h"
 
 extern XiaoS3WIOBoard board;
