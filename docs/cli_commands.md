@@ -1301,8 +1301,9 @@ Ethernet support is available on RAK4631 boards with a RAK13800 (W5100S) Etherne
 - `eth.status`
 
 **Output:**
-- `ETH: <ip>:<port> ws:<ws-port>` when connected (e.g. `ETH: 192.168.1.50:23 ws:8023`)
+- `ETH: <ip>:<port> ws:<ws-port> ota:<ota-port>` when connected (e.g. `ETH: 192.168.1.50:23 ws:8023 ota:8024`)
   - `ws:` is the WebSocket port for browser-based tools (omitted when built with `-D ETHERNET_WS_PORT=0`)
+  - `ota:` is the port used by `eth.ota`, or `ota:no-bootloader` when the installed bootloader has no Ethernet update support
 - `ETH: not connected` when Ethernet is not active
 
 **Notes:**
@@ -1318,6 +1319,34 @@ Ethernet support is available on RAK4631 boards with a RAK13800 (W5100S) Etherne
 
 **Security:**
 - The network console has no password. Anyone who can reach the node on the network has full admin access: every setting, the admin password, the node's identity (`get prv.key` and `set prv.key`), `erase` and `reboot`.
+- With a bootloader that supports Ethernet updates (see `eth.ota` below) they can also replace the firmware, at any time: `eth.ota` needs no password either, and the update port has no authentication or signature check.
 - Use Ethernet nodes on trusted networks only.
+
+---
+
+#### Start a firmware update over Ethernet
+**Usage:**
+- `eth.ota`
+
+**Output:**
+- `OK - rebooting into Ethernet update mode, <ip>:<port>` (default port 8024), then the device reboots into the bootloader
+- `ERR: Ethernet not connected` (or `ERR: no IP address`) when Ethernet is not active
+- `ERR: bootloader has no Ethernet update support` when the installed bootloader can't do it (nothing happens, the device keeps running)
+
+**Notes:**
+- Requires a bootloader built with Ethernet DFU support (the OTAFIX bootloader's `wiscore_rak4631_ethernet_board` build). The firmware checks the installed bootloader first and refuses otherwise.
+- Only built for, and tested on, a RAK4631 with a RAK13800 (W5100S) Ethernet module.
+- Only accepted on the local serial/USB console and on Ethernet sessions, not as a remote (over-the-mesh) admin command.
+- The bootloader reuses the IP address, netmask and gateway the firmware had at the time of the command, and returns to the firmware if no update is started within 5 minutes.
+- Uploading the firmware (`firmware.zip` of an Ethernet build), from a host on the same network:
+  - **From a browser:** the MeshCore config tool, served from `http://localhost`, does the whole update itself: it sends this command and uploads the firmware over a WebSocket.
+  - **From the command line:** the OTAFIX bootloader repository has `tools/eth_dfu_upload.py`, which runs `adafruit-nrfutil` over TCP on Windows, macOS and Linux: `python tools/eth_dfu_upload.py <ip> firmware.zip`.
+  - If an upload fails, just run it again: the bootloader stays in Ethernet update mode while there is no valid firmware.
+- Known limitations:
+  - Power loss during an update: the network settings are handed to the bootloader in RAM. If they are lost, recovery needs Bluetooth OTA or USB, unless the bootloader also keeps them in flash: see the bootloader's `docs/ethernet-dfu.md`.
+  - PoE: the RAK19018 PoE module (Ag9905MT) specifies a minimum load of 200 mA at 5 V, and this node draws roughly half of that with the link up and less with it down. Below the minimum load a PoE switch may remove power, especially when the Ethernet link drops. PoE-only operation (no battery, no USB) is untested. A battery on the base board is recommended for all PoE nodes, not only during updates.
+  - Application firmware only. Update the bootloader or SoftDevice over USB.
+  - The bootloader reuses the DHCP-assigned IP as a static address without renewing the lease.
+  - The command is accepted even when the Ethernet cable is unplugged; the bootloader then waits 5 minutes and returns to the firmware.
 
 ---

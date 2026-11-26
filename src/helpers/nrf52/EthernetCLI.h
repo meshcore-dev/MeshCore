@@ -7,6 +7,8 @@
 #include <RAK13800_W5100S.h>
 #include <helpers/nrf52/EthernetMac.h>
 #include <helpers/nrf52/EthernetWebSocket.h>
+#include <helpers/nrf52/EthernetDfu.h>
+#include <target.h>  // radio_driver
 
 #define PIN_SPI1_MISO (29)
 #define PIN_SPI1_MOSI (30)
@@ -146,8 +148,44 @@ static void ethernet_start_task() {
   xTaskCreate(ethernet_task, "eth_init", 1024, NULL, 1, NULL);
 }
 
-// Format ethernet status into reply buffer. Returns true if command was handled.
+// "eth.ota" reboots from ethernet_loop_maintain(), after the reply was sent
+static bool ethernet_dfu_pending = false;
+static uint32_t ethernet_dfu_requested_at = 0;
+
+// True if 'command' is 'name', with any spaces/tabs around it
+static bool ethernet_command_is(const char* command, const char* name) {
+  size_t n = strlen(name);
+  while (*command == ' ' || *command == '\t') command++;
+  if (strncmp(command, name, n) != 0) return false;
+  command += n;
+  while (*command == ' ' || *command == '\t') command++;
+  return *command == 0;
+}
+
+// Ethernet-only CLI commands (eth.status, eth.ota). Returns true if handled.
 static bool ethernet_handle_command(const char* command, char* reply) {
+  if (ethernet_command_is(command, "eth.ota")) {
+    if (!ethernet_running) {
+      strcpy(reply, "ERR: Ethernet not connected");
+    } else {
+      IPAddress ip = Ethernet.localIP();
+      if (ip == IPAddress(0, 0, 0, 0)) {  // bootloader would listen on an unreachable address
+        strcpy(reply, "ERR: no IP address");
+        return true;
+      }
+      if (!ethernet_bootloader_has_dfu()) {  // e.g. stock bootloader: would just restart
+        strcpy(reply, "ERR: bootloader has no Ethernet update support");
+        return true;
+      }
+      sprintf(reply, "OK - rebooting into Ethernet update mode, %u.%u.%u.%u:%d",
+          ip[0], ip[1], ip[2], ip[3], ETHERNET_DFU_PORT);
+      if (!ethernet_dfu_pending) {  // reboot from the loop, after the reply is sent
+        ethernet_dfu_pending = true;
+        ethernet_dfu_requested_at = millis();
+      }
+    }
+    return true;
+  }
   if (strcmp(command, "eth.status") == 0) {
     if (!ethernet_running) {
       strcpy(reply, "ETH: not connected");
@@ -159,6 +197,12 @@ static bool ethernet_handle_command(const char* command, char* reply) {
 #else
       sprintf(reply, "ETH: %u.%u.%u.%u:%d", ip[0], ip[1], ip[2], ip[3], ETHERNET_TCP_PORT);
 #endif
+      // Ethernet firmware update ("eth.ota"): port, or why it's unavailable
+      if (ethernet_bootloader_has_dfu()) {
+        sprintf(reply + strlen(reply), " ota:%d", ETHERNET_DFU_PORT);
+      } else {
+        strcat(reply, " ota:no-bootloader");
+      }
     }
     return true;
   }
@@ -239,6 +283,20 @@ static bool ethernet_sockets_full() {
 
 // Call from loop() to maintain DHCP and check for new clients
 static void ethernet_loop_maintain() {
+  if (ethernet_dfu_pending && (uint32_t)(millis() - ethernet_dfu_requested_at) >= 500) {
+    IPAddress ip = Ethernet.localIP(), mask = Ethernet.subnetMask(), gw = Ethernet.gatewayIP();
+    uint8_t ip_b[4] = { ip[0], ip[1], ip[2], ip[3] };
+    uint8_t mask_b[4] = { mask[0], mask[1], mask[2], mask[3] };
+    uint8_t gw_b[4] = { gw[0], gw[1], gw[2], gw[3] };
+    uint8_t mac[6];
+    generateEthernetMac(mac);
+    ethernet_ws_close();
+    if (ethernet_client) ethernet_client.stop();
+    Serial.println("ETH: rebooting into Ethernet update mode");
+    Serial.flush();
+    radio_driver.powerOff();  // the firmware won't be back for a while: don't leave the radio receiving
+    ethernet_dfu_reboot(ip_b, mask_b, gw_b, mac);
+  }
   if (ethernet_running) {
     ethernet_check_client();
     // A DHCP renewal needs a socket of its own. If it finds none, the library gives up
