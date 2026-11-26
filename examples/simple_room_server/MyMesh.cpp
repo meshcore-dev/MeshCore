@@ -89,6 +89,13 @@ void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
   mesh::Utils::sha256((uint8_t *)&client->extra.room.pending_ack, 4, reply_data, len, client->id.pub_key, PUB_KEY_SIZE);
   client->extra.room.push_post_timestamp = post.post_timestamp;
 
+  // the 2 attempt bits alone often repeat an earlier try byte for byte, and repeaters drop that
+  // as already seen. Hide 4 random bytes after a null terminator, so every re-try is a unique
+  // packet. Receivers read the text (and calc the ACK) only up to the null.
+  reply_data[len++] = 0;  // null terminator
+  getRNG()->random(&reply_data[len], 4);
+  len += 4;   // at most 9 + MAX_POST_TEXT_LEN + 5 = 165, within createDatagram()'s limit
+
   auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, client->shared_secret, reply_data, len);
   if (reply) {
     if (client->out_path_len == OUT_PATH_UNKNOWN) {
