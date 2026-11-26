@@ -135,8 +135,9 @@ static bool ethernet_read_line(char* ethernet_command, size_t buf_size) {
     ethernet_command[elen++] = c;
     ethernet_command[elen] = 0;
   }
-  if (elen == (int)buf_size - 1) {
-    ethernet_command[buf_size - 1] = '\r';
+  if (elen == (int)buf_size - 1) {  // buffer full: treat as a completed line
+    ethernet_command[buf_size - 2] = '\r';  // end-of-line marker inside the buffer
+    ethernet_command[buf_size - 1] = 0;     // keep it NUL-terminated for strlen() above
   }
 
   if (elen > 0 && ethernet_command[elen - 1] == '\r') {
