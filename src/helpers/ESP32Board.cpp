@@ -7,7 +7,7 @@
 RTC_NOINIT_ATTR uint32_t _rtc_backup_time;
 RTC_NOINIT_ATTR uint32_t _rtc_backup_magic;
 
-#if defined(ADMIN_PASSWORD) && !defined(DISABLE_WIFI_OTA)   // Repeater or Room Server only
+#if !defined(DISABLE_WIFI_OTA)
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
