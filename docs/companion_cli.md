@@ -478,6 +478,14 @@ Radio parameters are common to all roles and handled by `CommonRadioPrefs`.
 
 ---
 
+#### Clear SSID and password
+**Usage:**
+- `set wifi.clear`
+
+**Note:** Takes effect after a reboot. The node then falls back to the SSID and password set by the `WIFI_SSID` and `WIFI_PWD` build flags, if any.
+
+---
+
 ### UI
 
 #### Show clock
