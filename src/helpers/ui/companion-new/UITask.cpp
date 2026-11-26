@@ -739,9 +739,9 @@ public:
     auto p = &unread[head];
     p->timestamp = _rtc->getCurrentTime();
     if (path_count == 0xFF) {
-      sprintf(p->origin, "(D) %s:", from_name);
+      snprintf(p->origin, sizeof(p->origin), "(D) %s:", from_name);
     } else {
-      sprintf(p->origin, "(%d) %s:", (uint32_t) path_count, from_name);
+      snprintf(p->origin, sizeof(p->origin), "(%d) %s:", (uint32_t) path_count, from_name);
     }
     StrHelper::strncpy(p->msg, msg, sizeof(p->msg));
   }
