@@ -108,7 +108,7 @@ public:
    * \param  src  (IN) buffer containing blob
    * \param  len  the packet length (as returned by writeTo())
    */
-  bool readFrom(const uint8_t src[], uint8_t len);
+  bool readFrom(const uint8_t src[], size_t len);
 };
 
 }
