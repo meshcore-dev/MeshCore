@@ -20,6 +20,15 @@ int PacketQueue::countBefore(uint32_t now) const {
 }
 
 mesh::Packet* PacketQueue::get(uint32_t now) {
+  mesh::Packet* selected = peek(now);
+  if (selected == NULL) return NULL;
+  for (int i = 0; i < _num; ++i) {
+    if (_table[i] == selected) return removeByIdx(i);
+  }
+  return NULL;
+}
+
+mesh::Packet* PacketQueue::peek(uint32_t now) const {
   uint8_t min_pri = 0xFF;
   int best_idx = -1;
   for (int j = 0; j < _num; j++) {
@@ -31,16 +40,16 @@ mesh::Packet* PacketQueue::get(uint32_t now) {
   }
   if (best_idx < 0) return NULL;   // empty, or all items are still in the future
 
-  mesh::Packet* top = _table[best_idx];
-  int i = best_idx;
-  _num--;
-  while (i < _num) {
-    _table[i] = _table[i+1];
-    _pri_table[i] = _pri_table[i+1];
-    _schedule_table[i] = _schedule_table[i+1];
-    i++;
+  return _table[best_idx];
+}
+
+bool PacketQueue::reschedule(mesh::Packet* packet, uint32_t scheduled_for) {
+  for (int i = 0; i < _num; ++i) {
+    if (_table[i] != packet) continue;
+    _schedule_table[i] = scheduled_for;
+    return true;
   }
-  return top;
+  return false;
 }
 
 mesh::Packet* PacketQueue::removeByIdx(int i) {
@@ -86,12 +95,16 @@ void StaticPoolPacketManager::free(mesh::Packet* packet) {
   }
 }
 
-void StaticPoolPacketManager::queueOutbound(mesh::Packet* packet, uint8_t priority, uint32_t scheduled_for) {
-  if (packet == NULL) return;
-  if (!send_queue.add(packet, priority, scheduled_for)) {
-    MESH_DEBUG_PRINTLN("queueOutbound: send queue full, dropping packet");
-    free(packet);
-  }
+bool StaticPoolPacketManager::queueOutbound(mesh::Packet* packet, uint8_t priority, uint32_t scheduled_for) {
+  return packet != NULL && send_queue.add(packet, priority, scheduled_for);
+}
+
+mesh::Packet* StaticPoolPacketManager::peekNextOutbound(uint32_t now) const {
+  return send_queue.peek(now);
+}
+
+bool StaticPoolPacketManager::deferOutbound(mesh::Packet* packet, uint32_t scheduled_for) {
+  return send_queue.reschedule(packet, scheduled_for);
 }
 
 mesh::Packet* StaticPoolPacketManager::getNextOutbound(uint32_t now) {

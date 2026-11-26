@@ -210,6 +210,8 @@ Flags stay set until the node reboots or `clear stats` is run.
 
 ### Radio
 
+See [Radio profiles](radio_profiles.md) for `radio2`, temporary profiles and one-slot timed changes on either profile.
+
 #### View or change this node's radio parameters
 **Usage:**
 - `get radio`

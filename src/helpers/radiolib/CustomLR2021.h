@@ -8,6 +8,8 @@ class CustomLR2021 : public LR2021 {
   uint32_t _maxPayloadMillis = 3934;
   uint32_t _activityAt = 0;
   bool _headerSeen = false;
+  int8_t _txPower = 0;
+  bool _txPowerSet = false;
   // last applied gain level per RX path, mirroring RadioLib's gainModeLf/gainModeHf defaults
   uint8_t _rx_gain_lf = RADIOLIB_LR2021_RX_BOOST_LF;
   uint8_t _rx_gain_hf = RADIOLIB_LR2021_RX_BOOST_HF;
@@ -68,6 +70,22 @@ class CustomLR2021 : public LR2021 {
       return true;  // success
     }
     
+    using LR2021::setOutputPower;
+    using LR2021::setFrequency;
+    int16_t setOutputPower(int8_t power) override {
+      int8_t clipped = power;
+      checkOutputPower(power, &clipped);
+      const int16_t rc = LR2021::setOutputPower(clipped);
+      if (rc == RADIOLIB_ERR_NONE) { _txPower = power; _txPowerSet = true; }
+      return rc;
+    }
+    int16_t setFrequency(float frequency) override {
+      const int16_t rc = LR2021::setFrequency(frequency);
+      // The PA table and output path depend on the current LF/HF band.
+      // Retain the requested level and clip to the new band's native range.
+      return rc == RADIOLIB_ERR_NONE && _txPowerSet ? setOutputPower(_txPower) : rc;
+    }
+
     float getFreqMHz() const { return freqMHz; }
 
     bool isHighFreqPath() const { return freqMHz > RADIOLIB_LR2021_LF_CUTOFF_FREQ; }
