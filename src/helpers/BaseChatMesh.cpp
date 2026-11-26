@@ -125,6 +125,11 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
     MESH_DEBUG_PRINTLN("onAdvertRecv: invalid app_data, or name is missing: len=%d", app_data_len);
     return;
   }
+  if (parser.getType() == ADV_TYPE_NONE) {
+    // ADV_TYPE_NONE marks our own temporary (anon request) slots; a contact must never be stored with it
+    MESH_DEBUG_PRINTLN("onAdvertRecv: ignoring advert with type NONE");
+    return;
+  }
 
   ContactInfo* from = NULL;
   for (int i = 0; i < num_contacts; i++) {
@@ -149,7 +154,7 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
     packet->header = save;
   }
 
-  if (from && from->type == ADV_TYPE_NONE) {   // already in contacts, but from a temporary ANON_REQ ?
+  if (from && from->type == ADV_TYPE_NONE && from < &contacts[MAX_ANON_CONTACTS]) {   // already in contacts, but from a temporary ANON_REQ ?
     memset(from, 0, sizeof(*from));  // clear the anon/temp slot
     from = NULL;  // do normal 'add' flow
   }
