@@ -64,8 +64,10 @@ uint8_t Packet::writeTo(uint8_t dest[]) const {
 
 bool Packet::readFrom(const uint8_t src[], uint8_t len) {
   uint8_t i = 0;
+  if (len < 2) return false;   // need header + path_len
   header = src[i++];
   if (hasTransportCodes()) {
+    if (len < 6) return false;   // header + 4 bytes of codes + path_len
     memcpy(&transport_codes[0], &src[i], 2); i += 2;
     memcpy(&transport_codes[1], &src[i], 2); i += 2;
   } else {
@@ -75,6 +77,7 @@ bool Packet::readFrom(const uint8_t src[], uint8_t len) {
   if (!isValidPathLen(path_len)) return false;   // bad encoding
 
   uint8_t bl = getPathByteLen();
+  if (i + bl >= len) return false;   // path must fit, with at least one payload byte after it
   memcpy(path, &src[i], bl); i += bl;
 
   if (i >= len) return false;   // bad encoding
