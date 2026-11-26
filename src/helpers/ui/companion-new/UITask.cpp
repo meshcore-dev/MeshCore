@@ -390,7 +390,7 @@ public:
     } else if (_page == HomePage::RECENT) {
       display.setColor(UIColor::primary_txt);
       int y = 20;
-      for (int i = 0, k = recent_next_idx; i < UI_RECENT_LIST_SIZE; i++, y += 11, k = (k + 1) % UI_RECENT_LIST_SIZE) {
+      for (int i = 0, k = recent_next_idx; i < UI_RECENT_LIST_SIZE; i++, k = (k + 1) % UI_RECENT_LIST_SIZE) {
         auto a = &recent[k];
         if (a->name[0] == 0) continue;  // empty slot
         int secs = _rtc->getCurrentTime() - a->recv_timestamp;
@@ -410,6 +410,10 @@ public:
         display.drawTextEllipsized(0, y, max_name_width, filtered_recent_name);
         display.setCursor(display.width() - timestamp_width - 1, y);
         display.print(tmp);
+        y += 11;
+      }
+      if (y == 20) {
+        display.drawTextCentered(display.width() / 2, 32, "No recent adverts");
       }
     } else if (_page == HomePage::RADIO) {
       display.setColor(UIColor::primary_txt);
@@ -511,6 +515,11 @@ public:
     } else if (_page == HomePage::SENSORS) {
       int y = 18;
       refresh_sensors();
+      if (sensors_nb == 0) {
+        display.setColor(UIColor::primary_txt);
+        display.drawTextCentered(display.width() / 2, 32, "No sensor readings");
+        return 5000;
+      }
       char buf[30];
       char name[30];
       LPPReader r(sensors_lpp.getBuffer(), sensors_lpp.getSize());
