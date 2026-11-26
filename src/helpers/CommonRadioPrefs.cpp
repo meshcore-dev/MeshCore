@@ -209,8 +209,13 @@ bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timest
     return true;
   }
   if (memcmp(command, "set multi.acks ", 15) == 0) {
-    setMultiAcks(atoi(&command[15]));
-    strcpy(reply, "OK");
+    int n = atoi(&command[15]);
+    if (n < 0 || n > 1) {   // each extra ACK costs a pool packet and airtime per forwarded ACK
+      strcpy(reply, "Error: range is 0-1");
+    } else {
+      setMultiAcks(n);
+      strcpy(reply, "OK");
+    }
     return true;
   }
 
