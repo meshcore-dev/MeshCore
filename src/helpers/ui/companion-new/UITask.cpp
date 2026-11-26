@@ -309,6 +309,7 @@ public:
   }
 
   int render(DisplayDriver& display) override {
+    int refresh_ms = 5000;
     display.setColor(UIColor::title_bkg);
     display.fillRect(0, 0, display.width(), 12);
     char tmp[80];
@@ -340,51 +341,110 @@ public:
     }
 
     if (_page == HomePage::FIRST) {
-      display.setColor(UIColor::primary_txt);
-      #ifdef ENABLE_WIFI_INTERFACE
-      // smaller unread message ui for wifi variants
-      display.setTextSize(1);
-      sprintf(tmp, "Unread Msg: %d", _task->getMsgCount());
-      display.drawTextCentered(display.width() / 2, 22, tmp);
-      #else
-      // larger unread message ui for non wifi variants
-      display.setTextSize(2);
-      sprintf(tmp, "MSG: %d", _task->getMsgCount());
-      display.drawTextCentered(display.width() / 2, 22, tmp);
-      #endif
+      static constexpr uint32_t MIN_VALID_RTC_EPOCH = 1735689600UL; // 2025-01-01 00:00:00 UTC
+      uint32_t raw_now = _rtc->getCurrentTime();
+      bool rtc_valid = (raw_now >= MIN_VALID_RTC_EPOCH);
+      const bool compact_screen = (display.height() < 120);
+
+      char time_str[8] = "--:--";
+      char date_str[12] = "";
       if (_node_prefs->ui_show_clock) {
-        display.setTextSize(3);
-        uint32_t now = _rtc->getCurrentTime();
-        now += (int32_t)(_node_prefs->tz_offset * 3600);
-        DateTime dt (now);
-        sprintf(tmp, "%02d:%02d", dt.hour(), dt.minute());
-        display.drawTextCentered(display.width() / 2, 60, tmp);
-        display.setTextSize(1);
-        sprintf(tmp, "%02d/%02d/%d", dt.day(), dt.month(), dt.year());
-        display.drawTextCentered(display.width() / 2, 80, tmp);
+        if (rtc_valid) {
+          uint32_t local_now = (uint32_t)((int64_t)raw_now + (int64_t)(_node_prefs->tz_offset * 3600.0f));
+          DateTime dt (local_now);
+          snprintf(time_str, sizeof(time_str), "%02d:%02d", dt.hour(), dt.minute());
+          if (compact_screen) {
+            snprintf(date_str, sizeof(date_str), "%02d/%02d/%02d", dt.day(), dt.month(), dt.year() % 100);
+          } else {
+            snprintf(date_str, sizeof(date_str), "%02d/%02d/%d", dt.day(), dt.month(), dt.year());
+          }
+        } else {
+          strcpy(date_str, compact_screen ? "--/--/--" : "--/--/----");
+        }
       }
-      #ifdef ENABLE_WIFI_INTERFACE
+
+      if (_node_prefs->ui_show_clock && compact_screen) {
+        display.setColor(UIColor::primary_txt);
+        display.setTextSize(1);
+        snprintf(tmp, sizeof(tmp), "MSG:%d", _task->getMsgCount());
+        display.drawTextLeftAlign(0, 19, tmp);
+        display.setColor(UIColor::secondary_txt);
+        display.drawTextRightAlign(display.width() - 1, 19, date_str);
+
+        display.setColor(UIColor::primary_txt);
+        #ifdef ENABLE_WIFI_INTERFACE
+        display.setTextSize(1);
+        display.drawTextCentered(display.width() / 2, 29, time_str);
         IPAddress ip = WiFi.localIP();
         snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-        display.setTextSize(1);
-        display.drawTextCentered(display.width() / 2, 32, tmp);
-      #endif
-      if (_task->hasConnection()) {
-        display.setColor(UIColor::warning_txt);
-        display.setTextSize(1);
-        if (_node_prefs->ui_show_clock)
-          display.drawTextCentered(display.width() / 2, 110, "< Connected >");
-        else
-          display.drawTextCentered(display.width() / 2, 43, "< Connected >");
-      } else if (_task->getBLEPin() != 0) { // BT pin
-        display.setColor(UIColor::warning_txt);
-        sprintf(tmp, "Pin:%d", _task->getBLEPin());
-        if (_node_prefs->ui_show_clock) {
+        display.drawTextCentered(display.width() / 2, 40, tmp);
+        #else
+        display.setTextSize(2);
+        display.drawTextCentered(display.width() / 2, 30, time_str);
+        #endif
+
+        if (_task->hasConnection()) {
+          display.setColor(UIColor::warning_txt);
           display.setTextSize(1);
-          display.drawTextCentered(display.width() / 2, 110, tmp);
+          display.drawTextCentered(display.width() / 2, 51, "< Connected >");
+        } else if (_task->getBLEPin() != 0) { // BT pin
+          display.setColor(UIColor::warning_txt);
+          display.setTextSize(1);
+          snprintf(tmp, sizeof(tmp), "Pin:%lu", (unsigned long)_task->getBLEPin());
+          display.drawTextCentered(display.width() / 2, 51, tmp);
+        }
+      } else {
+        display.setColor(UIColor::primary_txt);
+        #ifdef ENABLE_WIFI_INTERFACE
+        // smaller unread message ui for wifi variants
+        display.setTextSize(1);
+        sprintf(tmp, "Unread Msg: %d", _task->getMsgCount());
+        display.drawTextCentered(display.width() / 2, 22, tmp);
+        #else
+        // larger unread message ui for non wifi variants
+        display.setTextSize(2);
+        sprintf(tmp, "MSG: %d", _task->getMsgCount());
+        display.drawTextCentered(display.width() / 2, 22, tmp);
+        #endif
+        if (_node_prefs->ui_show_clock) {
+          display.setTextSize(3);
+          display.drawTextCentered(display.width() / 2, 60, time_str);
+          display.setTextSize(1);
+          display.drawTextCentered(display.width() / 2, 80, date_str);
+        }
+        #ifdef ENABLE_WIFI_INTERFACE
+          IPAddress ip = WiFi.localIP();
+          snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+          display.setTextSize(1);
+          display.drawTextCentered(display.width() / 2, 32, tmp);
+        #endif
+        if (_task->hasConnection()) {
+          display.setColor(UIColor::warning_txt);
+          display.setTextSize(1);
+          if (_node_prefs->ui_show_clock)
+            display.drawTextCentered(display.width() / 2, 110, "< Connected >");
+          else
+            display.drawTextCentered(display.width() / 2, 43, "< Connected >");
+        } else if (_task->getBLEPin() != 0) { // BT pin
+          display.setColor(UIColor::warning_txt);
+          sprintf(tmp, "Pin:%lu", (unsigned long)_task->getBLEPin());
+          if (_node_prefs->ui_show_clock) {
+            display.setTextSize(1);
+            display.drawTextCentered(display.width() / 2, 110, tmp);
+          } else {
+            display.setTextSize(2);
+            display.drawTextCentered(display.width() / 2, 43, tmp);
+          }
+        }
+      }
+
+      if (display.isEink()) {
+        if (_node_prefs->ui_show_clock && rtc_valid) {
+          uint32_t secs_left = 60 - (raw_now % 60);
+          if (secs_left == 0) secs_left = 60;
+          refresh_ms = (int)(secs_left * 1000);
         } else {
-          display.setTextSize(2);
-          display.drawTextCentered(display.width() / 2, 43, tmp);
+          refresh_ms = 60000;
         }
       }
     } else if (_page == HomePage::RECENT) {
@@ -629,7 +689,7 @@ public:
       }
 #endif
     }
-    return 5000;   // next render after 5000 ms
+    return refresh_ms;   // next render delay
   }
 
   bool handleInput(char c) override {
