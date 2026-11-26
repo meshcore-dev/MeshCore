@@ -100,7 +100,9 @@ void SSD1306Display::drawXbm(int x, int y, const uint8_t* bits, int w, int h) {
 uint16_t SSD1306Display::getTextWidth(const char* str) {
   int16_t x1, y1;
   uint16_t w, h;
+  display.setTextWrap(false);
   display.getTextBounds(str, 0, 0, &x1, &y1, &w, &h);
+  display.setTextWrap(true);
   return w;
 }
 
