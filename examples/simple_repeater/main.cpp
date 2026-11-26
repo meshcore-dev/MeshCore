@@ -144,7 +144,8 @@ void loop() {
   if (len > 0 && command[len - 1] == '\r') {  // received complete line
     Serial.print('\n');
     command[len - 1] = 0;  // replace newline with C string null terminator
-    char reply[160];
+    // 3-byte reflected CLI prefix + 160-byte reply text + NUL
+    char reply[164];
     reply[0] = 0;
 #ifdef ETHERNET_ENABLED
     if (!ethernet_handle_command(command, reply)) {
@@ -165,7 +166,8 @@ void loop() {
 #ifdef ETHERNET_ENABLED
   ethernet_loop_maintain();
   if (ethernet_read_line(ethernet_command, sizeof(ethernet_command))) {
-    char reply[160];
+    // 3-byte reflected CLI prefix + 160-byte reply text + NUL
+    char reply[164];
     reply[0] = 0;
     if (!ethernet_handle_command(ethernet_command, reply)) {
       the_mesh.handleCommand(0, ethernet_command, reply);
