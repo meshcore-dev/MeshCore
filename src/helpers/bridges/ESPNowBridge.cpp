@@ -169,14 +169,12 @@ void ESPNowBridge::sendPacket(mesh::Packet *packet) {
 
   if (!_seen_packets.wasSeen(packet)) {
     _seen_packets.markSeen(packet);
-    // Create a temporary buffer just for size calculation and reuse for actual writing
-    uint8_t sizingBuffer[MAX_PAYLOAD_SIZE];
-    uint16_t meshPacketLen = packet->writeTo(sizingBuffer);
-
-    // Check if packet fits within our maximum payload size
-    if (meshPacketLen > MAX_PAYLOAD_SIZE) {
-      BRIDGE_DEBUG_PRINTLN("TX packet too large (payload=%d, max=%d)\n", meshPacketLen,
-                           MAX_PAYLOAD_SIZE);
+    // Check that the packet fits within our maximum payload size BEFORE serialising it.
+    // Packet::writeTo() has no destination size, and a mesh packet can be larger than an ESP-NOW frame.
+    int rawLen = packet->getRawLength();
+    if (rawLen <= 0 || rawLen > (int)MAX_PAYLOAD_SIZE) {
+      BRIDGE_DEBUG_PRINTLN("TX packet too large (payload=%d, max=%d)\n", rawLen,
+                           (int)MAX_PAYLOAD_SIZE);
       return;
     }
 
@@ -188,7 +186,7 @@ void ESPNowBridge::sendPacket(mesh::Packet *packet) {
 
     // Write packet payload starting after magic header and checksum
     const size_t packetOffset = BRIDGE_MAGIC_SIZE + BRIDGE_CHECKSUM_SIZE;
-    memcpy(buffer + packetOffset, sizingBuffer, meshPacketLen);
+    uint16_t meshPacketLen = packet->writeTo(buffer + packetOffset);   // rawLen <= MAX_PAYLOAD_SIZE, so this fits
 
     // Calculate and add checksum (only of the payload)
     uint16_t checksum = fletcher16(buffer + packetOffset, meshPacketLen);
