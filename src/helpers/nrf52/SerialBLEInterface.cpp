@@ -69,6 +69,18 @@ void SerialBLEInterface::onSecured(uint16_t connection_handle) {
       } else {
         BLE_DEBUG_PRINTLN("Failed to request connection parameter update: %lu", err_code);
       }
+
+      // Once per boot, tell the bonded peer the attribute table may have changed (e.g. after a
+      // firmware update) so it re-discovers instead of using a stale GATT cache. Fails until the
+      // peer has enabled Service Changed indications, in which case the next secured link retries.
+      static bool service_changed_sent = false;
+      if (!service_changed_sent) {
+        uint16_t first_handle = 0;
+        if (sd_ble_gatts_initial_user_handle_get(&first_handle) == NRF_SUCCESS &&
+            sd_ble_gatts_service_changed(connection_handle, first_handle, 0xFFFF) == NRF_SUCCESS) {
+          service_changed_sent = true;
+        }
+      }
     } else {
       BLE_DEBUG_PRINTLN("onSecured: ignoring stale/duplicate callback");
     }
