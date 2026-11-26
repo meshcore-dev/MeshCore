@@ -1253,8 +1253,7 @@ char UITask::handleLongPress(char c) {
 
 char UITask::handleDoubleClick(char c) {
   MESH_DEBUG_PRINTLN("UITask: double-click triggered");
-  checkDisplayOn(c);
-  return c;
+  return checkDisplayOn(c);
 }
 
 char UITask::handleTripleClick(char c) {
