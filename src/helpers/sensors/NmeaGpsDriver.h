@@ -115,12 +115,23 @@ class NmeaGpsDriver : public GpsDriver {
     unsigned long _nextSwitchPoll = 0;
 #endif
 
+    // arduino-pico's SerialUART has no two-arg setPins(); its UART pads are
+    // parity-fixed (TX even / RX odd) and are set individually instead.
+    void setUartPins() {
+#if defined(RP2040_PLATFORM)
+        ((SerialUART *)_hardwareSerial)->setRX(_txPin);
+        ((SerialUART *)_hardwareSerial)->setTX(_rxPin);
+#else
+        _hardwareSerial->setPins(_txPin, _rxPin);
+#endif
+    }
+
     void startHardware() {
         if (_hardwareSerial == nullptr || _started) return;
 
         if (_hardwareSerial != nullptr) {
             if (_txPin != -1 && _rxPin != -1) {
-                _hardwareSerial->setPins(_txPin, _rxPin);
+                setUartPins();
             }
             _hardwareSerial->begin(_baudRate);
         }
@@ -135,7 +146,7 @@ class NmeaGpsDriver : public GpsDriver {
     void reopenSerial(uint32_t baud) {
         _hardwareSerial->end();
         if (_txPin != -1 && _rxPin != -1) {
-            _hardwareSerial->setPins(_txPin, _rxPin);
+            setUartPins();
         }
         _hardwareSerial->begin(baud);
         drain();
