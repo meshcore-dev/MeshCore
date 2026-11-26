@@ -2,13 +2,14 @@
 
 #include <Mesh.h>
 #include <Arduino.h>
+#include <RTClib.h>
 
 class VolatileRTCClock : public mesh::RTCClock {
   uint32_t base_time;
   uint64_t accumulator;
   unsigned long prev_millis;
 public:
-  VolatileRTCClock() { base_time = 1715770351; accumulator = 0; prev_millis = millis(); }   // 15 May 2024, 8:50pm
+  VolatileRTCClock() { base_time = DateTime(__DATE__, __TIME__).unixtime(); accumulator = 0; prev_millis = millis(); }   // fallback floor = firmware build time
   uint32_t getCurrentTime() override { return base_time + accumulator/1000; }
   void setCurrentTime(uint32_t time) override { base_time = time; accumulator = 0; prev_millis = millis(); }
 
