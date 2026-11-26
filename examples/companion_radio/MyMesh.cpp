@@ -1980,7 +1980,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     if (len >= 1+31+16) {
       int n = strlen((char *) &cmd_frame[1]);
       if (n > 0 && n < 31) {
-        strcpy(_prefs.default_scope_name, (char *) &cmd_frame[1]);
+        StrHelper::strzcpy(_prefs.default_scope_name, (char *) &cmd_frame[1], sizeof(_prefs.default_scope_name));
         memcpy(_prefs.default_scope_key, &cmd_frame[1+31], 16);
         savePrefs();
         writeOKFrame();
