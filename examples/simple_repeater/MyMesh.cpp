@@ -123,6 +123,7 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     }
 
     client = acl.putClient(sender, 0);  // add to contacts (if not already known)
+    if (client == NULL) return 0;
     if (sender_timestamp <= client->last_timestamp) {
       MESH_DEBUG_PRINTLN("Possible login replay attack!");
       return 0;  // FATAL: client table is full -OR- replay attack

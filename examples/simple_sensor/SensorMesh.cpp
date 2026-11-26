@@ -383,6 +383,7 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
     }
 
     client = acl.putClient(sender, PERM_RECV_ALERTS_HI | PERM_RECV_ALERTS_LO);  // add to contacts (if not already known)
+    if (client == NULL) return 0;
     if (sender_timestamp <= client->last_timestamp) {
       MESH_DEBUG_PRINTLN("Possible login replay attack!");
       return 0;  // FATAL: client table is full -OR- replay attack
