@@ -357,6 +357,8 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       }
 
       client = acl.putClient(sender, 0);  // add to known clients (if not already known)
+      if (client == NULL) return;
+
       if (sender_timestamp <= client->last_timestamp) {
         MESH_DEBUG_PRINTLN("possible replay attack!");
         return;
