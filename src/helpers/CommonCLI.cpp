@@ -168,27 +168,17 @@ void CommonCLI::savePrefs() {
 }
 
 uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
-#if ENV_INCLUDE_GPS == 1
   if (_prefs->advert_loc_policy == ADVERT_LOC_NONE) {
     AdvertDataBuilder builder(node_type, _prefs->node_name);
     return builder.encodeTo(app_data);
-  } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE) {
+  } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE && (_sensors->node_lat != 0 || _sensors->node_lon != 0)) {
+    // No GPS fix yet (or no GPS in this build) leaves 0,0: fall back to the configured position.
     AdvertDataBuilder builder(node_type, _prefs->node_name, _sensors->node_lat, _sensors->node_lon);
     return builder.encodeTo(app_data);
   } else {
     AdvertDataBuilder builder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
     return builder.encodeTo(app_data);
   }
-#else
-  // No GPS support: sensed coordinates are never populated, so honour
-  // ADVERT_LOC_NONE and otherwise fall back to the configured position.
-  if (_prefs->advert_loc_policy == ADVERT_LOC_NONE) {
-    AdvertDataBuilder builder(node_type, _prefs->node_name);
-    return builder.encodeTo(app_data);
-  }
-  AdvertDataBuilder builder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
-  return builder.encodeTo(app_data);
-#endif
 }
 
 void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* reply) {
