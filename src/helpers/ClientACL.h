@@ -27,6 +27,7 @@ struct ClientInfo {
       uint32_t push_post_timestamp;
       unsigned long ack_timeout;
       uint8_t  push_failures;
+      bool     pending_ack_is_flood;
     } room;
     struct {
       uint32_t expiry_timestamp;  // epoch seconds
