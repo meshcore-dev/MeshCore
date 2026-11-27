@@ -94,9 +94,11 @@ void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
     if (client->out_path_len == OUT_PATH_UNKNOWN) {
       unsigned long delay_millis = 0;
       sendFloodScoped(default_scope, reply, delay_millis, _prefs.path_hash_mode + 1); // REVISIT
+      client->extra.room.pending_ack_is_flood = true;
       client->extra.room.ack_timeout = futureMillis(PUSH_ACK_TIMEOUT_FLOOD);
     } else {
       sendDirect(reply, client->out_path, client->out_path_len);
+      client->extra.room.pending_ack_is_flood = false;
 
       uint8_t path_hash_count = client->out_path_len & 63;
       client->extra.room.ack_timeout = futureMillis(PUSH_TIMEOUT_BASE + PUSH_ACK_TIMEOUT_FACTOR * (path_hash_count + 1));
@@ -104,6 +106,7 @@ void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
     _num_post_pushes++; // stats
   } else {
     client->extra.room.pending_ack = 0;
+    client->extra.room.pending_ack_is_flood = false;
     MESH_DEBUG_PRINTLN("Unable to push post to client");
   }
 }
@@ -119,15 +122,13 @@ uint8_t MyMesh::getUnsyncedCount(ClientInfo *client) {
   return count;
 }
 
-bool MyMesh::processAck(const uint8_t *data) {
-  for (int i = 0; i < acl.getNumClients(); i++) {
-    auto client = acl.getClientByIdx(i);
-    if (client->extra.room.pending_ack && memcmp(data, &client->extra.room.pending_ack, 4) == 0) { // got an ACK from Client!
-      client->extra.room.pending_ack = 0; // clear this, so next push can happen
-      client->extra.room.push_failures = 0;
-      client->extra.room.sync_since = client->extra.room.push_post_timestamp; // advance Client's SINCE timestamp, to sync next post
-      return true;
-    }
+bool MyMesh::processAck(ClientInfo *client, const uint8_t *data) {
+  if (client->extra.room.pending_ack && memcmp(data, &client->extra.room.pending_ack, 4) == 0) { // got an ACK from Client!
+    client->extra.room.pending_ack = 0; // clear this, so next push can happen
+    client->extra.room.pending_ack_is_flood = false;
+    client->extra.room.push_failures = 0;
+    client->extra.room.sync_since = client->extra.room.push_post_timestamp; // advance Client's SINCE timestamp, to sync next post
+    return true;
   }
   return false;
 }
@@ -368,6 +369,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       client->last_timestamp = sender_timestamp;
       client->extra.room.sync_since = sender_sync_since;
       client->extra.room.pending_ack = 0;
+      client->extra.room.pending_ack_is_flood = false;
       client->extra.room.push_failures = 0;
 
       client->last_activity = getRTCClock()->getCurrentTime();
@@ -563,6 +565,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         }
 
         client->extra.room.pending_ack = 0;
+        client->extra.room.pending_ack_is_flood = false;
 
         // TODO: Throttle KEEP_ALIVE requests!
         // if client sends too quickly, evict()
@@ -612,13 +615,13 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
     auto client = acl.getClientByIdx(i);
     client->out_path_len = mesh::Packet::copyPath(client->out_path, path, path_len); // store a copy of path, for sendDirect()
     client->last_activity = getRTCClock()->getCurrentTime();
+
+    if (extra_type == PAYLOAD_TYPE_ACK && extra_len >= 4) {
+      // also got an encoded ACK!
+      processAck(client, extra);
+    }
   } else {
     MESH_DEBUG_PRINTLN("onPeerPathRecv: invalid peer idx: %d", i);
-  }
-
-  if (extra_type == PAYLOAD_TYPE_ACK && extra_len >= 4) {
-    // also got an encoded ACK!
-    processAck(extra);
   }
 
   // NOTE: no reciprocal path send!!
@@ -626,8 +629,12 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
 }
 
 void MyMesh::onAckRecv(mesh::Packet *packet, uint32_t ack_crc) {
-  if (processAck((uint8_t *)&ack_crc)) {
-    packet->markDoNotRetransmit(); // ACK was for this node, so don't retransmit
+  for (int i = 0; i < acl.getNumClients(); i++) {
+    auto client = acl.getClientByIdx(i);
+    if (!client->extra.room.pending_ack_is_flood && processAck(client, (uint8_t *)&ack_crc)) {
+      packet->markDoNotRetransmit(); // ACK was for this node, so don't retransmit
+      return;
+    }
   }
 }
 
@@ -1008,6 +1015,7 @@ void MyMesh::loop() {
       if (c->extra.room.pending_ack && millisHasNowPassed(c->extra.room.ack_timeout)) {
         c->extra.room.push_failures++;
         c->extra.room.pending_ack = 0; // reset  (TODO: keep prev expected_ack's in a list, incase they arrive LATER, after we retry)
+        c->extra.room.pending_ack_is_flood = false;
         MESH_DEBUG_PRINTLN("pending ACK timed out: push_failures: %d", (uint32_t)c->extra.room.push_failures);
       }
     }
