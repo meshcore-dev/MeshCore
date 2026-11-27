@@ -185,9 +185,10 @@ uint8_t SensorMesh::handleRequest(ClientInfo* from, uint32_t sender_timestamp, u
 
     for (int i = 0; i < n; i++) {
       auto d = &data[i];
+      uint8_t sz = LPPData::getDataSize(d->_lpp_type);
+      if (ofs + 2 + 3 * sz > sizeof(reply_data)) break;   // no room for this series (min, max, avg)
       reply_data[ofs++] = d->_channel;
       reply_data[ofs++] = d->_lpp_type;
-      uint8_t sz = LPPData::getDataSize(d->_lpp_type);
       uint32_t mult = LPPData::getMultiplier(d->_lpp_type);
       bool is_signed = LPPData::isSigned(d->_lpp_type);
       ofs += LPPData::putFloat(&reply_data[ofs], d->_min, sz, mult, is_signed);
@@ -263,6 +264,7 @@ void SensorMesh::sendAlert(const ClientInfo* c, Trigger* t) {
   int text_len = strlen(t->text);
 
   uint8_t data[MAX_PACKET_PAYLOAD];
+  if (text_len > (int)sizeof(data) - 5) text_len = sizeof(data) - 5;   // 5-byte header + text must fit
   memcpy(data, &t->timestamp, 4);
   data[4] = (TXT_TYPE_PLAIN << 2) | t->attempt;  // attempt and flags
   memcpy(&data[5], t->text, text_len);
