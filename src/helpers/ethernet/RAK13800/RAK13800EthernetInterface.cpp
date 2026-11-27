@@ -13,7 +13,37 @@ SPIClass ETHERNET_SPI_PORT(NRF_SPIM1, PIN_SPI1_MISO, PIN_SPI1_SCK, PIN_SPI1_MOSI
 #define PIN_ETHERNET_RESET 21
 #define PIN_ETHERNET_SS 26
 
+#ifdef WITH_W5100S_POE
+  // Give the RAK19018 (Silvertel) PoE converter time to latch on the current the
+  // W5100S is already drawing (see variants/rak4631/W5100SPoE.cpp) before doing the
+  // disruptive Ethernet-library bring-up (PHY soft-reset + blocking DHCP), which
+  // otherwise collapses the marginal PoE supply at cold start.
+  #ifndef ETH_POE_DEFER_MS
+    #define ETH_POE_DEFER_MS 6000
+  #endif
+  // Static fallback if no DHCP server answers (override per network).
+  #ifndef ETH_STATIC_IP
+    #define ETH_STATIC_IP  192,168,1,50
+  #endif
+  #ifndef ETH_GATEWAY
+    #define ETH_GATEWAY    192,168,1,1
+  #endif
+  #ifndef ETH_SUBNET
+    #define ETH_SUBNET     255,255,255,0
+  #endif
+#endif
+
 bool RAK13800EthernetInterface::begin() {
+#ifdef WITH_W5100S_POE
+  // Non-disruptive only: the real bring-up runs from loop() after ETH_POE_DEFER_MS.
+  _startedAt = millis();
+  return true;
+#else
+  return bringUp();
+#endif
+}
+
+bool RAK13800EthernetInterface::bringUp() {
 
   // WB_IO2 (power enable) is already driven HIGH by early constructor
   // in RAK4631Board.cpp to support POE boot.
@@ -45,6 +75,14 @@ bool RAK13800EthernetInterface::begin() {
   IPAddress subnet(ETHERNET_STATIC_SUBNET);
   IPAddress dns(ETHERNET_STATIC_DNS);
   Ethernet.begin(mac, ip, dns, gateway, subnet);
+  #elif defined(WITH_W5100S_POE)
+  // Bounded DHCP with a static-IP fallback, so the node stays reachable without a
+  // DHCP server and never blocks indefinitely at cold start.
+  if (Ethernet.begin(mac, 12000, 4000) == 0) {
+    ETHERNET_DEBUG_PRINTLN("DHCP failed, using static IP fallback");
+    IPAddress ip(ETH_STATIC_IP), gw(ETH_GATEWAY), sn(ETH_SUBNET);
+    Ethernet.begin(mac, ip, gw, gw, sn);
+  }
   #else
   if (Ethernet.begin(mac) == 0) {
     ETHERNET_DEBUG_PRINTLN("Failed to initialize RAK13800 hardware.");
@@ -88,6 +126,14 @@ bool RAK13800EthernetInterface::isConnected() const {
 }
 
 void RAK13800EthernetInterface::loop() {
+#ifdef WITH_W5100S_POE
+  if (!_hwReady) {
+    if (millis() - _startedAt > ETH_POE_DEFER_MS) {
+      _hwReady = bringUp();
+    }
+    return;
+  }
+#endif
 
   Ethernet.maintain();
   
