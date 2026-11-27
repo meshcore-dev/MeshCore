@@ -321,18 +321,7 @@ void Dispatcher::checkSend() {
   }
   cad_busy_start = 0;  // reset busy state
 
-  outbound = _mgr->getNextOutbound(_ms->getMillis());
-  // Drop packets that have sat in the TX queue too long (e.g. due to duty-cycle
-  // exhaustion) before transmitting them stale.
-  while (outbound && (long)(_ms->getMillis() - outbound->queued_at) > (long)MAX_PACKET_QUEUE_AGE_MS) {
-    MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): outbound packet expired in TX queue (age=%lu ms), dropping",
-                       getLogDateTime(), (unsigned long)(_ms->getMillis() - outbound->queued_at));
-    onPacketExpired(outbound);   // let sub-class clear dedup so a later copy gets another chance
-    n_expired++;
-    _err_flags |= ERR_EVENT_PKT_EXPIRED;
-    releasePacket(outbound);
-    outbound = _mgr->getNextOutbound(_ms->getMillis());
-  }
+  outbound = _mgr->getNextOutbound(_ms->getMillis());   // stale packets already dropped by expireAgedOutbound()
   if (outbound) {
     int len = 0;
     uint8_t raw[MAX_TRANS_UNIT];
