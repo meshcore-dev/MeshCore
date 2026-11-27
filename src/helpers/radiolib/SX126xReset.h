@@ -27,10 +27,4 @@ inline void sx126xResetAGC(SX126x* radio, bool rx_boost_gain) {
 #endif
   // always reapply: the gain may have been changed at runtime even when no build default is set
   radio->setRxBoostedGainMode(rx_boost_gain);
-#ifdef SX126X_REGISTER_PATCH
-  uint8_t r_data = 0;
-  radio->readRegister(0x8B5, &r_data, 1);
-  r_data |= 0x01;
-  radio->writeRegister(0x8B5, &r_data, 1);
-#endif
 }

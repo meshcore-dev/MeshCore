@@ -62,6 +62,7 @@ bool radio_init() {
   radio.setRxBoostedGainMode(SX126X_RX_BOOSTED_GAIN);
 #endif
 
+  radio.applyAgcLockupFix();
   return true;  // success
 }
 
