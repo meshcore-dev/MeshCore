@@ -30,6 +30,7 @@ static SPIClass ETHERNET_SPI_PORT(NRF_SPIM1, PIN_SPI1_MISO, PIN_SPI1_SCK, PIN_SP
 static EthernetServer ethernet_server(ETHERNET_TCP_PORT);
 static EthernetClient ethernet_client;
 static volatile bool ethernet_running = false;
+static bool ethernet_skip_line = false;  // discarding the rest of an over-long line
 
 // FreeRTOS task: handles hw init, DHCP, and retries in the background
 static void ethernet_task(void* param) {
@@ -124,27 +125,34 @@ static void ethernet_loop_maintain() {
 // Read a line from the Ethernet client into the command buffer.
 // Returns true when a complete line is ready to process (command is null-terminated).
 // The caller should process the command and then reset ethernet_command[0] = 0.
+// Lines that don't fit the buffer are answered here with an error and never returned.
 static bool ethernet_read_line(char* ethernet_command, size_t buf_size) {
   if (!ethernet_running || !ethernet_client || !ethernet_client.connected()) return false;
 
   int elen = strlen(ethernet_command);
-  while (ethernet_client.available() && elen < (int)buf_size - 1) {
+  if (elen >= (int)buf_size) { elen = 0; ethernet_command[0] = 0; }
+  bool complete = false;
+  while (!complete && ethernet_client.available()) {
     char c = ethernet_client.read();
+    if (ethernet_skip_line) {
+      if (c == '\r' || c == '\n') ethernet_skip_line = false;
+      continue;
+    }
     if (c == '\n' && elen == 0) continue;  // ignore leading LF (from CR+LF)
-    if (c == '\r' || c == '\n') { ethernet_command[elen++] = '\r'; break; }
+    if (c == '\r' || c == '\n') { complete = true; break; }
+    if (elen >= (int)buf_size - 1) {  // doesn't fit: refuse it, a truncated command must not run
+      elen = 0;
+      ethernet_command[0] = 0;
+      ethernet_skip_line = true;
+      ethernet_client.print("\r\n  -> ERR: line too long\r\n");
+      continue;
+    }
     ethernet_command[elen++] = c;
     ethernet_command[elen] = 0;
   }
-  if (elen == (int)buf_size - 1) {
-    ethernet_command[buf_size - 1] = '\r';
-  }
-
-  if (elen > 0 && ethernet_command[elen - 1] == '\r') {
-    ethernet_command[elen - 1] = 0;
-    ethernet_client.println();
-    return true;
-  }
-  return false;
+  if (!complete) return false;
+  ethernet_client.println();
+  return true;
 }
 
 // Send a reply to the Ethernet client

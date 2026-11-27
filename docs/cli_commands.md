@@ -1309,5 +1309,6 @@ Ethernet support is available on RAK4631 boards with a RAK13800 (W5100S) Etherne
 - The Ethernet interface obtains an IP address via DHCP automatically on boot.
 - A TCP server listens on port 23 (default) for CLI connections.
 - Connect with any TCP client (e.g. `nc`, PuTTY) to access the same CLI available over serial.
+- A line that doesn't fit the command buffer is answered with `ERR: line too long` and not executed.
 
 ---
