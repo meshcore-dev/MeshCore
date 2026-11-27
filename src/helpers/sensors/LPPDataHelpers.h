@@ -220,6 +220,10 @@ public:
     m = LPPData::getFloat(&_buf[_pos], 2, 1, true); _pos += 2;
     return _pos <= _len;
   }
+  bool readGenericSensor(float& val) {
+    val = LPPData::getFloat(&_buf[_pos], 4, 1, false); _pos += 4;
+    return _pos <= _len;
+  }
 
   void skipData(uint8_t type) {
     _pos += LPPData::getDataSize(type);
