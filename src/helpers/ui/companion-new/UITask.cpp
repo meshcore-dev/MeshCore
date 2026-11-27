@@ -649,6 +649,17 @@ public:
 #endif
       return true;
     }
+    if (c == KEY_ENTER && _page == HomePage::FIRST && _node_prefs->ui_show_clock) {
+      int curr_tz = (int)(_node_prefs->tz_offset >= 0 ? (_node_prefs->tz_offset + 0.5f) : (_node_prefs->tz_offset - 0.5f));
+      int next_tz = curr_tz + 1;
+      if (next_tz > 14) next_tz = -12;
+      _node_prefs->tz_offset = (float)next_tz;
+      _task->getMesh()->savePrefs();
+      char tz_msg[16];
+      snprintf(tz_msg, sizeof(tz_msg), "TZ: UTC%+d", next_tz);
+      _task->showAlert(tz_msg, 1000);
+      return true;
+    }
 #ifdef BLE_PIN_CODE
     if (c == KEY_ENTER && _page == HomePage::BLUETOOTH) {
       if (_task->isBluetoothEnabled()) {  // toggle Bluetooth on/off

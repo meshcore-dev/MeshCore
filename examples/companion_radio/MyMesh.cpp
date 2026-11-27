@@ -1277,9 +1277,21 @@ void MyMesh::handleCmdFrame(size_t len) {
   } else if (cmd_frame[0] == CMD_SET_DEVICE_TIME && len >= 5) {
     uint32_t secs;
     memcpy(&secs, &cmd_frame[1], 4);
+    bool tz_valid = true;
+    int16_t tz_mins = 0;
+    if (len >= 7) {
+      memcpy(&tz_mins, &cmd_frame[5], 2);
+      if (tz_mins < -720 || tz_mins > 840) {
+        tz_valid = false;
+      }
+    }
     uint32_t curr = getRTCClock()->getCurrentTime();
-    if (secs >= curr) {
+    if (secs >= curr && tz_valid) {
       getRTCClock()->setCurrentTime(secs);
+      if (len >= 7) {
+        _prefs.tz_offset = tz_mins / 60.0f;
+        savePrefs();
+      }
       writeOKFrame();
     } else {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
