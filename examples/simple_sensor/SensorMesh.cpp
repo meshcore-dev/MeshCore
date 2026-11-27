@@ -261,14 +261,15 @@ mesh::Packet* SensorMesh::createSelfAdvert() {
 
 void SensorMesh::sendAlert(const ClientInfo* c, Trigger* t) {
   int text_len = strlen(t->text);
+  uint8_t attempt = t->attempt;
 
   uint8_t data[MAX_PACKET_PAYLOAD];
   memcpy(data, &t->timestamp, 4);
-  data[4] = (TXT_TYPE_PLAIN << 2) | t->attempt;  // attempt and flags
+  data[4] = (TXT_TYPE_PLAIN << 2) | attempt;  // attempt and flags
   memcpy(&data[5], t->text, text_len);
 
   // calc expected ACK reply
-  mesh::Utils::sha256((uint8_t *)&t->expected_acks[t->attempt], 4, data, 5 + text_len, self_id.pub_key, PUB_KEY_SIZE);
+  mesh::Utils::sha256((uint8_t *)&t->expected_acks[attempt], 4, data, 5 + text_len, self_id.pub_key, PUB_KEY_SIZE);
   t->attempt++;
 
   auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, c->id, c->shared_secret, data, 5 + text_len);
@@ -278,7 +279,10 @@ void SensorMesh::sendAlert(const ClientInfo* c, Trigger* t) {
     } else {
       unsigned long delay_millis = 0;
       sendFloodScoped(default_scope, pkt, delay_millis, _prefs.path_hash_mode + 1);
+      t->flood_attempts |= (1 << attempt);
     }
+  } else {
+    t->expected_acks[attempt] = 0;
   }
   t->send_expiry = futureMillis(ALERT_ACK_EXPIRY_MILLIS);
 }
@@ -759,6 +763,12 @@ bool SensorMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint
   from->out_path_len = mesh::Packet::copyPath(from->out_path, path, path_len);  // store a copy of path, for sendDirect()
   from->last_activity = getRTCClock()->getCurrentTime();
 
+  if (extra_type == PAYLOAD_TYPE_ACK && extra_len >= 4) {  // the ACK of a flood-sent alert
+    uint32_t ack_crc;
+    memcpy(&ack_crc, extra, 4);
+    processAlertAck(ack_crc, from);
+  }
+
   // REVISIT: maybe make ALL out_paths non-persisted to minimise flash writes??
   if (from->isAdmin()) {
     // only do saveContacts() (of this out_path change) if this is an admin
@@ -769,17 +779,30 @@ bool SensorMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint
   return false;
 }
 
-void SensorMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
-  if (num_alert_tasks > 0) {
-    auto t = alert_tasks[0];   // check current alert task
-    for (int i = 0; i < t->attempt; i++) {
-      if (ack_crc == t->expected_acks[i]) {   // matching ACK!
-        t->attempt = 4;  // signal to move to next contact
-        t->send_expiry = 0;
-        packet->markDoNotRetransmit();   // ACK was for this node, so don't retransmit
-        return;
+// 'from' is the sender of an authenticated PATH return, or nullptr for a bare (unauthenticated) ACK packet
+bool SensorMesh::processAlertAck(uint32_t ack_crc, const ClientInfo* from) {
+  if (num_alert_tasks == 0) return false;
+  auto t = alert_tasks[0];   // check current alert task
+  if (t->curr_contact_idx < 0 || t->curr_contact_idx >= acl.getNumClients()) return false;
+  if (from != nullptr && acl.getClientByIdx(t->curr_contact_idx) != from) {
+    return false;   // only the alerted contact can ACK it
+  }
+  for (int i = 0; i < t->attempt && i < 4; i++) {
+    if (t->expected_acks[i] != 0 && ack_crc == t->expected_acks[i]) {   // matching ACK!
+      if (from == nullptr && (t->flood_attempts & (1 << i))) {
+        continue;   // a flood-sent alert is answered with an encrypted PATH return, never a bare ACK
       }
+      t->attempt = 4;  // signal to move to next contact
+      t->send_expiry = 0;
+      return true;
     }
+  }
+  return false;
+}
+
+void SensorMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
+  if (processAlertAck(ack_crc, nullptr)) {
+    packet->markDoNotRetransmit();   // ACK was for this node, so don't retransmit
   }
 }
 
@@ -1093,6 +1116,8 @@ void SensorMesh::loop() {
           if (c->permissions & pri_mask) {   // contact wants alert
             // reset attempts
             t->attempt = (t->pri == LOW_PRI_ALERT) ? 3 : 0;   // Low pri alerts, start at attempt #3 (ie. only make ONE attempt)
+            memset(t->expected_acks, 0, sizeof(t->expected_acks));   // no stale ACKs from an earlier alert
+            t->flood_attempts = 0;
             t->timestamp = getRTCClock()->getCurrentTimeUnique();   // need unique timestamp per contact
 
             sendAlert(c, t);  // NOTE: modifies attempt, expected_acks[] and send_expiry
