@@ -497,21 +497,26 @@ void SensorMesh::handleCommand(ClientInfo* from, uint32_t sender_timestamp, char
       Serial.printf("\n");
     }
     reply[0] = 0;
-  } else if (memcmp(command, "io ", 2) == 0) { // io {value}: write, io: read 
+  } else if (strcmp(command, "io") == 0 || memcmp(command, "io ", 3) == 0) { // io {value}: write, io: read
     if (command[2] == ' ') { // it's a write
-      uint32_t val;
+      uint32_t val = 0;
       uint32_t g = board.getGpio();
+      bool ok;
       if (command[3] == 'r') { // reset bits
-        sscanf(&command[4], "%x", &val);
-        val = g & ~val;    
+        ok = sscanf(&command[4], "%x", &val) == 1;
+        val = g & ~val;
       } else if (command[3] == 's') { // set bits
-        sscanf(&command[4], "%x", &val);
-        val |= g;    
+        ok = sscanf(&command[4], "%x", &val) == 1;
+        val |= g;
       } else if (command[3] == 't') { // toggle bits
-        sscanf(&command[4], "%x", &val);
-        val ^= g;    
+        ok = sscanf(&command[4], "%x", &val) == 1;
+        val ^= g;
       } else { // set value
-        sscanf(&command[3], "%x", &val);
+        ok = sscanf(&command[3], "%x", &val) == 1;
+      }
+      if (!ok) {
+        strcpy(reply, "Err - bad params");
+        return;
       }
       board.setGpio(val);
     }
