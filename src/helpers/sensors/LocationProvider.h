@@ -59,7 +59,7 @@ public:
     virtual LastFix getLastFix() const { return _lastFix; }  // snapshot of the last valid fix
     virtual FixStats getFixStats() const { return _fixStats; }
     virtual long getTimestamp() = 0;
-    virtual void sendSentence(const char * sentence);
+    virtual void sendSentence(const char * sentence) { }
     virtual bool waitFor(const char* prefix, uint32_t timeout_ms) { return false; }
     virtual void drain() { }
     virtual bool detect(uint32_t timeout_ms) { return false; }
