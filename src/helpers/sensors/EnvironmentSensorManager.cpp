@@ -174,6 +174,11 @@ static void scanI2CBus(TwoWire* wire, bool found[128]) {
   }
 }
 
+#ifdef ENV_INCLUDE_VEML7700
+#include "Adafruit_VEML7700.h"
+static Adafruit_VEML7700 VEML7700;
+#endif
+
 // ============================================================
 // Per-sensor init and query functions
 //
@@ -428,6 +433,15 @@ static void query_rak12035(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
 }
 #endif
 
+#ifdef ENV_INCLUDE_VEML7700
+static uint8_t init_veml7700(TwoWire* wire, uint8_t) {
+  return VEML7700.begin(wire) ? 1 : 0;
+}
+static void query_veml7700(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  lpp.addLuminosity(ch, (uint16_t)VEML7700.readLux(VEML_LUX_AUTO));
+}
+#endif
+
 #if ENV_INCLUDE_BME680_BSEC
 static void bsec_load_state() {
   using namespace Adafruit_LittleFS_Namespace;
@@ -562,6 +576,9 @@ static const SensorDef SENSOR_TABLE[] = {
 #endif
 #if ENV_INCLUDE_RAK12035
   { TELEM_RAK12035_ADDRESS,"RAK12035",     init_rak12035, query_rak12035 },
+#endif
+#if ENV_INCLUDE_VEML7700
+  { VEML7700_I2CADDR_DEFAULT, "VEML7700",     init_veml7700, query_veml7700 },
 #endif
   { 0, nullptr, nullptr, nullptr }  // sentinel — keeps the array non-empty
 };
