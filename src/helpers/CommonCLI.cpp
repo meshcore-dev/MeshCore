@@ -44,6 +44,8 @@ void CommonCLI::loadPrefs(FILESYSTEM* fs) {
   //    fs->remove("/com_prefs");  // remove old
     }
   }
+  // the JSON loader does no range checks; a NaN from an older "set adc.multiplier nan" would otherwise stay
+  if (!(_prefs->adc_multiplier >= 0.0f && _prefs->adc_multiplier <= 10.0f)) _prefs->adc_multiplier = 0.0f;
 }
 
 void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy prefs loader
@@ -633,7 +635,12 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "OK");
 #endif
   } else if (memcmp(config, "adc.multiplier ", 15) == 0) {
-    _prefs->adc_multiplier = atof(&config[15]);
+    float mult = atof(&config[15]);
+    if (!(mult >= 0.0f && mult <= 10.0f)) {   // written this way so that "nan" is rejected too
+      strcpy(reply, "Error, must be from 0 to 10");
+      return;
+    }
+    _prefs->adc_multiplier = mult;
     if (_board->setAdcMultiplier(_prefs->adc_multiplier)) {
       savePrefs();
       if (_prefs->adc_multiplier == 0.0f) {

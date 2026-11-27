@@ -980,6 +980,9 @@ void MyMesh::begin() {
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
   _prefs.adc_multiplier = constrain(_prefs.adc_multiplier, 0.0f, 10.0f);
+  // constrain() lets NaN through, and an older firmware accepted "set adc.multiplier nan" / "set tz.offset nan"
+  if (!(_prefs.adc_multiplier >= 0.0f && _prefs.adc_multiplier <= 10.0f)) _prefs.adc_multiplier = 0.0f;
+  if (!(_prefs.tz_offset >= -12 && _prefs.tz_offset <= 14)) _prefs.tz_offset = 0;
   if (!board.setAdcMultiplier(_prefs.adc_multiplier)) _prefs.adc_multiplier = 0.0f;
 
   _active_ble_pin = _prefs.ble_pin;
@@ -2229,7 +2232,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
 
   if (memcmp(command, "set adc.multiplier ", 19) == 0) {   // same as CommonCLI
     float mult = atof(&command[19]);
-    if (mult < 0.0f || mult > 10.0f) {
+    if (!(mult >= 0.0f && mult <= 10.0f)) {   // written this way so that "nan" is rejected too
       strcpy(reply, "Error, must be from 0 to 10");
     } else if (board.setAdcMultiplier(mult)) {
       _prefs.adc_multiplier = mult;
@@ -2261,7 +2264,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
   if (memcmp(command, "set tz.offset ", 14) == 0) {
     float tz = atof(&command[14]);
-    if (tz < -12 || tz > 14) {
+    if (!(tz >= -12 && tz <= 14)) {   // written this way so that "nan" is rejected too
       strcpy(reply, "Error, must be from -12 to +14");
     } else {
       _prefs.tz_offset = tz;
