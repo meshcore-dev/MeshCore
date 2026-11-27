@@ -160,19 +160,21 @@ class HomeScreen : public UIScreen {
   uint32_t discovery_req_time = 0;
 #endif
 
-  void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
-    // Convert millivolts to percentage
+  int calcBatteryPercentage(uint16_t batteryMilliVolts) const {
 #ifndef BATT_MIN_MILLIVOLTS
   #define BATT_MIN_MILLIVOLTS 3000
 #endif
 #ifndef BATT_MAX_MILLIVOLTS
   #define BATT_MAX_MILLIVOLTS 4200
 #endif
-    const int minMilliVolts = BATT_MIN_MILLIVOLTS;
-    const int maxMilliVolts = BATT_MAX_MILLIVOLTS;
-    int batteryPercentage = ((batteryMilliVolts - minMilliVolts) * 100) / (maxMilliVolts - minMilliVolts);
-    if (batteryPercentage < 0) batteryPercentage = 0; // Clamp to 0%
-    if (batteryPercentage > 100) batteryPercentage = 100; // Clamp to 100%
+    int pct = ((int)batteryMilliVolts - BATT_MIN_MILLIVOLTS) * 100 / (BATT_MAX_MILLIVOLTS - BATT_MIN_MILLIVOLTS);
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    return pct;
+  }
+
+  void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
+    int batteryPercentage = calcBatteryPercentage(batteryMilliVolts);
 
     // battery icon
     int iconWidth = 24;
@@ -226,24 +228,13 @@ class HomeScreen : public UIScreen {
   }
 
   CayenneLPP sensors_lpp;
-  int sensors_nb = 0;
-  bool sensors_scroll = false;
-  int sensors_scroll_offset = 0;
-  int next_sensors_refresh = 0;
+  unsigned long next_sensors_refresh = 0;
 
   void refresh_sensors() {
-    if (millis() > next_sensors_refresh) {
+    if (next_sensors_refresh == 0 || (long)(millis() - next_sensors_refresh) >= 0) {
       sensors_lpp.reset();
-      sensors_nb = 0;
       sensors_lpp.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
       sensors.querySensors(0xFF, sensors_lpp);
-      LPPReader reader (sensors_lpp.getBuffer(), sensors_lpp.getSize());
-      uint8_t channel, type;
-      while(reader.readHeader(channel, type)) {
-        reader.skipData(type);
-        sensors_nb ++;
-      }
-      sensors_scroll = sensors_nb > UI_RECENT_LIST_SIZE;
       if (display.isEink()) // preserve eink displays
         next_sensors_refresh = millis() + 60000; // refresh sensor values every 1 min
       else
@@ -509,77 +500,148 @@ public:
 #endif
 #if UI_SENSORS_PAGE == 1
     } else if (_page == HomePage::SENSORS) {
-      int y = 18;
       refresh_sensors();
-      char buf[30];
-      char name[30];
+
+      float temp = 0.0f, hum = 0.0f, pres = 0.0f, gas = 0.0f, batt_v = 0.0f;
+      bool has_temp = false, has_hum = false, has_pres = false, has_gas = false, has_batt_v = false;
+
       LPPReader r(sensors_lpp.getBuffer(), sensors_lpp.getSize());
-
-      for (int i = 0; i < sensors_scroll_offset; i++) {
-        uint8_t channel, type;
-        r.readHeader(channel, type);
-        r.skipData(type);
-      }
-
-      for (int i = 0; i < (sensors_scroll?UI_RECENT_LIST_SIZE:sensors_nb); i++) {
-        uint8_t channel, type;
-        if (!r.readHeader(channel, type)) { // reached end, reset
-          r.reset();
-          r.readHeader(channel, type);
-        }
-
-        display.setCursor(0, y);
+      uint8_t channel, type;
+      while (r.readHeader(channel, type)) {
         float v;
         switch (type) {
-          case LPP_GPS: // GPS
-            float lat, lon, alt;
-            r.readGPS(lat, lon, alt);
-            strcpy(name, "gps"); sprintf(buf, "%.4f %.4f", lat, lon);
-            break;
-          case LPP_VOLTAGE:
-            r.readVoltage(v);
-            strcpy(name, "voltage"); sprintf(buf, "%6.2f", v);
-            break;
-          case LPP_CURRENT:
-            r.readCurrent(v);
-            strcpy(name, "current"); sprintf(buf, "%.3f", v);
-            break;
           case LPP_TEMPERATURE:
-            r.readTemperature(v);
-            strcpy(name, "temperature"); sprintf(buf, "%.2f", v);
+            if (r.readTemperature(v) && !has_temp) { temp = v; has_temp = true; }
             break;
           case LPP_RELATIVE_HUMIDITY:
-            r.readRelativeHumidity(v);
-            strcpy(name, "humidity"); sprintf(buf, "%.2f", v);
+            if (r.readRelativeHumidity(v) && !has_hum) { hum = v; has_hum = true; }
             break;
           case LPP_BAROMETRIC_PRESSURE:
-            r.readPressure(v);
-            strcpy(name, "pressure"); sprintf(buf, "%.2f", v);
+            if (r.readPressure(v) && !has_pres) { pres = v; has_pres = true; }
             break;
-          case LPP_ALTITUDE:
-            r.readAltitude(v);
-            strcpy(name, "altitude"); sprintf(buf, "%.0f", v);
+          case LPP_GENERIC_SENSOR:
+            if (r.readGenericSensor(v) && !has_gas) { gas = v; has_gas = true; }
             break;
-          case LPP_POWER:
-            r.readPower(v);
-            strcpy(name, "power"); sprintf(buf, "%6.2f", v);
+          case LPP_VOLTAGE:
+            if (r.readVoltage(v) && !has_batt_v) { batt_v = v; has_batt_v = true; }
             break;
           default:
             r.skipData(type);
-            strcpy(name, "unk"); sprintf(buf, "");
+            break;
         }
-        display.setCursor(0, y);
-        display.setColor(UIColor::secondary_txt);
-        display.print(name);
-        display.setColor(UIColor::primary_txt);
-        display.setCursor(
-          display.width()-display.getTextWidth(buf)-1, y
-        );
-        display.print(buf);
-        y = y + 12;
       }
-      if (sensors_scroll) sensors_scroll_offset = (sensors_scroll_offset+1)%sensors_nb;
-      else sensors_scroll_offset = 0;
+
+      uint16_t batt_mv = _task->getBattMilliVolts();
+      if (!has_batt_v) batt_v = (float)batt_mv / 1000.0f;
+      int batt_pct = calcBatteryPercentage(batt_mv);
+
+      static constexpr uint32_t MIN_VALID_RTC_EPOCH = 1735689600UL; // 2025-01-01 00:00:00 UTC
+      uint32_t raw_now = _rtc->getCurrentTime();
+      bool rtc_valid = (raw_now >= MIN_VALID_RTC_EPOCH);
+      const bool compact_screen = (display.height() < 120);
+
+      char time_str[8] = "--:--";
+      char date_str[12];
+      if (rtc_valid) {
+        uint32_t local_now = (uint32_t)((int64_t)raw_now + (int64_t)(_node_prefs->tz_offset * 3600.0f));
+        DateTime dt(local_now);
+        snprintf(time_str, sizeof(time_str), "%02d:%02d", dt.hour(), dt.minute());
+        if (compact_screen) {
+          snprintf(date_str, sizeof(date_str), "%02d/%02d/%02d", dt.day(), dt.month(), dt.year() % 100);
+        } else {
+          snprintf(date_str, sizeof(date_str), "%02d/%02d/%d", dt.day(), dt.month(), dt.year());
+        }
+      } else {
+        strcpy(date_str, compact_screen ? "--/--/--" : "--/--/----");
+      }
+
+      bool has_env = has_temp || has_hum || has_pres || has_gas;
+      char left_buf[24];
+      char right_buf[24];
+      display.setTextSize(1);
+
+      if (compact_screen) {
+        display.setColor(UIColor::primary_txt);
+        display.drawTextLeftAlign(0, 19, time_str);
+        display.setColor(UIColor::secondary_txt);
+        display.drawTextRightAlign(display.width() - 1, 19, date_str);
+
+        if (has_env) {
+          if (has_temp) snprintf(left_buf, sizeof(left_buf), "T:%.1fC", temp);
+          else strcpy(left_buf, "T:--");
+          if (has_hum) snprintf(right_buf, sizeof(right_buf), "H:%.1f%%", hum);
+          else strcpy(right_buf, "H:--");
+          display.setColor(UIColor::primary_txt);
+          display.drawTextLeftAlign(0, 30, left_buf);
+          display.drawTextRightAlign(display.width() - 1, 30, right_buf);
+
+          if (has_pres) snprintf(left_buf, sizeof(left_buf), "P:%.1fhPa", pres);
+          else strcpy(left_buf, "P:--");
+          display.setColor(UIColor::primary_txt);
+          display.drawTextLeftAlign(0, 41, left_buf);
+          if (has_gas) {
+            if (gas >= 1000.0f) snprintf(right_buf, sizeof(right_buf), "G:%.0fk", gas / 1000.0f);
+            else snprintf(right_buf, sizeof(right_buf), "G:%.0fR", gas);
+            display.setColor(UIColor::secondary_txt);
+            display.drawTextRightAlign(display.width() - 1, 41, right_buf);
+          }
+        } else {
+          display.setColor(UIColor::warning_txt);
+          display.drawTextCentered(display.width() / 2, 32, "No env sensor");
+        }
+
+        snprintf(left_buf, sizeof(left_buf), "Bat:%d%%", batt_pct);
+        snprintf(right_buf, sizeof(right_buf), "%.2fV", batt_v);
+        display.setColor(UIColor::secondary_txt);
+        display.drawTextLeftAlign(0, 52, left_buf);
+        display.drawTextRightAlign(display.width() - 1, 52, right_buf);
+      } else {
+        display.setColor(UIColor::primary_txt);
+        display.drawTextLeftAlign(0, 20, time_str);
+        display.setColor(UIColor::secondary_txt);
+        display.drawTextRightAlign(display.width() - 1, 20, date_str);
+
+        if (has_env) {
+          if (has_temp) snprintf(right_buf, sizeof(right_buf), "%.1f C", temp);
+          else strcpy(right_buf, "--");
+          display.setColor(UIColor::secondary_txt);
+          display.drawTextLeftAlign(0, 36, "Temp");
+          display.setColor(UIColor::primary_txt);
+          display.drawTextRightAlign(display.width() - 1, 36, right_buf);
+
+          if (has_hum) snprintf(right_buf, sizeof(right_buf), "%.1f %%", hum);
+          else strcpy(right_buf, "--");
+          display.setColor(UIColor::secondary_txt);
+          display.drawTextLeftAlign(0, 50, "Hum");
+          display.setColor(UIColor::primary_txt);
+          display.drawTextRightAlign(display.width() - 1, 50, right_buf);
+
+          if (has_pres) snprintf(right_buf, sizeof(right_buf), "%.1f hPa", pres);
+          else strcpy(right_buf, "--");
+          display.setColor(UIColor::secondary_txt);
+          display.drawTextLeftAlign(0, 64, "Pres");
+          display.setColor(UIColor::primary_txt);
+          display.drawTextRightAlign(display.width() - 1, 64, right_buf);
+
+          if (has_gas) {
+            if (gas >= 1000.0f) snprintf(right_buf, sizeof(right_buf), "%.1f kOhm", gas / 1000.0f);
+            else snprintf(right_buf, sizeof(right_buf), "%.0f Ohm", gas);
+            display.setColor(UIColor::secondary_txt);
+            display.drawTextLeftAlign(0, 78, "Gas");
+            display.setColor(UIColor::primary_txt);
+            display.drawTextRightAlign(display.width() - 1, 78, right_buf);
+          }
+        } else {
+          display.setColor(UIColor::warning_txt);
+          display.drawTextCentered(display.width() / 2, 50, "No env sensor");
+        }
+
+        snprintf(right_buf, sizeof(right_buf), "%d%% %.2fV", batt_pct, batt_v);
+        display.setColor(UIColor::secondary_txt);
+        display.drawTextLeftAlign(0, 96, "Battery");
+        display.setColor(UIColor::primary_txt);
+        display.drawTextRightAlign(display.width() - 1, 96, right_buf);
+      }
 #endif
 #if UI_DISCOVER_SCREEN
     } else if (_page == HomePage::DISCOVERY) {
@@ -684,8 +746,8 @@ public:
 #endif
 #if UI_SENSORS_PAGE == 1
     if (c == KEY_ENTER && _page == HomePage::SENSORS) {
-      _task->toggleGPS();
-      next_sensors_refresh=0;
+      next_sensors_refresh = 0;
+      _task->showAlert("Refreshing...", 600);
       return true;
     }
 #endif
