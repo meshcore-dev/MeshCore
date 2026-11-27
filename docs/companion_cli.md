@@ -492,6 +492,20 @@ Radio parameters are common to all roles and handled by `CommonRadioPrefs`.
 
 ---
 
+#### Clock summer time
+**Usage:**
+- `set ui.clock_dst <rule>`
+- `get ui.clock_dst`
+
+**Parameters:**
+- `rule`: `0` (none) or `1` (EU: one hour more from the last Sunday of March to the last Sunday of October, 01:00 UTC)
+
+Applies to the clock on screen, on top of `tz.offset`.
+
+**Default:** `0` (or `UI_CLOCK_DST` build flag)
+
+---
+
 #### GPS key action
 **Usage:**
 - `set ui.gps_action <action>`

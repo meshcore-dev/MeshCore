@@ -69,6 +69,9 @@ public:
   #ifndef UI_SHOW_CLOCK
     #define UI_SHOW_CLOCK 0
   #endif
+  #ifndef UI_CLOCK_DST
+    #define UI_CLOCK_DST 0
+  #endif
   #ifndef AUTO_OFF_MILLIS
     #define AUTO_OFF_MILLIS 15000
   #endif
@@ -76,6 +79,7 @@ public:
     #define EINK_MAX_PARTIAL_REFRESH 0
   #endif
   uint8_t ui_show_clock = UI_SHOW_CLOCK;
+  uint8_t ui_clock_dst = UI_CLOCK_DST;   // 0 = none, 1 = EU summer time
   uint32_t ui_auto_off_delay = AUTO_OFF_MILLIS / 1000;
   int32_t ui_backlight_delay = 5;
   #if defined(BACKLIGHT_BTN)
@@ -264,6 +268,7 @@ private:
   protected:
     void structure() override {
   	def("show_clock", _parent->ui_show_clock);
+  	def("clock_dst", _parent->ui_clock_dst);
   	def("auto_off", _parent->ui_auto_off_delay);
   	def("bl_dly", _parent->ui_backlight_delay);
   	def("bl_keys", _parent->ui_backlight_on_keys);
