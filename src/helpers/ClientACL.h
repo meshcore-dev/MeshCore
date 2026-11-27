@@ -10,13 +10,18 @@
 #define PERM_ACL_READ_WRITE    2
 #define PERM_ACL_ADMIN         3
 
-#define OUT_PATH_UNKNOWN  0xFF
+#define OUT_PATH_FORCE_FLOOD  0xFE
+#define OUT_PATH_UNKNOWN      0xFF
 
 struct ClientInfo {
   mesh::Identity id;
   uint8_t permissions;
   uint8_t out_path_len;
   uint8_t out_path[MAX_PATH_SIZE];
+  uint8_t observed_path_len;       // most recent PAYLOAD_TYPE_PATH (transient)
+  uint8_t observed_path[MAX_PATH_SIZE];
+  bool observed_path_pending;
+  uint32_t observed_path_expiry;
   uint8_t shared_secret[PUB_KEY_SIZE];
   uint32_t last_timestamp;   // by THEIR clock  (transient)
   uint32_t last_activity;    // by OUR clock    (transient)
