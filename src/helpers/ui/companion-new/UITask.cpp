@@ -264,7 +264,7 @@ public:
     auto p = &recent[recent_next_idx];
     recent_next_idx = (recent_next_idx + 1) % UI_RECENT_LIST_SIZE;
 
-    strcpy(p->name, contact.name);
+    StrHelper::strncpy(p->name, contact.name, sizeof(p->name));
     p->recv_timestamp = _rtc->getCurrentTime();
   }
 
