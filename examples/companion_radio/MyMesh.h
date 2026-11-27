@@ -221,6 +221,46 @@ private:
   uint32_t pending_status;
   uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ
   uint32_t pending_req;   // pending _BINARY_REQ
+
+#if ENV_INCLUDE_GPS == 1
+// ---- GPS on demand ----
+#define MAX_GPS_DEMANDS      4
+#define GPS_OD_SETTLE_MILLIS 2000  // let sensors.loop() copy first fix into node_lat/lon
+#define GPS_OD_HOLD_MILLIS   30000 // keep GPS warm so follow-up requests answer at once
+#ifndef GPS_OD_BACKOFF_MILLIS
+#define GPS_OD_BACKOFF_MILLIS 600000 // after a wake-up without fix: no new wake-up for 10 min
+#endif
+#ifndef GPS_OD_MIN_WAKE_MILLIS
+#define GPS_OD_MIN_WAKE_MILLIS 60000 // at most one wake-up per minute
+#endif
+#ifndef GPS_OD_MIN_SATS
+#define GPS_OD_MIN_SATS 4 // a fix with fewer satellites is not reported
+#endif
+  struct GpsDemand {
+    uint8_t pub_key[PUB_KEY_SIZE];
+    uint32_t tag; // requester's sender_timestamp, reflected back like a normal reply
+    uint8_t permissions;
+    bool active;
+  };
+  GpsDemand gps_demands[MAX_GPS_DEMANDS];
+  bool gps_od_running; // GPS was powered up by on-demand logic (not by user pref)
+  bool gps_od_have_fix;
+  unsigned long gps_od_deadline; // give up searching at this time
+  unsigned long gps_od_fix_at;   // first valid fix seen at
+  unsigned long gps_od_off_at;   // power down after hold time (0 = not scheduled)
+  unsigned long gps_od_started_at;    // millis() at power-up: the fix must be acquired after it
+  unsigned long gps_od_session_end;   // a wake-up never searches past this (2 x timeout)
+  unsigned long gps_od_next_wake;     // earliest next wake-up (0 = any time)
+  unsigned long gps_od_backoff_until; // no wake-up before this after a timeout (0 = none)
+
+  bool gpsOnDemandApplies(uint8_t permissions);
+  bool gpsOnDemandFixReady() const { return gps_od_running && gps_od_have_fix; }
+  bool gpsOnDemandCanWake();
+  void queueGpsDemand(const ContactInfo &contact, uint32_t tag, uint8_t permissions);
+  void checkGpsOnDemand();
+  void stopGpsOnDemand();
+#endif
+  uint8_t buildTelemetryReply(uint8_t permissions, uint32_t tag, uint8_t *reply);
   BaseSerialInterface *_serial;
   MeshEventListener* _listener;
 

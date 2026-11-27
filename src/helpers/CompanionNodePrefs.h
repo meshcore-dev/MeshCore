@@ -37,6 +37,8 @@ public:
   uint8_t  vibe_quiet = 0;
   uint8_t  gps_enabled = 0;      // GPS enabled flag (0=disabled, 1=enabled)
   uint32_t gps_interval = 0;     // GPS read interval in seconds
+  uint8_t gps_on_demand = 0;     // 1 = power up GPS for a permitted LOCATION telemetry request
+  uint16_t gps_od_timeout = 120; // max seconds to search for a fix on demand
   uint32_t gps_period = 0;       // periodic acquisition interval in seconds
   int32_t gps_fence = -1;        // GPS_GUARD fence in metres, 0 = off, -1 = build default
   int32_t gps_first_fix = -1;    // first-fix timeout in seconds, 0 = no limit, -1 = build default
@@ -172,6 +174,8 @@ private:
       def("period", _parent->gps_period);  // periodic acquisition interval in seconds
       def("adv_loc", _parent->advert_loc_policy);
       def("ffix", _parent->gps_first_fix);
+      def("od", _parent->gps_on_demand);     // boolean: GPS on demand
+      def("od_to", _parent->gps_od_timeout); // seconds to search for a fix on demand
 #ifdef GPS_GUARD
       def("fence", _parent->gps_fence);
       def("guard", _parent->gps_guard);
