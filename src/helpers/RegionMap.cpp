@@ -155,7 +155,14 @@ RegionEntry* RegionMap::putRegion(const char* name, uint16_t parent_id, uint16_t
 
   auto region = findByName(name);
   if (region) {
-    if (region->id == parent_id) return NULL;   // ERROR: invalid parent!
+    // refuse a parent that would form a cycle
+    uint16_t pid = parent_id;
+    for (int n = 0; pid != 0 && n < MAX_REGION_ENTRIES; n++) {
+      if (pid == region->id) return NULL;  // ERROR: invalid parent!
+      auto p = findById(pid);
+      if (p == NULL) break;
+      pid = p->parent;
+    }
 
     region->parent = parent_id;   // re-parent / move this region in the hierarchy
   } else {
