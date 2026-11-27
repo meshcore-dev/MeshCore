@@ -103,6 +103,16 @@ bool RegionMap::load(FILESYSTEM* _fs, const char* path) {
 
           if (!success) break;  // partial read or corruption
 
+          r->name[sizeof(r->name) - 1] = 0;   // the file is not trusted to hold a terminated name
+
+          // ids must be unique and non-zero, and a region cannot be its own parent: a duplicate id makes
+          // printChildRegions() recurse without end. Skip any entry that breaks this.
+          bool valid = (r->id != 0 && r->parent != r->id);
+          for (int k = 0; valid && k < num_regions; k++) {
+            if (regions[k].id == r->id) valid = false;
+          }
+          if (!valid) continue;
+
           if (r->id >= next_id) {    // make sure next_id is valid
             next_id = r->id + 1;
           }
@@ -224,7 +234,7 @@ RegionEntry* RegionMap::findByNamePrefix(const char* prefix) {
   for (int i = 0; i < num_regions; i++) {
     auto region = &regions[i];
     if (strcmp(prefix, skip_hash(region->name)) == 0) return region;  // is a complete match, preference this one
-    if (memcmp(prefix, skip_hash(region->name), strlen(prefix)) == 0) {
+    if (strncmp(prefix, skip_hash(region->name), strlen(prefix)) == 0) {   // strncmp: prefix may be longer than the name field
       partial = region;
     }
   }
@@ -286,6 +296,7 @@ bool RegionMap::clear() {
 }
 
 void RegionMap::printChildRegions(int indent, const RegionEntry* parent, Stream& out) const {
+  if (indent > MAX_REGION_ENTRIES) return;   // a valid tree cannot be deeper than the table (guards against parent cycles)
   for (int i = 0; i < indent; i++) {
     out.print(' ');
   }
