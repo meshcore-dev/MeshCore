@@ -171,7 +171,8 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
   if (_prefs->advert_loc_policy == ADVERT_LOC_NONE) {
     AdvertDataBuilder builder(node_type, _prefs->node_name);
     return builder.encodeTo(app_data);
-  } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE) {
+  } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE && (_sensors->node_lat != 0 || _sensors->node_lon != 0)) {
+    // No GPS fix yet (or no GPS in this build) leaves 0,0: fall back to the configured position.
     AdvertDataBuilder builder(node_type, _prefs->node_name, _sensors->node_lat, _sensors->node_lon);
     return builder.encodeTo(app_data);
   } else {
