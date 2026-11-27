@@ -122,6 +122,7 @@ ClientInfo* ClientACL::putClient(const mesh::Identity& id, uint8_t init_perms) {
 bool ClientACL::applyPermissions(const mesh::LocalIdentity& self_id, const uint8_t* pubkey, int key_len, uint8_t perms) {
   ClientInfo* c;
   if ((perms & PERM_ACL_ROLE_MASK) == PERM_ACL_GUEST) {  // guest role is not persisted in contacts
+    if (key_len < 1) return false;   // an empty prefix would match (and delete) the first entry
     c = getClient(pubkey, key_len);
     if (c == NULL) return false;   // partial pubkey not found
 
