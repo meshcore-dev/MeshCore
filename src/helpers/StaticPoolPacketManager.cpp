@@ -20,7 +20,7 @@ int PacketQueue::countBefore(uint32_t now) const {
 }
 
 mesh::Packet* PacketQueue::get(uint32_t now) {
-  uint8_t min_pri = 0xFF;
+  int min_pri = 0x100;   // above every uint8_t priority, so an entry with priority 255 is still selected
   int best_idx = -1;
   for (int j = 0; j < _num; j++) {
     if ((int32_t)(_schedule_table[j] - now) > 0) continue;   // scheduled for future... ignore for now
