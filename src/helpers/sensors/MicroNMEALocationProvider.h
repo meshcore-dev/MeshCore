@@ -161,7 +161,7 @@ class MicroNMEALocationProvider : public LocationProvider {
             (millis() - _last_time_sync) > TIME_SYNC_INTERVAL) {
             _time_sync_needed = true;
         }
-        if (_time_sync_needed && time_valid > 2 && _clock != nullptr && timeSyncAllowed()) {
+        if (_time_sync_needed && time_valid > 2 && _clock != nullptr && dateTimePlausible() && timeSyncAllowed()) {
             _clock->setCurrentTime(getTimestamp());
             _time_sync_needed = false;
             _last_time_sync = millis();
@@ -173,6 +173,14 @@ class MicroNMEALocationProvider : public LocationProvider {
     // updateTime() tries it on the tick where time_valid goes from 3 to 4.
     bool timeSyncSettled() const {
         return _clock == nullptr || !_time_sync_needed || time_valid > 3;
+    }
+
+    // MicroNMEA turns any two characters of the time and date fields into a number (0..255), and
+    // RTClib's DateTime walks its days-per-month table up to the given month without a range check.
+    bool dateTimePlausible() const {
+        return nmea.getYear() >= 2020 && nmea.getYear() <= 2099 &&
+               nmea.getMonth() >= 1 && nmea.getMonth() <= 12 && nmea.getDay() >= 1 && nmea.getDay() <= 31 &&
+               nmea.getHour() <= 23 && nmea.getMinute() <= 59 && nmea.getSecond() <= 60;
     }
 
     bool timeSyncAllowed() {
@@ -299,14 +307,14 @@ public:
 
     // GPS time minus clock time, from a current fix with a settled time
     bool getClockOffset(long& offset) override {
-        if (_clock == nullptr || !isValid() || time_valid < 3) return false;
+        if (_clock == nullptr || !isValid() || time_valid < 3 || !dateTimePlausible()) return false;
         offset = (long)getTimestamp() - (long)_clock->getCurrentTime();
         return true;
     }
 
     // write the current GPS time to the clock now (caller has done its own checks)
     bool applyTimeNow() override {
-        if (_clock == nullptr || !isValid() || time_valid < 3) return false;
+        if (_clock == nullptr || !isValid() || time_valid < 3 || !dateTimePlausible()) return false;
         _clock->setCurrentTime(getTimestamp());
         _time_sync_needed = false;
         _last_time_sync = millis();
@@ -318,7 +326,7 @@ public:
     bool isValid() override { return nmea.isValid(); }
 
     long getTimestamp() override {
-        if (!nmea.isValid()) return _lastFix.timestamp;
+        if (!nmea.isValid() || !dateTimePlausible()) return _lastFix.timestamp;
         DateTime dt(nmea.getYear(), nmea.getMonth(), nmea.getDay(),
                     nmea.getHour(), nmea.getMinute(), nmea.getSecond());
         return dt.unixtime();

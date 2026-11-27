@@ -3,6 +3,7 @@
 #include "GpsDriver.h"
 
 #include <SparkFun_u-blox_GNSS_Arduino_Library.h>
+#include <RTClib.h>
 
 // Driver for the RAK12500 (u-blox, I2C). Serial NMEA modules are handled by NmeaGpsDriver.
 class RakI2cGpsDriver : public GpsDriver {
@@ -11,6 +12,7 @@ class RakI2cGpsDriver : public GpsDriver {
     uint8_t _powerPin = 0;
     bool _detected = false;
     bool _started = false;
+    bool _pvtSeen = false;   // a NAV-PVT has been received since boot
 
     bool probeRak12500(uint8_t powerPin) {
 #if defined(ETHERNET_ENABLED) && defined(RAK_BOARD)
@@ -95,10 +97,29 @@ public:
 
     bool isDetected() const { return _detected; }
 
-    bool hasFix() { return _started && _gnss.getGnssFixOk(8); }
+    bool hasFix() {
+        if (!_started) return false;
+        // The library allocates its NAV-PVT record without clearing it: until the first reply has
+        // arrived, the fix flag and every other field are whatever was on the heap.
+        if (!_pvtSeen) {
+            if (!_gnss.getPVT(8)) return false;
+            _pvtSeen = true;
+        }
+        return _gnss.getGnssFixOk(8);
+    }
     long getLatitude() { return _gnss.getLatitude(2) / 10; }
     long getLongitude() { return _gnss.getLongitude(2) / 10; }
     long getAltitude() { return _gnss.getAltitude(2); }
     long getSatellites() { return _gnss.getSIV(2); }
-    long getTimestamp() { return _gnss.getUnixEpoch(2); }
+    // Not getUnixEpoch(): it indexes its day tables with the year and month reported by the module,
+    // unchecked (year outside 2020..2099 or month outside 1..12 reads outside the tables).
+    // Returns 0 when the date or time is not plausible; the caller then leaves the clock alone.
+    long getTimestamp() {
+        const uint16_t year = _gnss.getYear(2);
+        const uint8_t month = _gnss.getMonth(2), day = _gnss.getDay(2);
+        const uint8_t hour = _gnss.getHour(2), minute = _gnss.getMinute(2), second = _gnss.getSecond(2);
+        if (year < 2020 || year > 2099 || month < 1 || month > 12 || day < 1 || day > 31 ||
+            hour > 23 || minute > 59 || second > 60) return 0;
+        return DateTime(year, month, day, hour, minute, second).unixtime();
+    }
 };
