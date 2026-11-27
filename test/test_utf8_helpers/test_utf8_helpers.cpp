@@ -32,6 +32,22 @@ TEST(UTF8Helpers, RejectsUnexpectedContinuationByte) {
   EXPECT_EQ(1u, mesh::validUtf8PrefixLength(invalid, sizeof(invalid)));
 }
 
+TEST(UTF8Helpers, TruncateKeepsTextThatFits) {
+  const char* s = "ab\xC3\xA9" "cd";  // "abécd", 6 bytes
+  EXPECT_EQ(6u, mesh::utf8TruncatedLength(s, 6, 10));
+}
+
+TEST(UTF8Helpers, TruncateDoesNotSplitCodePoint) {
+  const char* s = "ab\xC3\xA9" "cd";
+  EXPECT_EQ(2u, mesh::utf8TruncatedLength(s, 6, 3));  // cut inside é -> drop é
+  EXPECT_EQ(4u, mesh::utf8TruncatedLength(s, 6, 4));  // é fits exactly
+}
+
+TEST(UTF8Helpers, TruncateDropsWholeEmoji) {
+  const char* s = "a\xF0\x9F\x94\x8B";  // "a🔋"
+  for (size_t m = 1; m < 5; m++) EXPECT_EQ(1u, mesh::utf8TruncatedLength(s, 5, m));
+}
+
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
