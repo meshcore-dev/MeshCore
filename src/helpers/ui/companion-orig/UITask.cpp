@@ -155,9 +155,9 @@ void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t t
 
   uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
   if (path_len == 0xFF) {
-    sprintf(_origin, "(F) %s", from.name);
+    snprintf(_origin, sizeof(_origin), "(F) %s", from.name);
   } else {
-    sprintf(_origin, "(%d) %s", (uint32_t) path_len, from.name);
+    snprintf(_origin, sizeof(_origin), "(%d) %s", (uint32_t) path_len, from.name);
   }
   StrHelper::strncpy(_msg, text, sizeof(_msg));
 
@@ -182,9 +182,9 @@ void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_det
 
   uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
   if (path_len == 0xFF) {
-    sprintf(_origin, "(F) %s", channel_details.name);
+    snprintf(_origin, sizeof(_origin), "(F) %s", channel_details.name);
   } else {
-    sprintf(_origin, "(%d) %s", (uint32_t) path_len, channel_details.name);
+    snprintf(_origin, sizeof(_origin), "(%d) %s", (uint32_t) path_len, channel_details.name);
   }
   StrHelper::strncpy(_msg, text, sizeof(_msg));
 
