@@ -361,6 +361,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       _prefs->node_lon = _sensors->node_lon;
       _prefs->getGpsPrefs()->applyGuardReference(*_sensors);
       savePrefs();
+      _callbacks->onNodeConfigChanged();
       strcpy(reply, "OK");
     } else if (memcmp(command, "gps advert", 10) == 0) {
       if (strlen(command) == 10) {
@@ -504,6 +505,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     if (isValidName(&config[5])) {
       StrHelper::strncpy(_prefs->node_name, &config[5], sizeof(_prefs->node_name));
       savePrefs();
+      _callbacks->onNodeConfigChanged();
       strcpy(reply, "OK");
     } else {
       strcpy(reply, "Error, bad chars");
@@ -516,11 +518,13 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _prefs->node_lat = atof(&config[4]);
     _prefs->getGpsPrefs()->applyGuardReference(*_sensors);
     savePrefs();
+    _callbacks->onNodeConfigChanged();
     strcpy(reply, "OK");
   } else if (memcmp(config, "lon ", 4) == 0) {
     _prefs->node_lon = atof(&config[4]);
     _prefs->getGpsPrefs()->applyGuardReference(*_sensors);
     savePrefs();
+    _callbacks->onNodeConfigChanged();
     strcpy(reply, "OK");
   } else if (memcmp(config, "flood.max.unscoped ", 19) == 0) {
     uint8_t m = atoi(&config[19]);
