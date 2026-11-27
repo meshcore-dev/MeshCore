@@ -1458,19 +1458,25 @@ void MyMesh::handleCmdFrame(size_t len) {
       radio_driver.setTxPower(_prefs.tx_power_dbm);
       writeOKFrame();
     }
-  } else if (cmd_frame[0] == CMD_SET_TUNING_PARAMS) {
+  } else if (cmd_frame[0] == CMD_SET_TUNING_PARAMS && len >= 9) {
     int i = 1;
     uint32_t rx, af;
     memcpy(&rx, &cmd_frame[i], 4);
     i += 4;
     memcpy(&af, &cmd_frame[i], 4);
     i += 4;
-    _prefs.rx_delay_base = ((float)rx) / 1000.0f;
-    _prefs.airtime_factor = ((float)af) / 1000.0f;
-    savePrefs();
-    writeOKFrame();
+    if (rx > 20000 || af > 9000) {   // the same ranges the prefs are constrained to when loaded
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+    } else {
+      _prefs.rx_delay_base = ((float)rx) / 1000.0f;
+      _prefs.airtime_factor = ((float)af) / 1000.0f;
+      savePrefs();
+      writeOKFrame();
+    }
   } else if (cmd_frame[0] == CMD_GET_TUNING_PARAMS) {
-    uint32_t rx = _prefs.rx_delay_base * 1000, af = _prefs.airtime_factor * 1000;
+    // in range after loading or setting, so the products fit in a uint32_t
+    uint32_t rx = constrain(_prefs.rx_delay_base, 0.0f, 20.0f) * 1000,
+             af = constrain(_prefs.airtime_factor, 0.0f, 9.0f) * 1000;
     int i = 0;
     out_frame[i++] = RESP_CODE_TUNING_PARAMS;
     memcpy(&out_frame[i], &rx, 4); i += 4;
