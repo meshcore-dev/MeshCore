@@ -90,7 +90,7 @@ public:
   bool readFrom(Stream& s);
   bool writeTo(Stream& s) const;
   void printTo(Stream& s) const;
-  size_t writeTo(uint8_t* dest, size_t max_len);
+  size_t writeTo(uint8_t* dest, size_t max_len) const;
   void readFrom(const uint8_t* src, size_t len);
 };
 
