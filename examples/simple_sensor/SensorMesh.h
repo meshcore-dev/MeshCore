@@ -105,6 +105,7 @@ protected:
     AlertPriority pri;
     int8_t   curr_contact_idx;
     uint8_t  attempt;
+    uint8_t  flood_attempts;
     unsigned long send_expiry;
     char text[MAX_PACKET_PAYLOAD];
 
@@ -168,6 +169,7 @@ private:
   mesh::Packet* createSelfAdvert();
 
   void sendAlert(const ClientInfo* c, Trigger* t);
+  bool processAlertAck(uint32_t ack_crc, const ClientInfo* from);
 
   #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
