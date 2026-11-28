@@ -835,7 +835,22 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       // len can be > original length, but 'text' will be padded with zeroes
       data[len] = 0; // need to make a C string again, with null terminator
 
-      if (flags == TXT_TYPE_PLAIN) { // for legacy CLI, send Acks
+      bool path_sent = false;
+      if (packet->isRouteFlood()) {
+        // the sender flooded, so the path we hold to it may be stale: forget it. The PATH return below,
+        // and the reciprocal path the sender answers it with, give us a fresh one
+        client->out_path_len = OUT_PATH_UNKNOWN;
+      }
+
+      if (flags == TXT_TYPE_PLAIN && packet->isRouteFlood()) { // legacy CLI, flooded: PATH carries the ACK
+        uint32_t ack_hash;
+        mesh::Utils::sha256((uint8_t *)&ack_hash, 4, data, 5 + strlen((char *)&data[5]), client->id.pub_key,
+                            PUB_KEY_SIZE);
+        mesh::Packet *path = createPathReturn(client->id, secret, packet->path, packet->path_len,
+                                              PAYLOAD_TYPE_ACK, (uint8_t *)&ack_hash, 4);
+        if (path) sendFloodReply(path, TXT_ACK_DELAY, packet->getPathHashSize());
+        path_sent = true;
+      } else if (flags == TXT_TYPE_PLAIN) { // for legacy CLI, send Acks
         uint32_t ack_hash; // calc truncated hash of the message timestamp + text + sender pub_key, to prove
                            // to sender that we got it
         mesh::Utils::sha256((uint8_t *)&ack_hash, 4, data, 5 + strlen((char *)&data[5]), client->id.pub_key,
@@ -870,12 +885,24 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         memcpy(temp, &timestamp, 4);        // mostly an extra blob to help make packet_hash unique
         temp[4] = (TXT_TYPE_CLI_DATA << 2); // NOTE: legacy was: TXT_TYPE_PLAIN
 
+        uint32_t reply_delay = CLI_REPLY_DELAY_MILLIS;
+        if (packet->isRouteFlood() && !path_sent) {
+          // a flooded command: tell the sender the path TO here (no ACK to carry), so it can go direct
+          mesh::Packet *path =
+              createPathReturn(client->id, secret, packet->path, packet->path_len, 0, NULL, 0);
+          if (path) {
+            sendFloodReply(path, TXT_ACK_DELAY, packet->getPathHashSize());
+            // the reply goes with the PATH, back to back, before a repeater on the way can forward either
+            reply_delay = TXT_ACK_DELAY;
+          }
+        }
+
         auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
         if (reply) {
           if (client->out_path_len == OUT_PATH_UNKNOWN) {
-            sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
+            sendFloodReply(reply, reply_delay, packet->getPathHashSize());
           } else {
-            sendDirect(reply, client->out_path, client->out_path_len, CLI_REPLY_DELAY_MILLIS);
+            sendDirect(reply, client->out_path, client->out_path_len, reply_delay);
           }
         }
       }

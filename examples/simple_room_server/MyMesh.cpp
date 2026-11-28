@@ -493,8 +493,20 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         }
       }
 
+      if (packet->isRouteFlood()) {
+        // the sender flooded, so the path we hold to it may be stale: forget it. The PATH return below,
+        // and the reciprocal path the sender answers it with, give us a fresh one (as a flood login does)
+        client->out_path_len = OUT_PATH_UNKNOWN;
+      }
+
       uint32_t delay_millis;
-      if (send_ack) {
+      if (send_ack && packet->isRouteFlood()) {
+        // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
+        mesh::Packet *path = createPathReturn(client->id, secret, packet->path, packet->path_len,
+                                              PAYLOAD_TYPE_ACK, (uint8_t *)&ack_hash, 4);
+        if (path) sendFloodReply(path, TXT_ACK_DELAY, packet->getPathHashSize());
+        delay_millis = TXT_ACK_DELAY + REPLY_DELAY_MILLIS;
+      } else if (send_ack) {
         if (client->out_path_len == OUT_PATH_UNKNOWN) {
           mesh::Packet *ack = createAck(ack_hash);
           if (ack) sendFloodReply(ack, TXT_ACK_DELAY, packet->getPathHashSize());
@@ -526,6 +538,13 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         // calc expected ACK reply
         // mesh::Utils::sha256((uint8_t *)&expected_ack_crc, 4, temp, 5 + text_len, self_id.pub_key,
         // PUB_KEY_SIZE);
+
+        if (packet->isRouteFlood()) {
+          // a flooded command: tell the sender the path TO here (no ACK to carry), so it can go direct
+          mesh::Packet *path =
+              createPathReturn(client->id, secret, packet->path, packet->path_len, 0, NULL, 0);
+          if (path) sendFloodReply(path, delay_millis, packet->getPathHashSize());
+        }
 
         auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
         if (reply) {
