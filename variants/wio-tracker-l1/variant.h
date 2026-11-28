@@ -32,11 +32,25 @@
 #define PIN_BUTTON5             (28) // Joystick Right
 #define PIN_BUTTON6             (29) // Joystick Press
 #define PIN_BACK_BTN            PIN_BUTTON1
+// Joystick pins can be overridden from build_flags, e.g. for an enclosure
+// that mounts the display rotated 90 degrees relative to the joystick:
+//   -D JOYSTICK_UP=PIN_BUTTON4 -D JOYSTICK_DOWN=PIN_BUTTON5
+//   -D JOYSTICK_LEFT=PIN_BUTTON3 -D JOYSTICK_RIGHT=PIN_BUTTON2
+#ifndef JOYSTICK_UP
 #define JOYSTICK_UP             PIN_BUTTON2
+#endif
+#ifndef JOYSTICK_DOWN
 #define JOYSTICK_DOWN           PIN_BUTTON3
+#endif
+#ifndef JOYSTICK_LEFT
 #define JOYSTICK_LEFT           PIN_BUTTON4
+#endif
+#ifndef JOYSTICK_RIGHT
 #define JOYSTICK_RIGHT          PIN_BUTTON5
+#endif
+#ifndef JOYSTICK_PRESS
 #define JOYSTICK_PRESS          PIN_BUTTON6
+#endif
 #define PIN_USER_BTN            PIN_BUTTON6
 
 // Buzzer
