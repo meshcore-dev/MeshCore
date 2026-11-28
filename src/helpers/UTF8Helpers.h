@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 namespace mesh {
 
@@ -51,6 +52,16 @@ inline size_t validUtf8PrefixLength(const char* text, size_t max_bytes) {
     offset += sequence_length;
   }
   return offset;
+}
+
+// Compose a transport name within both its destination capacity and byte limit.
+// Truncation never leaves a partial UTF-8 code point or mutates the source name.
+inline void formatUtf8Prefixed(char* destination, size_t capacity, const char* prefix,
+                              const char* name, size_t max_bytes) {
+  if (capacity == 0) return;
+  const size_t limit = max_bytes < capacity - 1 ? max_bytes : capacity - 1;
+  snprintf(destination, limit + 1, "%s%s", prefix, name);
+  destination[validUtf8PrefixLength(destination, limit)] = '\0';
 }
 
 }  // namespace mesh
