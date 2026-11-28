@@ -1301,7 +1301,8 @@ Ethernet support is available on RAK4631 boards with a RAK13800 (W5100S) Etherne
 - `eth.status`
 
 **Output:**
-- `ETH: <ip>:<port>` when connected (e.g. `ETH: 192.168.1.50:23`)
+- `ETH: <ip>:<port> ws:<ws-port>` when connected (e.g. `ETH: 192.168.1.50:23 ws:8023`)
+  - `ws:` is the WebSocket port for browser-based tools (omitted when built with `-D ETHERNET_WS_PORT=0`)
 - `ETH: not connected` when Ethernet is not active
 
 **Notes:**
@@ -1309,6 +1310,14 @@ Ethernet support is available on RAK4631 boards with a RAK13800 (W5100S) Etherne
 - The Ethernet interface obtains an IP address via DHCP automatically on boot.
 - A TCP server listens on port 23 (default) for CLI connections.
 - Connect with any TCP client (e.g. `nc`, PuTTY) to access the same CLI available over serial.
+- A WebSocket server listens on port 8023 (default) and serves the same CLI to browser-based tools.
+  - Web pages are only accepted when they are served from `localhost` (or from an origin added at build time with `-D ETHERNET_WS_ALLOWED_ORIGIN`).
+  - A config tool hosted on an HTTPS site cannot use it: the node has no TLS, and browsers don't let an HTTPS page open a plain WebSocket to another host. Run the tool locally (`http://localhost`).
+- One network session at a time: a new connection replaces the current one.
 - A line that doesn't fit the command buffer is answered with `ERR: line too long` and not executed.
+
+**Security:**
+- The network console has no password. Anyone who can reach the node on the network has full admin access: every setting, the admin password, the node's identity (`get prv.key` and `set prv.key`), `erase` and `reboot`.
+- Use Ethernet nodes on trusted networks only.
 
 ---
