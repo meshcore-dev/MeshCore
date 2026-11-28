@@ -6,6 +6,7 @@
 #include <SPI.h>
 #include <RAK13800_W5100S.h>
 #include <helpers/nrf52/EthernetMac.h>
+#include <helpers/nrf52/EthernetWebSocket.h>
 
 #define PIN_SPI1_MISO (29)
 #define PIN_SPI1_MOSI (30)
@@ -25,11 +26,67 @@ static SPIClass ETHERNET_SPI_PORT(NRF_SPIM1, PIN_SPI1_MISO, PIN_SPI1_SCK, PIN_SP
   #define ETHERNET_CLI_BANNER "MeshCore CLI"
 #endif
 
+// WebSocket access to the same CLI, for browser-based tools (browsers cannot
+// open raw TCP sockets). Set -D ETHERNET_WS_PORT=0 to disable.
+#ifndef ETHERNET_WS_PORT
+  #define ETHERNET_WS_PORT 8023
+#endif
+
+#if ETHERNET_WS_PORT == ETHERNET_TCP_PORT
+  #error "ETHERNET_WS_PORT must differ from ETHERNET_TCP_PORT"
+#endif
+
+// W5100S retransmission count (RCR). socketSend() has no timeout: it only returns
+// when the ACK arrives or the chip gives up and closes the socket. The chip default
+// (8 retries at 200 ms base, doubling) blocks loop() for ~32 s on a dead peer, starving
+// the LoRa radio; 3 retries (200+400+800+1600 ms) bounds it to ~3 s. Fine for LAN use.
+#ifndef ETHERNET_RETRANSMIT_COUNT
+  #define ETHERNET_RETRANSMIT_COUNT 3
+#endif
+
 #define ETHERNET_RETRY_INTERVAL_MS 30000
 
 static EthernetServer ethernet_server(ETHERNET_TCP_PORT);
 static EthernetClient ethernet_client;
 static volatile bool ethernet_running = false;
+static bool ethernet_session_changed = false;  // new/closed session: drop partial line
+static bool ethernet_skip_line = false;        // discarding the rest of an over-long line
+
+#if ETHERNET_WS_PORT
+static EthernetServer ethernet_ws_server(ETHERNET_WS_PORT);
+static EthernetClient ethernet_ws_client;   // active (upgraded) session
+static EthernetClient ethernet_ws_pending;  // connected, handshake in progress
+static WsHandshake ethernet_ws_handshake;
+static WsSession ethernet_ws;
+#endif
+
+// Only one CLI session at a time: the newest telnet connection or completed
+// WebSocket handshake wins.
+static bool ethernet_ws_active() {
+#if ETHERNET_WS_PORT
+  return ethernet_ws.state == WS_OPEN;
+#else
+  return false;
+#endif
+}
+
+static void ethernet_ws_close() {
+#if ETHERNET_WS_PORT
+  if (ethernet_ws_client) ethernet_ws_client.stop();
+  ethernet_ws.reset();
+#endif
+}
+
+// Write CLI output to whichever session is active
+static void ethernet_write(const char* text) {
+#if ETHERNET_WS_PORT
+  if (ethernet_ws_active()) {
+    if (ethernet_ws_client.connected()) ws_send_data(ethernet_ws_client, (const uint8_t*)text, strlen(text));
+    return;
+  }
+#endif
+  if (ethernet_client && ethernet_client.connected()) ethernet_client.print(text);
+}
 
 // FreeRTOS task: handles hw init, DHCP, and retries in the background
 static void ethernet_task(void* param) {
@@ -71,8 +128,13 @@ static void ethernet_task(void* param) {
 
     IPAddress ip = Ethernet.localIP();
     Serial.printf("ETH: IP: %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
+    Ethernet.setRetransmissionCount(ETHERNET_RETRANSMIT_COUNT);  // no concurrent SPI use yet
     Serial.printf("ETH: Listening on TCP port %d\n", ETHERNET_TCP_PORT);
     ethernet_server.begin();
+#if ETHERNET_WS_PORT
+    Serial.printf("ETH: WebSocket on port %d\n", ETHERNET_WS_PORT);
+    ethernet_ws_server.begin();
+#endif
     ethernet_running = true;
   }
 
@@ -91,66 +153,165 @@ static bool ethernet_handle_command(const char* command, char* reply) {
       strcpy(reply, "ETH: not connected");
     } else {
       IPAddress ip = Ethernet.localIP();
+#if ETHERNET_WS_PORT
+      sprintf(reply, "ETH: %u.%u.%u.%u:%d ws:%d", ip[0], ip[1], ip[2], ip[3],
+          ETHERNET_TCP_PORT, ETHERNET_WS_PORT);
+#else
       sprintf(reply, "ETH: %u.%u.%u.%u:%d", ip[0], ip[1], ip[2], ip[3], ETHERNET_TCP_PORT);
+#endif
     }
     return true;
   }
   return false;
 }
 
-// Check for new TCP client connections, replacing any existing connection.
+// Check for new TCP client connections. A new telnet connection replaces any
+// existing session; a WebSocket connection only replaces it once its handshake
+// has succeeded (so a rejected or stalled connect can't kick the active session).
+// Sockets: 2 listeners + 1 active + 1 pending/incoming = 4 = all W5100S sockets, for as
+// long as a handshake is pending next to an active session (see ethernet_sockets_full()).
+// A connection arriving in that state is still accepted (the chip turns the listening
+// socket into the connection); its port is just not listening again until a socket is free.
 // Use accept() (not available()) so we only see newly-accepted sockets;
 // available() also returns existing connected sockets that have data, which
 // would force us to disambiguate every inbound packet from a real new client.
 static void ethernet_check_client() {
+  // Release sockets whose peer has gone BEFORE accept() below: the library reuses a
+  // closed socket (e.g. to re-listen) and a stale handle would then stop() the wrong one.
+  if (ethernet_client && !ethernet_client.connected()) ethernet_client.stop();
+#if ETHERNET_WS_PORT
+  if (ethernet_ws_pending && !ethernet_ws_pending.connected()) ethernet_ws_pending.stop();
+  if (ethernet_ws_active() && !ethernet_ws_client.connected()) ethernet_ws_close();
+#endif
+
   auto newClient = ethernet_server.accept();
   if (newClient) {
     if (ethernet_client) ethernet_client.stop();
+    ethernet_ws_close();
+    ethernet_session_changed = true;
     ethernet_client = newClient;
     IPAddress ip = ethernet_client.remoteIP();
     Serial.printf("ETH: Client connected from %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
     ethernet_client.println(ETHERNET_CLI_BANNER);
   }
+
+#if ETHERNET_WS_PORT
+  auto wsClient = ethernet_ws_server.accept();
+  if (wsClient) {
+    if (ethernet_ws_pending) ethernet_ws_pending.stop();
+    ethernet_ws_pending = wsClient;
+    ethernet_ws_handshake.begin();
+    IPAddress ip = ethernet_ws_pending.remoteIP();
+    Serial.printf("ETH: WebSocket client from %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
+  }
+
+  if (ethernet_ws_pending) {
+    int r = ws_handshake_step(ethernet_ws_handshake, ethernet_ws_pending);
+    if (r < 0) {
+      ethernet_ws_pending.stop();  // FIN goes out after the queued HTTP error
+    } else if (r > 0) {
+      if (ethernet_client) ethernet_client.stop();
+      ethernet_ws_close();
+      ethernet_ws_client = ethernet_ws_pending;
+      ethernet_ws_pending = EthernetClient();
+      ethernet_ws.reset();
+      ethernet_ws.state = WS_OPEN;
+      ethernet_session_changed = true;
+      ethernet_write(ETHERNET_CLI_BANNER "\r\n");
+    }
+  }
+
+  if (ethernet_ws_active() && !ws_receive(ethernet_ws, ethernet_ws_client)) {
+    Serial.println("ETH: WebSocket closed");
+    ethernet_ws_close();
+  }
+#endif
+}
+
+// True while the CLI holds all four W5100S sockets (see ethernet_check_client()).
+static bool ethernet_sockets_full() {
+#if ETHERNET_WS_PORT
+  return (ethernet_client || ethernet_ws_active()) && ethernet_ws_pending;
+#else
+  return false;
+#endif
 }
 
 // Call from loop() to maintain DHCP and check for new clients
 static void ethernet_loop_maintain() {
   if (ethernet_running) {
     ethernet_check_client();
-    Ethernet.maintain();
+    // A DHCP renewal needs a socket of its own. If it finds none, the library gives up
+    // and never tries again (the lease would silently run out), so leave the renewal
+    // for a later pass: the library's lease timers run on millis() and catch up, and a
+    // pending handshake is gone within WS_HANDSHAKE_TIMEOUT_MS.
+    if (!ethernet_sockets_full()) Ethernet.maintain();
   }
+}
+
+static int ethernet_available() {
+#if ETHERNET_WS_PORT
+  if (ethernet_ws_active()) return ethernet_ws.available();
+#endif
+  return ethernet_client.available();
+}
+
+static int ethernet_read() {
+#if ETHERNET_WS_PORT
+  if (ethernet_ws_active()) return ethernet_ws.read();
+#endif
+  return ethernet_client.read();
 }
 
 // Read a line from the Ethernet client into the command buffer.
 // Returns true when a complete line is ready to process (command is null-terminated).
 // The caller should process the command and then reset ethernet_command[0] = 0.
+// Lines that don't fit the buffer are answered here with an error and never returned.
 static bool ethernet_read_line(char* ethernet_command, size_t buf_size) {
-  if (!ethernet_running || !ethernet_client || !ethernet_client.connected()) return false;
+  if (!ethernet_running) return false;
+  if (ethernet_session_changed) {  // don't carry a half-typed line into a new session
+    ethernet_session_changed = false;
+    ethernet_skip_line = false;
+    ethernet_command[0] = 0;
+  }
+  if (!ethernet_ws_active() && (!ethernet_client || !ethernet_client.connected())) return false;
 
   int elen = strlen(ethernet_command);
-  while (ethernet_client.available() && elen < (int)buf_size - 1) {
-    char c = ethernet_client.read();
+  if (elen >= (int)buf_size) { elen = 0; ethernet_command[0] = 0; }
+  bool complete = false;
+  while (!complete && ethernet_available()) {
+    char c = ethernet_read();
+    if (ethernet_skip_line) {
+      if (c == '\r' || c == '\n') ethernet_skip_line = false;
+      continue;
+    }
     if (c == '\n' && elen == 0) continue;  // ignore leading LF (from CR+LF)
-    if (c == '\r' || c == '\n') { ethernet_command[elen++] = '\r'; break; }
+    if (c == '\r' || c == '\n') { complete = true; break; }
+    if (elen >= (int)buf_size - 1) {  // doesn't fit: refuse it, a truncated command must not run
+      elen = 0;
+      ethernet_command[0] = 0;
+      ethernet_skip_line = true;
+      ethernet_write("\r\n  -> ERR: line too long\r\n");
+      continue;
+    }
     ethernet_command[elen++] = c;
     ethernet_command[elen] = 0;
   }
-  if (elen == (int)buf_size - 1) {
-    ethernet_command[buf_size - 1] = '\r';
-  }
-
-  if (elen > 0 && ethernet_command[elen - 1] == '\r') {
-    ethernet_command[elen - 1] = 0;
-    ethernet_client.println();
-    return true;
-  }
-  return false;
+  if (!complete) return false;
+  ethernet_write("\r\n");
+  return true;
 }
 
 // Send a reply to the Ethernet client
 static void ethernet_send_reply(const char* reply) {
   if (reply[0]) {
-    ethernet_client.print("  -> "); ethernet_client.println(reply);
+    char line[176];  // one write: each send blocks until the peer ACKs
+    int n = snprintf(line, sizeof(line), "  -> %s\r\n", reply);
+    if (n > 0 && n < (int)sizeof(line)) {
+      ethernet_write(line);
+    } else {
+      ethernet_write("  -> "); ethernet_write(reply); ethernet_write("\r\n");
+    }
   }
 }
 
