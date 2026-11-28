@@ -45,6 +45,7 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   pTxCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID_TX, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
   pTxCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENC_MITM);
   pTxCharacteristic->addDescriptor(new BLE2902());
+  pTxCharacteristic->setCallbacks(this);
 
   BLECharacteristic * pRxCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID_RX, BLECharacteristic::PROPERTY_WRITE);
   pRxCharacteristic->setAccessPermissions(ESP_GATT_PERM_WRITE_ENC_MITM);
@@ -130,6 +131,13 @@ void SerialBLEInterface::onWrite(BLECharacteristic* pCharacteristic, esp_ble_gat
 
 // ---------- public methods
 
+void SerialBLEInterface::onStatus(BLECharacteristic* pCharacteristic, Status status, uint32_t code) {
+  // Bluedroid reports notification submission status synchronously from notify().
+  if (pCharacteristic == pTxCharacteristic) {
+    _notify_success = status == Status::SUCCESS_NOTIFY;
+  }
+}
+
 void SerialBLEInterface::clearBuffers() {
   xQueueReset(recv_queue);
   send_queue_len = 0;
@@ -189,7 +197,8 @@ size_t SerialBLEInterface::writeFrame(const uint8_t src[], size_t len) {
 #define  BLE_WRITE_MIN_INTERVAL   60
 
 bool SerialBLEInterface::isWriteBusy() const {
-  return millis() < _last_write + BLE_WRITE_MIN_INTERVAL;   // still too soon to start another write?
+  return send_queue_len >= FRAME_QUEUE_SIZE
+    || millis() < _last_write + BLE_WRITE_MIN_INTERVAL;
 }
 
 size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
@@ -198,18 +207,22 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
   ) {
     _last_write = millis();
     pTxCharacteristic->setValue(send_queue[0].buf, send_queue[0].len);
+    _notify_success = false;
     pTxCharacteristic->notify();
 
-    BLE_DEBUG_PRINTLN("writeBytes: sz=%d, hdr=%d", (uint32_t)send_queue[0].len, (uint32_t) send_queue[0].buf[0]);
+    if (_notify_success) {
+      BLE_DEBUG_PRINTLN("writeBytes: sz=%d, hdr=%d", (uint32_t)send_queue[0].len, (uint32_t) send_queue[0].buf[0]);
 
-    send_queue_len--;
-    for (int i = 0; i < send_queue_len; i++) {   // delete top item from queue
-      send_queue[i] = send_queue[i + 1];
+      send_queue_len--;
+      for (int i = 0; i < send_queue_len; i++) {   // delete top item from queue
+        send_queue[i] = send_queue[i + 1];
+      }
     }
   }
 
   Frame frame;
-  if (xQueueReceive(recv_queue, &frame, 0) == pdTRUE) {
+  // Leave room for the command's reply while a notification is being retried.
+  if (send_queue_len < FRAME_QUEUE_SIZE && xQueueReceive(recv_queue, &frame, 0) == pdTRUE) {
     memcpy(dest, frame.buf, frame.len);
     BLE_DEBUG_PRINTLN("readBytes: sz=%d, hdr=%d", (uint32_t) frame.len, (uint32_t) dest[0]);
     return frame.len;
