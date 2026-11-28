@@ -2,26 +2,19 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include "RadioLibWrappers.h"
 
-#define STATE_IDLE       0
-#define STATE_RX         1
-#define STATE_TX_WAIT    3
-#define STATE_TX_DONE    4
-#define STATE_INT_READY 16
-
 #define NUM_NOISE_FLOOR_SAMPLES  64
 #define SAMPLING_THRESHOLD  14
 
-static volatile uint8_t state = STATE_IDLE;
+volatile uint8_t RadioLibWrapper::state = STATE_IDLE;
 
 // this function is called when a complete packet
 // is transmitted by the module
-static
 #if defined(ESP8266) || defined(ESP32)
   ICACHE_RAM_ATTR
 #endif
-void setFlag(void) {
+void RadioLibWrapper::setFlag(void) {
   // we sent a packet, set the flag
-  state |= STATE_INT_READY;
+  RadioLibWrapper::state |= STATE_INT_READY;
 }
 
 void RadioLibWrapper::begin() {
