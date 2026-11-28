@@ -1,5 +1,27 @@
 #include "ConfigSerializer.h"
 #include <stdlib.h>   // atoi/atol/atof (Arduino.h pulls this in on-device, native builds do not)
+#include <string.h>   // memcpy, for the bit check below
+#include <stdint.h>
+
+namespace {
+
+// True if the value is a finite number. NaN and infinity are recognised by
+// their bits, not by a comparison: nRF52 builds compile with -Ofast, whose
+// -ffast-math lets float comparisons assume that NaN and infinity never
+// occur, so a comparison alone may let them through.
+bool isFinite(float v) {
+  uint32_t bits;
+  memcpy(&bits, &v, sizeof(bits));
+  return (bits & 0x7F800000u) != 0x7F800000u;
+}
+
+bool isFinite(double v) {
+  uint64_t bits;
+  memcpy(&bits, &v, sizeof(bits));
+  return (bits & 0x7FF0000000000000ull) != 0x7FF0000000000000ull;
+}
+
+}  // namespace
 
 bool ConfigSerializer::saveSerial(Stream& s) {
   Context context(&s, OP::WRITE);
@@ -294,7 +316,11 @@ void ConfigSerializer::def(const char* key, double& value) {
     }
   } else {
     if (_context->keyMatch(_depth, key)) {
-      value = atof(_context->getToken());
+      // A token that is not a finite number is no value: leave what is already
+      // in the field, which is the default the firmware set up before reading
+      // the file.
+      double parsed = atof(_context->getToken());
+      if (isFinite(parsed)) value = parsed;
     }
   }
 }
@@ -311,7 +337,10 @@ void ConfigSerializer::def(const char* key, float& value) {
     }
   } else {
     if (_context->keyMatch(_depth, key)) {
-      value = (float) atof(_context->getToken());
+      // Checked after the narrowing to float, since a value that is finite as
+      // a double can overflow to infinity as a float.
+      float parsed = (float) atof(_context->getToken());
+      if (isFinite(parsed)) value = parsed;
     }
   }
 }
