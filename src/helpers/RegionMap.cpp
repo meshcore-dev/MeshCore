@@ -1,4 +1,5 @@
 #include "RegionMap.h"
+#include "AtomicFile.h"
 #include <helpers/TxtDataHelpers.h>
 #include <SHA256.h>
 
@@ -58,18 +59,8 @@ static const char* skip_hash(const char* name) {
   return *name == '#' ? name + 1 : name;
 }
 
-static File openWrite(FILESYSTEM* _fs, const char* filename) {
-  #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-    _fs->remove(filename);
-    return _fs->open(filename, FILE_O_WRITE);
-  #elif defined(RP2040_PLATFORM)
-    return _fs->open(filename, "w");
-  #else
-    return _fs->open(filename, "w", true);
-  #endif
-}
-
 bool RegionMap::load(FILESYSTEM* _fs, const char* path) {
+  AtomicFile::cleanup(_fs, path ? path : "/regions2");
   if (_fs->exists(path ? path : "/regions2")) {
   #if defined(RP2040_PLATFORM)
     File file = _fs->open(path ? path : "/regions2", "r");
@@ -117,8 +108,7 @@ bool RegionMap::load(FILESYSTEM* _fs, const char* path) {
 }
 
 bool RegionMap::save(FILESYSTEM* _fs, const char* path) {
-  File file = openWrite(_fs, path ? path : "/regions2");
-  if (file) {
+  return AtomicFile::write(_fs, path ? path : "/regions2", [&](File& file) {
     uint8_t pad[128];
     memset(pad, 0, sizeof(pad));
 
@@ -140,10 +130,8 @@ bool RegionMap::save(FILESYSTEM* _fs, const char* path) {
         if (!success) break; // write failed
       }
     }
-    file.close();
     return success;
-  }
-  return false;  // failed
+  });
 }
 
 RegionEntry* RegionMap::putRegion(const char* name, uint16_t parent_id, uint16_t id) {
