@@ -34,6 +34,13 @@ class NV3001BDisplay : public DisplayDriver {
   uint8_t text_size = 1;
   int cursor_x = 0;
   int cursor_y = 0;
+  bool nativePixels = false;
+
+  int scaleX(int x) const;
+  int scaleY(int y) const;
+  int scaleWidth(int x, int w) const;
+  int scaleHeight(int y, int h) const;
+  int textPixelScaleY(uint8_t size) const;
 
   void writeCommand(uint8_t cmd);
   void writeBytes(const uint8_t* data, size_t len);
@@ -59,6 +66,7 @@ public:
 #endif
 
   bool begin();
+  void setNativePixels(bool enabled);
   static const char* driverName() { return "NV3001B"; }
   static uint16_t physicalWidth() { return NV3001B_PANEL_WIDTH; }
   static uint16_t physicalHeight() { return NV3001B_PANEL_HEIGHT; }
