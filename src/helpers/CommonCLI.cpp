@@ -170,12 +170,15 @@ void CommonCLI::savePrefs() {
 uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
   if (_prefs->advert_loc_policy == ADVERT_LOC_NONE) {
     AdvertDataBuilder builder(node_type, _prefs->node_name);
+    builder.setFeat1((1 << CRYPTO_LEGACY) | (1 << CRYPTO_NEW_V1)); // indicate which CRYPTO_* modes are supported
     return builder.encodeTo(app_data);
   } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE) {
     AdvertDataBuilder builder(node_type, _prefs->node_name, _sensors->node_lat, _sensors->node_lon);
+    builder.setFeat1((1 << CRYPTO_LEGACY) | (1 << CRYPTO_NEW_V1)); // indicate which CRYPTO_* modes are supported
     return builder.encodeTo(app_data);
   } else {
     AdvertDataBuilder builder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
+    builder.setFeat1((1 << CRYPTO_LEGACY) | (1 << CRYPTO_NEW_V1)); // indicate which CRYPTO_* modes are supported
     return builder.encodeTo(app_data);
   }
 }
@@ -579,6 +582,11 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     }
+  } else if (memcmp(config, "wide.snr.thresh ", 16) == 0) {
+    config += 16;
+    _prefs->wide_snr_threshold = atof(config);
+    savePrefs();
+    strcpy(reply, "OK");
   } else if (sender_timestamp == 0 && memcmp(config, "freq ", 5) == 0) {
     _prefs->freq = atof(&config[5]);
     savePrefs();
@@ -736,6 +744,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "> strict");
     }
+  } else if (memcmp(config, "wide.snr.thresh", 15) == 0) {
+    sprintf(reply, "> %.2f", _prefs->wide_snr_threshold);
   } else if (memcmp(config, "public.key", 10) == 0) {
     strcpy(reply, "> ");
     mesh::Utils::toHex(&reply[2], _callbacks->getSelfId().pub_key, PUB_KEY_SIZE);

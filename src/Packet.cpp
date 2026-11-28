@@ -8,6 +8,7 @@ Packet::Packet() {
   header = 0;
   path_len = 0;
   payload_len = 0;
+  path_hdr = 0;
 }
 
 bool Packet::isValidPathLen(uint8_t path_len) {
@@ -35,7 +36,16 @@ uint8_t Packet::copyPath(uint8_t* dest, const uint8_t* src, uint8_t path_len) {
 }
 
 int Packet::getRawLength() const {
-  return 2 + getPathByteLen() + payload_len + (hasTransportCodes() ? 4 : 0);
+  return ((path_hdr & 0x80) ? 3 : 2) + getPathByteLen() + payload_len + (hasTransportCodes() ? 4 : 0);
+}
+
+bool Packet::isPathAtEnd() const {
+  if (getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT) {
+    // has cursor reached end?
+    uint8_t cursor = (transport_codes[0] >> 8) & 63;  // lower 6 bits only
+    return cursor >= getPathHashCount();
+  }
+  return getPathHashCount() == 0;  // legacy Direct mode, path gets consumed
 }
 
 void Packet::calculatePacketHash(uint8_t* hash) const {
@@ -44,6 +54,11 @@ void Packet::calculatePacketHash(uint8_t* hash) const {
   sha.update(&t, 1);
   if (t == PAYLOAD_TYPE_TRACE) {
     sha.update(&path_len, sizeof(path_len));   // CAVEAT: TRACE packets can revisit same node on return path
+  }
+  if (getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && transport_codes[1] != 0) {  // has seq-no & session-id
+    sha.update(&transport_codes[1], 2);   // session-id
+    uint8_t seq_no = transport_codes[0] & 0xFF;  // low 8 bits
+    sha.update(&seq_no, 1);
   }
   sha.update(payload, payload_len);
   sha.finalize(hash, MAX_HASH_SIZE);
@@ -56,7 +71,12 @@ uint8_t Packet::writeTo(uint8_t dest[]) const {
     memcpy(&dest[i], &transport_codes[0], 2); i += 2;
     memcpy(&dest[i], &transport_codes[1], 2); i += 2;
   }
-  dest[i++] = path_len;
+  if (path_hdr & 0x80) {   // new path encoding
+    dest[i++] = (3 << 6) | (path_len & 63);   // path_len, with new path-mode 3
+    dest[i++] = (path_len & (3 << 6)) | (path_hdr & 0x0F);  // new path header byte
+  } else {
+    dest[i++] = path_len;
+  }
   i += writePath(&dest[i], path, path_len);
   memcpy(&dest[i], payload, payload_len); i += payload_len;
   return i;
@@ -71,7 +91,20 @@ bool Packet::readFrom(const uint8_t src[], uint8_t len) {
   } else {
     transport_codes[0] = transport_codes[1] = 0;
   }
-  path_len = src[i++];
+  uint8_t pl = src[i++];
+  uint8_t pm = pl >> 6;
+  if (pm == 3) {   // New scheme
+    uint8_t ph = src[i++];   // new path header byte
+    uint8_t reserved = (ph >> 4) & 3;
+    if (reserved != 0) return false;  // bad encoding
+
+    path_len = (ph & (3 << 6)) | (pl & 63);  // hash-size is now in path_hdr, but hash-count is still in path_len
+    path_hdr = 0x80 | (ph & 0x0F);  // set high-bit so we now it was in path-mode 3
+  } else {
+    path_hdr = 0;
+    path_len = pl;
+  }
+
   if (!isValidPathLen(path_len)) return false;   // bad encoding
 
   uint8_t bl = getPathByteLen();
