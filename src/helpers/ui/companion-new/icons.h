@@ -135,3 +135,13 @@ static const uint8_t charging_icon[] = {
 static const uint8_t plug_icon[] = {
   0x24, 0x24, 0x7E, 0x7E, 0x7E, 0x3C, 0x18, 0x18
 };
+
+// small Bluetooth rune, 8x8px, shown in header when host is connected
+static const uint8_t ble_conn_icon[] = {
+  0x10, 0x18, 0x54, 0x38, 0x38, 0x54, 0x18, 0x10
+};
+
+// small location pin, 8x8px, shown in header when GPS has a valid fix
+static const uint8_t gps_fix_icon[] = {
+  0x3C, 0x42, 0x5A, 0x5A, 0x42, 0x24, 0x18, 0x18
+};
