@@ -42,6 +42,10 @@
 
 #include <helpers/BaseChatMesh.h>
 
+#if CONTACT_OUT_PATH_SIZE < MAX_PATH_SIZE
+  #error "this file-based contact store writes 64-byte routes: build it with the default CONTACT_OUT_PATH_SIZE"
+#endif
+
 #define SEND_TIMEOUT_BASE_MILLIS          500
 #define FLOOD_SEND_TIMEOUT_FACTOR         16.0f
 #define DIRECT_SEND_PERHOP_FACTOR         6.0f

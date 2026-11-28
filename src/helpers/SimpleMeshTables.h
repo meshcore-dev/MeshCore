@@ -6,7 +6,9 @@
   #include <FS.h>
 #endif
 
-#define MAX_PACKET_HASHES  (128+32)
+#ifndef MAX_PACKET_HASHES
+  #define MAX_PACKET_HASHES  (128+32)
+#endif
 
 class SimpleMeshTables : public mesh::MeshTables {
   uint8_t _hashes[MAX_PACKET_HASHES*MAX_HASH_SIZE];
