@@ -41,10 +41,11 @@ void Dispatcher::updateTxBudget() {
 
   float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
   unsigned long max_budget = (unsigned long)(getDutyCycleWindowMs() * duty_cycle);
-  unsigned long refill = (unsigned long)(elapsed * duty_cycle);
-  
-  if (refill > 0) {
-    tx_budget_ms += refill;
+  float refill = elapsed * duty_cycle + tx_budget_carry;   // keep the fraction, truncating it lost up to 1 ms per call
+
+  if (refill >= 1.0f) {
+    tx_budget_ms += (unsigned long)refill;
+    tx_budget_carry = refill - (unsigned long)refill;
     if (tx_budget_ms > max_budget) {
       tx_budget_ms = max_budget;
     }
