@@ -162,6 +162,12 @@ public:
     return size;
   }
 
+  static uint8_t readGPS(const uint8_t* _buf, float& lat, float& lon, float& alt) {
+    lat = getFloat(&_buf[0], 3, 10000, true);
+    lon = getFloat(&_buf[3], 3, 10000, true);
+    alt = getFloat(&_buf[6], 3, 100, true);
+    return 9;
+  }
 };
 
 class LPPReader {
