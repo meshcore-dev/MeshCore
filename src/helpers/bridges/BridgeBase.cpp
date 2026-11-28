@@ -31,6 +31,14 @@ bool BridgeBase::validateChecksum(const uint8_t *data, size_t len, uint16_t rece
   return received_checksum == calculated_checksum;
 }
 
+void BridgeBase::xorCrypt(uint8_t *data, size_t len) {
+  size_t keyLen = strnlen(_prefs->bridge_secret, sizeof(_prefs->bridge_secret));
+  if (keyLen == 0) return;
+  for (size_t i = 0; i < len; i++) {
+    data[i] ^= _prefs->bridge_secret[i % keyLen];
+  }
+}
+
 void BridgeBase::handleReceivedPacket(mesh::Packet *packet) {
   // Guard against uninitialized state
   if (_initialized == false) {
