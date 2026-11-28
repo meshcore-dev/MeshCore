@@ -1,5 +1,6 @@
 #include "UITask.h"
 #include <helpers/TxtDataHelpers.h>
+#include <helpers/ui/EuSummerTime.h>
 #include "target.h"
 #include <time.h>
 #include <RTClib.h>
@@ -354,8 +355,9 @@ public:
       #endif
       if (_node_prefs->ui_show_clock) {
         display.setTextSize(3);
-        uint32_t now = _rtc->getCurrentTime();
-        now += (int32_t)(_node_prefs->tz_offset * 3600);
+        uint32_t utc = _rtc->getCurrentTime();
+        uint32_t now = utc + (int32_t)(_node_prefs->tz_offset * 3600);
+        now += clockDstOffset(_node_prefs->ui_clock_dst, utc);
         DateTime dt (now);
         sprintf(tmp, "%02d:%02d", dt.hour(), dt.minute());
         display.drawTextCentered(display.width() / 2, 60, tmp);

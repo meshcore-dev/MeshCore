@@ -2278,6 +2278,12 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     sprintf(reply, "> now %d", _prefs.ui_show_clock);
     return true;
   }
+  if (memcmp(command, "set ui.clock_dst", 16) == 0) {
+    _prefs.ui_clock_dst = atoi(&command[16]);
+    savePrefs();
+    sprintf(reply, "> now %d", _prefs.ui_clock_dst);
+    return true;
+  }
   if (memcmp(command, "set ui.auto_off_delay", 21) == 0) {
     _prefs.ui_auto_off_delay = atoi(&command[21]);
     savePrefs();
@@ -2345,6 +2351,10 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
   if (memcmp(command, "get ui.show_clock", 17) == 0) {
     sprintf(reply, "> %d", _prefs.ui_show_clock);
+    return true;
+  }
+  if (memcmp(command, "get ui.clock_dst", 16) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_clock_dst);
     return true;
   }
   if (memcmp(command, "get ui.auto_off_delay", 21) == 0) {
